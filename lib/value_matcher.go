@@ -1,58 +1,104 @@
 package quamina
 
-// valueMatchState maps field values to the next automaton fieldMatchStates.
-// this is a primitive first-cut approach. It doesn't know that "x": 35, "x": 3.5e1, and "x": 35.0 are
-//  the same. It has no facilities for matching on prefixes or ranges, nor for negative matching.
-// valueTransitions maps fields, as strings, to the next field-matching state from some pattern
-// existsTransitions contains transitions on field existence (thus any value)
-type valueMatchState struct {
-	valueTransitions  map[string]*fieldMatchState
-	existsTransitions []*fieldMatchState
+import (
+	"bytes"
+)
+
+//  SmallValueMatcher represents a byte-driven automaton.  The simplest implementation would be
+//   for each step to be driven by the equivalent of a map[byte]nextState.  This is done with the startTable field.
+//   In some cases there is only one byte sequence forward from a state, in which case that would be provided in
+//   the singletonMatch field; if it matches, the singletonTransition is the return value. This is to avoid
+//   having a long of smallTables each with only one entry
+type valueMatcher struct {
+	startTable          *smallTable
+	singletonMatch      []byte
+	singletonTransition *fieldMatchState
+	existsTransitions   []*fieldMatchState
 }
 
-func newValueMatchState() *valueMatchState {
-	return &valueMatchState{valueTransitions: make(map[string]*fieldMatchState)}
+func newValueMatcher() *valueMatcher {
+	return &valueMatcher{}
 }
 
-func (m *valueMatchState) addTransition(val typedVal) *fieldMatchState {
-	var next *fieldMatchState
+func (m *valueMatcher) transitionOn(val []byte) []*fieldMatchState {
+	var transitions []*fieldMatchState
+	transitions = append(transitions, m.existsTransitions...)
+
+	// if there's no table, the singletonMatch either matches the val or it doesn't
+	if m.startTable == nil {
+		if bytes.Equal(m.singletonMatch, val) {
+			transitions = append(transitions, m.singletonTransition)
+		}
+		return transitions
+	}
+
+	// step through the smallTables, byte by byte
+	table := m.startTable
+	for _, utf8Byte := range val {
+		table = table.step(utf8Byte)
+		if table == nil {
+			return transitions
+		}
+	}
+
+	// we only do a field-level transition if there's one in the table that the last character in val arrives at
+	if table.transition != nil {
+		transitions = append(transitions, table.transition)
+	}
+
+	return transitions
+}
+
+func (m *valueMatcher) addTransition(val typedVal) *fieldMatchState {
+	valBytes := []byte(val.val)
+
 	if val.vType == existsTrueType || val.vType == existsFalseType {
-		next = newFieldMatchState()
+		next := newFieldMatchState()
 		m.existsTransitions = append(m.existsTransitions, next)
 		return next
 	}
 
-	var ok bool
-	next, ok = m.valueTransitions[val.val]
-	if !ok {
-		next = newFieldMatchState()
-		m.valueTransitions[val.val] = next
+	// there's already a table, thus an out-degree > 1
+	if m.startTable != nil {
+		return m.addSteps(valBytes, nil)
 	}
-	return next
+
+	// no start table, we have to work with singletons …
+
+	// … unless this is completely virgin, in which case put in the singleton
+	if m.singletonMatch == nil {
+		m.singletonMatch = valBytes
+		m.singletonTransition = newFieldMatchState()
+		return m.singletonTransition
+	}
+
+	// singleton match is here and this value matches it
+	if bytes.Equal(m.singletonMatch, valBytes) {
+		return m.singletonTransition
+	}
+
+	// singleton is here, we don't match, so our outdegree becomes 2, so we have to build two smallTable chains
+	m.startTable = newSmallTable()
+	_ = m.addSteps(m.singletonMatch, m.singletonTransition) // be careful to re-use singleton transition
+	m.singletonMatch = nil                                  // cleanliness next to Godliness
+	m.singletonTransition = nil
+	return m.addSteps(valBytes, nil)
 }
 
-// transitionOn transitions to a new fieldMatchState either based on the value (as a string) or
-//  based on the field's existence
-func (m *valueMatchState) transitionOn(val []byte) []*fieldMatchState {
-
-	var transitions []*fieldMatchState
-	for _, existsTransition := range m.existsTransitions {
-		transitions = append(transitions, existsTransition)
+func (m *valueMatcher) addSteps(val []byte, useThisTransition *fieldMatchState) *fieldMatchState {
+	table := m.startTable
+	for _, utf8Byte := range val {
+		next := table.step(utf8Byte)
+		if next == nil {
+			next = newSmallTable()
+			table.addRange([]byte{utf8Byte}, next)
+		}
+		table = next
 	}
-	next, ok := m.valueTransitions[string(val)]
-	if ok {
-		transitions = append(transitions, next)
+	if useThisTransition != nil {
+		table.transition = useThisTransition
+	} else if table.transition == nil {
+		table.transition = newFieldMatchState()
 	}
-	return transitions
+	return table.transition
 }
-
-// for debugging
-/*
-func (m *valueMatchState) String() string {
-	var keys = []string{"VM"}
-	for k := range m.transitions {
-		keys = append(keys, k)
-	}
-	return strings.Join(keys, " / ")
-}
-*/

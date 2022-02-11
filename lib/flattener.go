@@ -10,7 +10,9 @@ type Field struct {
 	ArrayTrail []ArrayPos
 }
 
-// Flattener by example:
+// Flattener is provided as an interface in the hope that flatterners for other non-JSON message formats might
+//  be implemented.
+// How it needs to work, by JSON example:
 // { "a": 1, "b": "two", "c": true", "d": nil, "e": { "e1": 2, "e2":, 3.02e-5} "f": [33, "x"]} }
 // should produce
 // "a", "1"
@@ -30,7 +32,6 @@ type Field struct {
 // "a", "1"
 // "f", "33"
 // "f", "\"x\""
-
 type Flattener interface {
 	Flatten(event []byte, nameTracker NameTracker) ([]Field, error)
 	Reset()

@@ -28,6 +28,24 @@ type patternField struct {
 	vals []typedVal
 }
 
+// for debugging
+func (f *patternField) String() string {
+	s := fmt.Sprintf("p=%s: ", f.path)
+	var v string
+	for _, val := range f.vals {
+		switch val.vType {
+		case existsTrueType:
+			v = " exists:true"
+		case existsFalseType:
+			v = " exists:false"
+		default:
+			v = " <" + val.val + ">"
+		}
+		s += v
+	}
+	return s
+}
+
 type patternBuild struct {
 	jd         *json.Decoder
 	path       []string

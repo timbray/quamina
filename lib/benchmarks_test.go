@@ -61,7 +61,9 @@ func TestCityLots(t *testing.T) {
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	patterns := []string{
 		`{ "properties": { "STREET": [ "CRANLEIGH" ] } }`,

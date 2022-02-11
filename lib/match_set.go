@@ -1,5 +1,7 @@
 package quamina
 
+// matchSet is what it says on the tin; implements a set semantic on matches, which are of type X. These could all
+//  be implemented as match[X]bool but this makes the calling code more readable.
 type matchSet struct {
 	set map[X]bool
 }
@@ -11,24 +13,10 @@ func newMatchSet() *matchSet {
 func (m *matchSet) addX(x X) {
 	m.set[x] = true
 }
-func (m *matchSet) removeX(x X) {
-	delete(m.set, x)
-}
+
 func (m *matchSet) contains(x X) bool {
 	_, ok := m.set[x]
 	return ok
-}
-
-func (m *matchSet) subtractXs(xs []X) {
-	for _, x := range xs {
-		delete(m.set, x)
-	}
-}
-
-func (m *matchSet) addSet(addend *matchSet) {
-	for x := range addend.set {
-		m.set[x] = true
-	}
 }
 
 func (m *matchSet) matches() []X {

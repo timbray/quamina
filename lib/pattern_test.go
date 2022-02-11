@@ -36,34 +36,34 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"x": [ {"exists": true} ] }`,
 		`{"x": { "y": [ {"exists": false} ] } }`,
 	}
-	w1 := []*patternField{&patternField{path: "x", vals: []typedVal{typedVal{numberType, "2"}}}}
-	w2 := []*patternField{&patternField{path: "x", vals: []typedVal{
+	w1 := []*patternField{{path: "x", vals: []typedVal{{numberType, "2"}}}}
+	w2 := []*patternField{{path: "x", vals: []typedVal{
 		{literalType, "null"},
 		{literalType, "true"},
 		{literalType, "false"},
 		{stringType, `"hopp"`},
 		{numberType, "3.072e-11"},
-	}}}
+		}}}
 	w3 := []*patternField{
-		&patternField{path: "x\na", vals: []typedVal{
+		{path: "x\na", vals: []typedVal{
 			{numberType, "27"},
 			{numberType, "28"},
 		}},
-		&patternField{path: "x\nb\nm", vals: []typedVal{
+		{path: "x\nb\nm", vals: []typedVal{
 			{stringType, `"a"`},
 			{stringType, `"b"`},
 		}},
 	}
 	w4 := []*patternField{
-		&patternField{path: "x", vals: []typedVal{
+		{path: "x", vals: []typedVal{
 			{vType: existsTrueType, val: ""},
 		},
-		}}
+				}}
 	w5 := []*patternField{
-		&patternField{path: "x\ny", vals: []typedVal{
+		{path: "x\ny", vals: []typedVal{
 			{vType: existsFalseType, val: ""},
 		},
-		}}
+				}}
 	wanted := [][]*patternField{w1, w2, w3, w4, w5}
 
 	for i, good := range goods {

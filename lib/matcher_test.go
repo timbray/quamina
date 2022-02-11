@@ -15,20 +15,13 @@ func TestBasicMatching(t *testing.T) {
 		t.Error(err.Error())
 	}
 	shouldMatch := []string{
-		`{"a": 2, "b": "3", "x": 33}`,
 		`{"b": "3", "a": 1}`,
+		`{"a": 2, "b": "3", "x": 33}`,
 	}
 	shouldNotMatch := []string{
 		`{"b": "3", "a": 6}`,
 		`{"a": 2}`,
 		`{"b": "3"}`,
-	}
-	for _, shouldNot := range shouldNotMatch {
-		var matches []X
-		matches, err = m.MatchesForJSONEvent([]byte(shouldNot))
-		if len(matches) != 0 {
-			t.Error("Matched: " + shouldNot)
-		}
 	}
 	for _, should := range shouldMatch {
 		var matches []X
@@ -40,6 +33,13 @@ func TestBasicMatching(t *testing.T) {
 			t.Errorf("event %s, LM %d", should, len(matches))
 		}
 	}
+	for _, shouldNot := range shouldNotMatch {
+		var matches []X
+		matches, err = m.MatchesForJSONEvent([]byte(shouldNot))
+		if len(matches) != 0 {
+			t.Error("Matched: " + shouldNot)
+		}
+	}
 }
 
 func TestExerciseMatching(t *testing.T) {
@@ -49,7 +49,7 @@ func TestExerciseMatching(t *testing.T) {
             "Height": 600,
             "Title":  "View from 15th Floor",
             "Thumbnail": {
-                "Url":    "http://www.example.com/image/481989943",
+                "Url":    "https://www.example.com/image/481989943",
                 "Height": 125,
                 "Width":  100
             },
@@ -128,64 +128,9 @@ func TestSimpleAddPattern(t *testing.T) {
 		t.Errorf("s0 trans len %d", len(s0.transitions))
 	}
 
-	v0, ok := s0.transitions["a"]
+	_, ok := s0.transitions["a"]
 	if !ok {
 		t.Error("No trans from start on 'a'")
 	}
-	if len(v0.valueTransitions) != 2 {
-		t.Errorf("v1 trans %d wanted 2", len(v0.valueTransitions))
-	}
-	s1, ok := v0.valueTransitions["1"]
-	if !ok {
-		t.Error("no trans on 1 fro s1")
-	}
-	s2, ok := v0.valueTransitions["2"]
-	if !ok {
-		t.Error("no trans on 2 from s2")
-	}
-	if len(s1.transitions) != 1 {
-		t.Errorf("s1 trans len %d", len(s1.transitions))
-	}
-	if len(s2.transitions) != 1 {
-		t.Errorf("s2 trans len %d", len(s2.transitions))
-	}
-	v1, ok := s1.transitions["b"]
-	if !ok {
-		t.Error("no trans on b from s1")
-	}
-	v2, ok := s2.transitions["b"]
-	if !ok {
-		t.Error("no trans on b from s2")
-	}
-	for _, v := range []*valueMatchState{v1, v2} {
-		if len(v.valueTransitions) != 2 {
-			t.Errorf("trans len on %v = %d", v, len(v.valueTransitions))
-		}
-		s3, ok := v.valueTransitions["1"]
-		if !ok {
-			t.Error("no trans on 1 at s3")
-		}
-		if len(s3.transitions) != 0 {
-			t.Errorf("len trans s3 = %d", len(s3.transitions))
-		}
-		if len(s3.matches) != 1 {
-			t.Errorf("s3 matches %d", len(s3.matches))
-		}
-		if s3.matches[0] != x {
-			t.Error("s3 match mismatch")
-		}
-		s4, ok := v.valueTransitions[`"3"`]
-		if !ok {
-			t.Error(`no trans on "3" at s4`)
-		}
-		if len(s4.transitions) != 0 {
-			t.Errorf("len trans s4 = %d", len(s4.transitions))
-		}
-		if len(s4.matches) != 1 {
-			t.Errorf("s4 matches %d", len(s4.matches))
-		}
-		if s4.matches[0] != x {
-			t.Error("s4 match mismatch")
-		}
-	}
+	// TODO: Consider hand-checking the smallValueMacher structure
 }

@@ -661,7 +661,7 @@ func (fj *FJ) stepOneArrayElement() {
 	fj.arrayTrail[len(fj.arrayTrail)-1].Pos++
 }
 
-// ch fetches the next byte from the event, while tracking line/column numbers. It doesn't check array bounds,
+// ch fetches the next byte from the event. It doesn't check array bounds,
 //  so it's the caller's responsibility to ensure we haven't run off the end of the event.
 func (fj *FJ) ch() byte {
 	return fj.event[fj.eventIndex]

@@ -13,7 +13,7 @@ import (
 )
 
 // Matcher uses a finite automaton to implement the MatchesForJSONEvent and MatchesForFields functions.
-// startState is the start of the atomaton
+// startState is the start of the automaton
 // namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
 //  patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
 //  fields that do not appear in patterns when using the automaton for matching
@@ -66,7 +66,7 @@ func (m *Matcher) AddPattern(x X, patternJSON string) error {
 
 	// "states" now holds the set of terminal states arrived at by matching each field in the pattern,
 	//   so update the matches value to indicate this (skipping those that are only there to serve
-	//   exists:false processing
+	//   exists:false processing)
 	for _, endState := range states {
 		if !endState.existsFalseFailures.contains(x) {
 			endState.matches = append(endState.matches, x)
@@ -108,9 +108,9 @@ func (m *Matcher) matchesForSortedFields(fields []Field) *matchSet {
 
 	failedExistsFalseMatches := newMatchSet()
 
-	// The idea is that we addX potential field transitions to the proposals list; any time such a transition
+	// The idea is that we add potential field transitions to the proposals list; any time such a transition
 	//  succeeds, i.e. matches a particular field and moves to a new state, we propose transitions from that
-	//  state on all the following fields in the list
+	//  state on all the following fields in the event
 	// Start by giving each field a chance to match against the start state. Doing it by pre-allocating the
 	//  proposals and filling in their values is observably faster than the more idiomatic append()
 	proposals := make([]proposedTransition, len(fields))
@@ -134,7 +134,7 @@ func (m *Matcher) matchesForSortedFields(fields []Field) *matchSet {
 		// for each state in the set of transitions from the proposed state
 		for _, nextState := range nextStates {
 
-			// if arriving at this state means we've matched one or more patterns, record that fact (& lose dupes)
+			// if arriving at this state means we've matched one or more patterns, record that fact
 			for _, nextMatch := range nextState.matches {
 				matches.addX(nextMatch)
 			}
@@ -187,21 +187,3 @@ func (m *Matcher) IsNameUsed(label []byte) bool {
 	_, ok := m.namesUsed[string(label)]
 	return ok
 }
-
-// for debugging
-/*
-func prettyField(f Field) string {
-	p := string(f.Path)
-	p = strings.ReplaceAll(p, "\n", "/")
-	v := string(f.Val)
-	pv := p + "*" + v + " "
-	for _, ap := range f.ArrayTrail {
-		pv = pv + fmt.Sprintf("@%d.%d ", ap.Array, ap.Pos)
-	}
-	return pv
-}
-
-	log := fmt.Sprintf("S: %v, F: %s, matches %d", prop.state, prop.fields[prop.fieldIndex], len(nextStates))
-	log = strings.ReplaceAll(log, "\n", "**")
-	fmt.Println(log)
-*/
