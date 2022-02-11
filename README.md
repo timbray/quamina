@@ -151,7 +151,7 @@ to the matcher. Thus, adding a new pattern that only
 mentions fields mentioned in previous patterns is
 effectively free in terms of run-time performance.
 
-###Name
+### Name
 
 From Wikipedia: Quamina Gladstone (1778 – 16 September 
 1823), most often referred to simply as Quamina, was a 
