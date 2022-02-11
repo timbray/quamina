@@ -150,3 +150,12 @@ do not appear in one or more of the patterns added
 to the matcher. Thus, adding a new pattern that only
 mentions fields mentioned in previous patterns is
 effectively free in terms of run-time performance.
+
+###Name
+
+From Wikipedia: Quamina Gladstone (1778 – 16 September 
+1823), most often referred to simply as Quamina, was a 
+Guyanese slave from Africa and father of Jack Gladstone. 
+He and his son were involved in the Demerara rebellion 
+of 1823, one of the largest slave revolts in the British 
+colonies before slavery was abolished.

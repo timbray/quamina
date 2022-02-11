@@ -10,8 +10,10 @@ func TestUnpack(t *testing.T) {
 	st1 := newSmallTable()
 
 	st := smallTable{
-		ceilings: []uint8{2, 3, byte(Utf8ByteCeiling)},
-		states:   []*smallTable{nil, st1, nil},
+		sts: &stSlices{
+			ceilings: []uint8{2, 3, byte(Utf8ByteCeiling)},
+			steps:    []*smallTable{nil, st1, nil},
+		},
 	}
 	u := unpack(&st)
 	for i := range u {
@@ -82,11 +84,11 @@ func fuzzPack(t *testing.T, seed int64) {
 	}
 	rePacked := &smallTable{}
 	rePacked.pack(reUnpacked)
-	for i, c := range rePacked.ceilings {
-		if c != packed.ceilings[i] {
-			t.Errorf("seed %d ceilings differ at %d wanted %d got %d", seed, i, c, packed.ceilings[i])
+	for i, c := range rePacked.sts.ceilings {
+		if c != packed.sts.ceilings[i] {
+			t.Errorf("seed %d ceilings differ at %d wanted %d got %d", seed, i, c, packed.sts.ceilings[i])
 		}
-		if packed.states[i] != rePacked.states[i] {
+		if packed.sts.steps[i] != rePacked.sts.steps[i] {
 			t.Errorf("seed %d ssteps differ at %d", seed, i)
 		}
 	}

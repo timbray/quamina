@@ -23,7 +23,14 @@ func (m *fieldMatchState) addTransition(field *patternField) []*fieldMatchState 
 	vm, ok := m.transitions[field.path]
 	if !ok {
 		vm = newValueMatcher()
-		m.transitions[field.path] = vm
+
+		// this is klunky and slow but I'm optimizing the read-path performance and I don't want locks in the path
+		newTrans := make(map[string]*valueMatcher)
+		for k, v := range m.transitions {
+			newTrans[k] = v
+		}
+		newTrans[field.path] = vm
+		m.transitions = newTrans
 	}
 
 	// suppose I'm adding the first pattern to a matcher and it has "x": [1, 2]. In principle the branches on

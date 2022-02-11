@@ -24,11 +24,19 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatchState {
 	var transitions []*fieldMatchState
 	transitions = append(transitions, m.existsTransitions...)
 
-	// if there's no table, the singletonMatch either matches the val or it doesn't
-	if m.startTable == nil {
+	// if there's a singleton entry here, we either match the val or we're done
+	// Note: We have to check this first because addTransition might be busy
+	//  constructing the table, but it's not ready for use yet.  When it's done
+	//  it'll zero out the singletonMatch
+	if m.singletonMatch != nil {
 		if bytes.Equal(m.singletonMatch, val) {
 			transitions = append(transitions, m.singletonTransition)
 		}
+		return transitions
+	}
+
+	// there's no singleton. If there's also no table, there's nowhere to go
+	if m.startTable == nil {
 		return transitions
 	}
 
@@ -80,7 +88,9 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatchState {
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have to build two smallTable chains
 	m.startTable = newSmallTable()
 	_ = m.addSteps(m.singletonMatch, m.singletonTransition) // be careful to re-use singleton transition
-	m.singletonMatch = nil                                  // cleanliness next to Godliness
+
+	// now table is ready for use, nuke singleton to signal threads to use it
+	m.singletonMatch = nil
 	m.singletonTransition = nil
 	return m.addSteps(valBytes, nil)
 }

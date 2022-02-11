@@ -10,6 +10,7 @@ package quamina
 
 import (
 	"sort"
+	"sync"
 )
 
 // Matcher uses a finite automaton to implement the MatchesForJSONEvent and MatchesForFields functions.
@@ -22,6 +23,7 @@ type Matcher struct {
 	namesUsed                 map[string]bool
 	presumedExistFalseMatches *matchSet
 	flattener                 Flattener
+	lock                      sync.Mutex
 }
 
 // X for anything, should eventually be a generic?
@@ -43,10 +45,30 @@ func (m *Matcher) AddPattern(x X, patternJSON string) error {
 	if err != nil {
 		return err
 	}
-	for used := range patternNamesUsed {
-		m.namesUsed[used] = true
-	}
+
 	sort.Slice(patternFields, func(i, j int) bool { return patternFields[i].path < patternFields[j].path })
+
+	// only one thread can be updating at a time
+	// NOTE: threads can be calling MatchesFor* functions at any time as we update the automaton. The goal is to
+	//  maintain consistency during updates, in the sense that a pattern that has been matching events will not
+	//  stop working during an update.
+	// The matcher contains several map[this]that maps but Go maps aren't thread-safe.  This could be solved
+	//  with a straightforward mutex or the fancy sync.Map, but I succumbed to premature optimization and decided
+	//  I didn't want any of that stuff in the Match* path.  So in each case the map (or map-like structure in
+	//  smallTable) is copied, the copy updated, then the whole map updated atomically in the containing structure
+	//  see: https://medium.com/@deckarep/the-new-kid-in-town-gos-sync-map-de24a6bf7c2c
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// this is klunky and slow but don't want any locks in the read path
+	newNU := make(map[string]bool)
+	for k := range m.namesUsed {
+		newNU[k] = true
+	}
+	for used := range patternNamesUsed {
+		newNU[used] = true
+	}
+	m.namesUsed = newNU
 
 	states := []*fieldMatchState{m.startState}
 	for _, field := range patternFields {
@@ -95,7 +117,7 @@ func (m *Matcher) MatchesForFields(fields []Field) []X {
 	return m.matchesForSortedFields(fields).matches()
 }
 
-// proposedTransition represents a suggestino that the name/value pair at fields[fieldIndex] might allow a transition
+// proposedTransition represents a suggestion that the name/value pair at fields[fieldIndex] might allow a transition
 //  in the indicated state
 type proposedTransition struct {
 	state      *fieldMatchState
@@ -107,6 +129,7 @@ type proposedTransition struct {
 func (m *Matcher) matchesForSortedFields(fields []Field) *matchSet {
 
 	failedExistsFalseMatches := newMatchSet()
+	matches := newMatchSet()
 
 	// The idea is that we add potential field transitions to the proposals list; any time such a transition
 	//  succeeds, i.e. matches a particular field and moves to a new state, we propose transitions from that
@@ -120,7 +143,6 @@ func (m *Matcher) matchesForSortedFields(fields []Field) *matchSet {
 	}
 
 	// as long as there are still potential transitions
-	matches := newMatchSet()
 	for len(proposals) > 0 {
 
 		// go slices could usefully have a "pop" primitive

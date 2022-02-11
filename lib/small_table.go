@@ -15,9 +15,15 @@ package quamina
 //  small even in large machines, so skipping throgh the ceilings list is measurably about the same speed as a map
 //  or array construct
 type smallTable struct {
-	ceilings   []byte
-	states     []*smallTable
+	sts        *stSlices
 	transition *fieldMatchState
+}
+
+// stSlices exists so that we can construct the ceilings and states arrays and then atomically update both at
+//  the same time, in place, while other threads are using the table
+type stSlices struct {
+	ceilings []byte
+	steps    []*smallTable
 }
 
 // Utf8ByteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go byte, which is uint8. The values
@@ -26,34 +32,35 @@ const Utf8ByteCeiling int = 0xf5
 
 func newSmallTable() *smallTable {
 	return &smallTable{
-		ceilings: []byte{byte(Utf8ByteCeiling)},
-		states:   []*smallTable{nil},
+		sts: &stSlices{
+			ceilings: []byte{byte(Utf8ByteCeiling)},
+			steps:    []*smallTable{nil},
+		},
 	}
 }
 
 func (t *smallTable) step(utf8Byte byte) *smallTable {
-	for entry, ceiling := range t.ceilings {
+	for entry, ceiling := range t.sts.ceilings {
 		if utf8Byte < ceiling {
-			return t.states[entry]
+			return t.sts.steps[entry]
 		}
 	}
 	panic("Malformed SmallTable")
 }
 
 // unpackedTable replicates the data in the smallTable ceilings and steps arrays.  It's quite hard to
-//  update the list structure in a smallTable, but trivial in an unpackedTable and (looking forward)
-//  will simplify atomic update. The idea is that to update a smallTable you unpack it, update, then
+//  update the list structure in a smallTable, but trivial in an unpackedTable and simplifies
+//  atomic update. The idea is that to update a smallTable you unpack it, update, then
 //  re-pack it.  Not gonna be the most efficient thing so at some future point…
-// TODO: Figure out how to update a smallTable in place.
 type unpackedTable [Utf8ByteCeiling]*smallTable
 
 func unpack(t *smallTable) *unpackedTable {
 	var u unpackedTable
 	unpackedIndex := 0
-	for packedIndex, c := range t.ceilings {
+	for packedIndex, c := range t.sts.ceilings {
 		ceiling := int(c)
 		for unpackedIndex < ceiling {
-			u[unpackedIndex] = t.states[packedIndex]
+			u[unpackedIndex] = t.sts.steps[packedIndex]
 			unpackedIndex++
 		}
 	}
@@ -61,18 +68,20 @@ func unpack(t *smallTable) *unpackedTable {
 }
 
 func (t *smallTable) pack(u *unpackedTable) {
-	t.ceilings = t.ceilings[:0]
-	t.states = t.states[:0]
-	last := u[0]
+	var sts stSlices
+	sts.ceilings = sts.ceilings[:0]
+	sts.steps = sts.steps[:0]
+	lastStep := u[0]
 	for unpackedIndex, ss := range u {
-		if ss != last {
-			t.ceilings = append(t.ceilings, byte(unpackedIndex))
-			t.states = append(t.states, last)
+		if ss != lastStep {
+			sts.ceilings = append(sts.ceilings, byte(unpackedIndex))
+			sts.steps = append(sts.steps, lastStep)
 		}
-		last = ss
+		lastStep = ss
 	}
-	t.ceilings = append(t.ceilings, byte(Utf8ByteCeiling))
-	t.states = append(t.states, last)
+	sts.ceilings = append(sts.ceilings, byte(Utf8ByteCeiling))
+	sts.steps = append(sts.steps, lastStep)
+	t.sts = &sts // atomic update
 }
 
 func (t *smallTable) addRange(utf8Bytes []byte, state *smallTable) {

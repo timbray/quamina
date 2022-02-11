@@ -10,8 +10,14 @@ func newMatchSet() *matchSet {
 	return &matchSet{set: make(map[X]bool)}
 }
 
+// this is klunky and slow but I don't want to put a lock in the access path
 func (m *matchSet) addX(x X) {
-	m.set[x] = true
+	newSet := make(map[X]bool)
+	for k := range m.set {
+		newSet[k] = true
+	}
+	newSet[x] = true
+	m.set = newSet
 }
 
 func (m *matchSet) contains(x X) bool {

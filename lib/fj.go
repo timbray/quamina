@@ -640,7 +640,8 @@ func pathForChild(pathSoFar []byte, nextSegment []byte) []byte {
 
 // storeArrayElementField adds a field to be returned to the Flatten caller, straightforward except for the field needs its
 //  own snapshot of the array-trail data, because it'll be different for each array element
-//  NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe
+//  NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
+//   because of the necessity to construct a new arrayTrail for each element.
 func (fj *FJ) storeArrayElementField(path []byte, val []byte) {
 	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val}
 	copy(f.ArrayTrail, fj.arrayTrail)
