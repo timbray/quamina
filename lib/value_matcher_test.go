@@ -79,7 +79,7 @@ func TestAddTransition(t *testing.T) {
 
 }
 
-func contains(list []*fieldMatchState, s *fieldMatchState) bool {
+func contains(list []*fieldMatcher, s *fieldMatcher) bool {
 	for _, l := range list {
 		if l == s {
 			return true

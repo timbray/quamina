@@ -9,17 +9,17 @@ import (
 	"time"
 )
 
-func updateTree(m *Matcher, use37 bool, t *testing.T, ch chan(string)) {
+func updateTree(m *Matcher, use37 bool, t *testing.T, ch chan (string)) {
 	var pattern string
 	var val string
 	if use37 {
-		val = fmt.Sprintf("%f", 37.0 + rand.Float64())
+		val = fmt.Sprintf("%f", 37.0+rand.Float64())
 		pattern = fmt.Sprintf(`{ "geometry": { "coordinates": [ %s ] } }`, val)
 	} else {
 		val = fmt.Sprintf(`"%d"`, rand.Int())
 		pattern = fmt.Sprintf(`{ "properties": { "STREET": [ %s ] } }`, val)
 	}
-	err := m.AddPattern("updated", pattern)
+	err := m.AddPattern(val, pattern)
 	if err != nil {
 		t.Error("Concurrent: " + err.Error())
 	}
@@ -32,8 +32,9 @@ func TestConcurrency(t *testing.T) {
 	// this is a cut/paste of TestCityLots, except for every few lines we add another rule to the matcher,
 	//  focusing on the fields that are being used by the patterns. The idea is to exercise concurrent
 	//  update and use of the automaton
-	// Amazingly, adding 860 or so changes to the automaton while it's running doesn't seem to cause any decrease
-	//  in performance.
+	// I was initially surprised that adding 860 or so changes to the automaton while it's running doesn't seem to
+	//  cause any decrease in performance. But I guess it splits out very cleanly onto another core and really
+	//  doesn't steal any resources from the thread doing the Match calls
 	file, err := os.Open("../test_data/citylots.jlines")
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
@@ -83,14 +84,14 @@ func TestConcurrency(t *testing.T) {
 	use37 := true
 	lineCount = 0
 	before := time.Now()
-	ch := make(chan(string), 1000)
+	ch := make(chan (string), 1000)
 	for _, line := range lines {
 		matches, err := m.MatchesForJSONEvent(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
 		lineCount++
-		if lineCount % UpdateLines == 0 {
+		if lineCount%UpdateLines == 0 {
 			use37 = !use37
 			go updateTree(m, use37, t, ch)
 		}
@@ -106,25 +107,7 @@ func TestConcurrency(t *testing.T) {
 
 	elapsed := float64(time.Now().Sub(before).Milliseconds())
 	perSecond := float64(lineCount) / (elapsed / 1000.0)
-	fmt.Printf("%.2f matches/second\n\n", perSecond)
-
-	close(ch)
-	for val := range(ch) {
-		var event string
-		if val[0] == '"' {
-			event = fmt.Sprintf(`{"properties": { "STREET": %s} }`, val)
-		} else {
-			event = fmt.Sprintf(`{"geometry": { "coordinates": [ %s ] } }`, val)
-		}
-		var matches []X
-		matches, err = m.MatchesForJSONEvent([]byte(event))
-		if err != nil {
-			t.Error("after concur: " + err.Error())
-		}
-		if len(matches) != 1 || matches[0] != "updated" {
-			t.Error("problem with: " + val)
-		}
-	}
+	fmt.Printf("%.2f matches/second with updates\n\n", perSecond)
 
 	err = scanner.Err()
 	if err != nil {
@@ -140,4 +123,22 @@ func TestConcurrency(t *testing.T) {
 		}
 	}
 
+	// now we go back and make sure that all those AddPattern calls actually made it into the Matcher
+	close(ch)
+	for val := range ch {
+		var event string
+		if val[0] == '"' {
+			event = fmt.Sprintf(`{"properties": { "STREET": %s} }`, val)
+		} else {
+			event = fmt.Sprintf(`{"geometry": { "coordinates": [ %s ] } }`, val)
+		}
+		var matches []X
+		matches, err = m.MatchesForJSONEvent([]byte(event))
+		if err != nil {
+			t.Error("after concur: " + err.Error())
+		}
+		if len(matches) != 1 || matches[0] != val {
+			t.Error("problem with: " + val)
+		}
+	}
 }

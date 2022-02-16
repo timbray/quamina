@@ -19,7 +19,7 @@ import (
 //  patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
 //  fields that do not appear in patterns when using the automaton for matching
 type Matcher struct {
-	startState                *fieldMatchState
+	startState                *fieldMatcher
 	namesUsed                 map[string]bool
 	presumedExistFalseMatches *matchSet
 	flattener                 Flattener
@@ -31,7 +31,7 @@ type X interface{}
 
 func NewMatcher() *Matcher {
 	m := Matcher{}
-	m.startState = newFieldMatchState()
+	m.startState = newFieldMatcher()
 	m.namesUsed = make(map[string]bool)
 	m.presumedExistFalseMatches = newMatchSet()
 	m.flattener = NewFJ()
@@ -61,18 +61,18 @@ func (m *Matcher) AddPattern(x X, patternJSON string) error {
 	defer m.lock.Unlock()
 
 	// this is klunky and slow but don't want any locks in the read path
-	newNU := make(map[string]bool)
+	newNamesUsed := make(map[string]bool)
 	for k := range m.namesUsed {
-		newNU[k] = true
+		newNamesUsed[k] = true
 	}
 	for used := range patternNamesUsed {
-		newNU[used] = true
+		newNamesUsed[used] = true
 	}
-	m.namesUsed = newNU
+	m.namesUsed = newNamesUsed
 
-	states := []*fieldMatchState{m.startState}
+	states := []*fieldMatcher{m.startState}
 	for _, field := range patternFields {
-		var nextStates []*fieldMatchState
+		var nextStates []*fieldMatcher
 		for _, state := range states {
 			ns := state.addTransition(field)
 
@@ -120,7 +120,7 @@ func (m *Matcher) MatchesForFields(fields []Field) []X {
 // proposedTransition represents a suggestion that the name/value pair at fields[fieldIndex] might allow a transition
 //  in the indicated state
 type proposedTransition struct {
-	state      *fieldMatchState
+	matcher    *fieldMatcher
 	fieldIndex int
 }
 
@@ -139,7 +139,7 @@ func (m *Matcher) matchesForSortedFields(fields []Field) *matchSet {
 	proposals := make([]proposedTransition, len(fields))
 	for i := range fields {
 		proposals[i].fieldIndex = i
-		proposals[i].state = m.startState
+		proposals[i].matcher = m.startState
 	}
 
 	// as long as there are still potential transitions
@@ -151,7 +151,7 @@ func (m *Matcher) matchesForSortedFields(fields []Field) *matchSet {
 		proposals = proposals[0:lastEl]
 
 		// generate the possibly-empty list of transitions from state on the name/value pair
-		nextStates := proposal.state.transitionOn(&fields[proposal.fieldIndex])
+		nextStates := proposal.matcher.transitionOn(&fields[proposal.fieldIndex])
 
 		// for each state in the set of transitions from the proposed state
 		for _, nextState := range nextStates {
@@ -171,7 +171,7 @@ func (m *Matcher) matchesForSortedFields(fields []Field) *matchSet {
 			//  of the same array
 			for nextIndex := proposal.fieldIndex + 1; nextIndex < len(fields); nextIndex++ {
 				if noArrayTrailConflict(fields[proposal.fieldIndex].ArrayTrail, fields[nextIndex].ArrayTrail) {
-					proposals = append(proposals, proposedTransition{fieldIndex: nextIndex, state: nextState})
+					proposals = append(proposals, proposedTransition{fieldIndex: nextIndex, matcher: nextState})
 				}
 			}
 		}

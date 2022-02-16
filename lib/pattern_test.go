@@ -43,7 +43,7 @@ func TestPatternFromJSON(t *testing.T) {
 		{literalType, "false"},
 		{stringType, `"hopp"`},
 		{numberType, "3.072e-11"},
-		}}}
+	}}}
 	w3 := []*patternField{
 		{path: "x\na", vals: []typedVal{
 			{numberType, "27"},
@@ -58,12 +58,12 @@ func TestPatternFromJSON(t *testing.T) {
 		{path: "x", vals: []typedVal{
 			{vType: existsTrueType, val: ""},
 		},
-				}}
+		}}
 	w5 := []*patternField{
 		{path: "x\ny", vals: []typedVal{
 			{vType: existsFalseType, val: ""},
 		},
-				}}
+		}}
 	wanted := [][]*patternField{w1, w2, w3, w4, w5}
 
 	for i, good := range goods {

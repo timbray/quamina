@@ -124,7 +124,7 @@ error in the event JSON.
 The `[]X` return slice may be empty if none of the patterns
 match the provided event. 
 
-`MatchesForJSONEvent` is thread-safe and many threads may
+`MatchesForJSONEvent` is thread-safe. Many threads may
 be executing it concurrently, even while `AddPattern` is
 also executing.
 

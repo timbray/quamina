@@ -8,14 +8,14 @@ import (
 )
 
 // FJ - at one point stood for "faster JSON".
-// This is a custom non-general-purpose JSON parser whose object is to produce a []Field list from an
-//  arbitrary JSON object.  This could be done (and originally was) with the built-in encoding/json, but the
+// This is a custom non-general-purpose JSON parser whose object is to implement Flattener and produce a []Field list
+//  from a JSON object.  This could be done (and originally was) with the built-in encoding/json, but the
 //  performance was unsatisfactory (99% of time spent parsing events < 1% matching them). The profiler suggests
 //  that the performance issue was mostly due to excessive memory allocation.
 // If we assume that the event is immutable while we're working, then all the pieces of it that constitute
 //  the fields & values can be represented as []byte slices using a couple of offsets into the underlying event.
 //  There is an exception, namely strings that contain \-prefixed JSON escapes; since we want to work with the
-//  actual UTF-8 characters, this requires re-writing such strings into memory we have to allocate.
+//  actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 type FJ struct {
 	event       []byte      // event being processed, treated as immutable
 	eventIndex  int         // current byte index into the event
@@ -40,7 +40,7 @@ var trueBytes = []byte("true")
 var falseBytes = []byte("false")
 var nullBytes = []byte("null")
 
-// fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
+// fjState - this is a finite matcher machine parser, or rather a collection of smaller FSM parsers. Some of these
 //  states are used in only one function, others in multiple places
 type fjState int
 
@@ -337,7 +337,7 @@ func (fj *FJ) readArray(pathName []byte) error {
 
 /*
  * Note that these functions that read leaf values often have to back up the eventIndex when they hit the character
- *  that signifies the end of what they're parsing, so that a higher-level state can evaluate it, because all
+ *  that signifies the end of what they're parsing, so that a higher-level matcher can evaluate it, because all
  *  these higher-level funcs are going to advance the pointer after each invocation
  */
 
