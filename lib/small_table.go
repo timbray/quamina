@@ -1,8 +1,8 @@
 package quamina
 
-// smallTable serves as a lookup table that encodes mappings between ranges of byte values and the smallTable you
-//  transition to on any byte in the range.
-//  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, *smallTable}
+// smallTable serves as a lookup table that encodes mappings between ranges of byte values and the SmallStep
+//  transition on any byte in the range.
+//  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, *smallStep}
 //  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 //  byte values 3 and 4 (0-based) map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
 //  ceilings: 3,   5,    0x34, 0x35, Utf8ByteCeiling
@@ -38,6 +38,7 @@ func newSmallTable() *smallTable {
 	}
 }
 
+// SmallTable and SmallTransition implement smallStep interface
 func (t *smallTable) SmallTable() *smallTable {
 	return t
 }
@@ -46,9 +47,9 @@ func (t *smallTable) SmallTransition() *smallTransition {
 }
 
 func (t *smallTable) step(utf8Byte byte) smallStep {
-	for entry, ceiling := range t.slices.ceilings {
+	for index, ceiling := range t.slices.ceilings {
 		if utf8Byte < ceiling {
-			return t.slices.steps[entry]
+			return t.slices.steps[index]
 		}
 	}
 	panic("Malformed SmallTable")

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func updateTree(m *Matcher, use37 bool, t *testing.T, ch chan (string)) {
+func updateTree(m *Matcher, use37 bool, t *testing.T, ch chan string) {
 	var pattern string
 	var val string
 	if use37 {
@@ -84,7 +84,7 @@ func TestConcurrency(t *testing.T) {
 	use37 := true
 	lineCount = 0
 	before := time.Now()
-	ch := make(chan (string), 1000)
+	ch := make(chan string, 1000)
 	for _, line := range lines {
 		matches, err := m.MatchesForJSONEvent(line)
 		if err != nil {

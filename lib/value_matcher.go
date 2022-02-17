@@ -26,7 +26,7 @@ type smallTransition struct {
 	fieldTransition *fieldMatcher
 }
 
-// implements smallStep
+// SmallTable and SmallTransition implement smallStep
 func (t *smallTransition) SmallTable() *smallTable {
 	return t.smallTable
 }
@@ -66,18 +66,15 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		if step == nil {
 			return transitions
 		}
+		// we always initialize the smallTable, even in a smallTransition step, so no need to check for nil
 		table = step.SmallTable()
-		if table == nil {
-			return transitions
-		}
 	}
 
 	// we only do a field-level transition if there's one in the table that the last character in val arrives at
 	nextTrans := step.SmallTransition()
-	if nextTrans == nil {
-		return transitions
+	if nextTrans != nil {
+		transitions = append(transitions, nextTrans.fieldTransition)
 	}
-	transitions = append(transitions, nextTrans.fieldTransition)
 
 	return transitions
 }
