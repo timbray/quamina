@@ -429,8 +429,8 @@ func (fj *FJ) readStringValue() ([]byte, error) {
 		} else if ch == '\\' {
 			val, err := fj.readStringValWithEscapes(valStart)
 			return val, err
-		} else if ch <= 0x1f {
-			return nil, fj.error(fmt.Sprintf("illegal character %x in string value", ch))
+		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in string value", ch))
 		}
 		if fj.step() != nil {
 			return nil, fj.error("event truncated in mid-string")
@@ -459,8 +459,8 @@ func (fj *FJ) readStringValWithEscapes(nameStart int) ([]byte, error) {
 				return nil, err
 			}
 			val = append(val, unescaped...)
-		} else if ch <= 0x1f {
-			return nil, fj.error(fmt.Sprintf("illegal character %x in string value", ch))
+		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in string value", ch))
 		} else {
 			val = append(val, ch)
 		}
@@ -487,8 +487,8 @@ func (fj *FJ) readMemberName() ([]byte, error) {
 		} else if ch == '\\' {
 			name, err := fj.readMemberNameWithEscapes(nameStart)
 			return name, err
-		} else if ch <= 0x1f {
-			return nil, fj.error(fmt.Sprintf("illegal character %x in field name", ch))
+		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in field name", ch))
 		}
 		if fj.step() != nil {
 			return nil, fj.error("premature end of event")
@@ -505,8 +505,8 @@ func (fj *FJ) readMemberNameWithEscapes(nameStart int) ([]byte, error) {
 		if ch == '"' {
 			fj.eventIndex = from
 			return memberName, nil
-		} else if ch < 0x1f {
-			return nil, fj.error(fmt.Sprintf("illegal character %x in field name", ch))
+		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in field name", ch))
 		} else if ch == '\\' {
 			var unescaped []byte
 			unescaped, from, err = fj.readTextWithEscapes(from)

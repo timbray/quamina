@@ -84,6 +84,12 @@ same number.
 
 ## APIs
 
+**Note**: In all the APIs below, field names and values in both
+patterns and events must be valid UTF-8.  Unescaped characters
+smaller than 0x1F (illegal per JSON), and bytes with value
+greater than 0XF4 (can't occur in correctly composed UTF-8)
+will be rejected by the API.
+
 ```go
 func NewMatcher() *Matcher
 ```
@@ -101,8 +107,8 @@ The pattern must be provided as a string which is a
 JSON object as exemplified above in this document.
 
 The `error` return is used to signal invalid pattern
-structure, which could be malformed JSON or leaf values
-which are not provided as arrays.
+structure, which could be bad UTF-8 or malformed JSON 
+or leaf values which are not provided as arrays.
 
 As many patterns as desired can be added to a Matcher
 but at this time there is no capability of removing any.
@@ -114,11 +120,12 @@ threads call it, they will block and execute sequentially.
 func (m *Matcher) MatchesForJSONEvent(event []byte) ([]X, error)
 ```
 
-The `event` argument must be a JSON object. It would be 
+The `event` argument must be a JSON object encoded in
+correct UTF-8. It would be 
 easy to extend Matcher to handle other data formats; see the
 `Flattener` interface and its implementation in `FJ`.
 
-The `error` return value is nil unless there was a syntax
+The `error` return value is nil unless there was an
 error in the event JSON.
 
 The `[]X` return slice may be empty if none of the patterns
@@ -131,11 +138,11 @@ also executing.
 ### Performance
 
 The performance of `MatchesForJSONEvent` is strongly
-sublinear in the number of patterns. It’s not quite `O(1)`,
-it does vary somewhat as a function of the number of 
+sublinear in the number of patterns. It’s not quite `O(1)`
+as it varies somewhat as a function of the number of 
 unique fields that appear in all the patterns that have 
 been added to the machine, but remains sublinear in that 
-variation. 
+number. 
 
 A word of explanation is in order. Quamina compiles the
 patterns into a somewhat-decorated DFA and uses that to

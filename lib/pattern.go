@@ -17,6 +17,7 @@ const (
 	literalType
 	existsTrueType
 	existsFalseType
+	shellStyleType
 )
 
 type typedVal struct {
@@ -184,6 +185,8 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 		case "exists":
 			containsExclusive = tt
 			pathVals, err = readExistsSpecial(pb, pathVals)
+		case "shellstyle":
+			pathVals, err = readShellStyleSpecial(pb, pathVals)
 		default:
 			err = errors.New("unrecognized in special pattern: " + tt)
 		}
@@ -207,7 +210,7 @@ func readExistsSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 			pathVals = append(pathVals, typedVal{vType: existsFalseType})
 		}
 	default:
-		err = errors.New("value for 'existsMatches' pattern must be true or false")
+		err = errors.New("value for 'exists' pattern must be true or false")
 		return
 	}
 

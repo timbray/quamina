@@ -19,11 +19,24 @@ type valueMatcher struct {
 type smallStep interface {
 	SmallTable() *smallTable
 	SmallTransition() *smallTransition
+	HasTransition() bool
 }
+
+// ValueTerminator - whenever we're trying to match a value, we virtually add one of these as the last character, both
+//  when building the automaton matching a value.  This simplifies things because you can write a pattern to
+//  match for example "foo" by writing it as
+const ValueTerminator byte = 0xf5
 
 type smallTransition struct {
 	smallTable      *smallTable
 	fieldTransition *fieldMatcher
+}
+
+func newSmallTransition(fieldTrans *fieldMatcher) *smallTransition {
+	return &smallTransition{
+		smallTable:      newSmallTable(),
+		fieldTransition: fieldTrans,
+	}
 }
 
 // SmallTable and SmallTransition implement smallStep
@@ -32,6 +45,9 @@ func (t *smallTransition) SmallTable() *smallTable {
 }
 func (t *smallTransition) SmallTransition() *smallTransition {
 	return t
+}
+func (t *smallTransition) HasTransition() bool {
+	return true
 }
 
 func newValueMatcher() *valueMatcher {
@@ -66,17 +82,29 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		if step == nil {
 			return transitions
 		}
+
+		if step.HasTransition() {
+			transitions = append(transitions, step.SmallTransition().fieldTransition)
+		}
+
 		// we always initialize the smallTable, even in a smallTransition step, so no need to check for nil
 		table = step.SmallTable()
 	}
 
+	// look for terminator
+	lastStep := table.step(ValueTerminator)
+
 	// we only do a field-level transition if there's one in the table that the last character in val arrives at
-	nextTrans := step.SmallTransition()
-	if nextTrans != nil {
-		transitions = append(transitions, nextTrans.fieldTransition)
+	if lastStep != nil && lastStep.HasTransition() {
+		transitions = append(transitions, lastStep.SmallTransition().fieldTransition)
 	}
 
 	return transitions
+}
+
+func (m *valueMatcher) mergeNewSteps(newSteps smallStep) {
+	combo := mergeAutomata(m.startTable, newSteps, make(map[string]smallStep))
+	m.startTable = combo.SmallTable()
 }
 
 func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
@@ -88,9 +116,13 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 		return next
 	}
 
+	if val.vType == shellStyleType {
+		// TODO: This is tricky because we have to do the dance of checking if there's already start table, etc
+	}
+
 	// there's already a table, thus an out-degree > 1
 	if m.startTable != nil {
-		return m.addSteps(valBytes, nil)
+		return m.addAutomaton(valBytes, nil)
 	}
 
 	// no start table, we have to work with singletons …
@@ -109,44 +141,67 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have to build two smallTable chains
 	m.startTable = newSmallTable()
-	_ = m.addSteps(m.singletonMatch, m.singletonTransition) // be careful to re-use singleton transition
+	_ = m.addAutomaton(m.singletonMatch, m.singletonTransition) // be careful to re-use singleton transition
 
 	// now table is ready for use, nuke singleton to signal threads to use it
 	m.singletonMatch = nil
 	m.singletonTransition = nil
-	return m.addSteps(valBytes, nil)
+	return m.addAutomaton(valBytes, nil)
 }
 
-// addSteps, one for each byte in val.
-//  Most steps are just from one smallTable to the next, an occasional one needing to be decorated with a field
-//  transition, so it can be a smallTransition. The smallStep interface allows each kind.
-func (m *valueMatcher) addSteps(val []byte, useThisTransition *fieldMatcher) *fieldMatcher {
+// makeStringAutomaton is the simplest-case way to create a utf-based automaton based on smallTables. Note
+//  the addition of a ValueTerminator
+func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (start smallStep, nextField *fieldMatcher) {
+	table := newSmallTable()
+	start = table
+
+	// loop through all but last byte
+	for i := 0; i < len(val)-1; i++ {
+		ch := val[i]
+		next := newSmallTable()
+		table.addByteStep(ch, next)
+		table = next
+	}
+
+	if useThisTransition != nil {
+		nextField = useThisTransition
+	} else {
+		nextField = newFieldMatcher()
+	}
+
+	table.addByteStep(ValueTerminator, newSmallTransition(nextField))
+	return
+}
+
+// TODO: Refactor this. Use makeStringAutomaton and makeShellStyleAutomaton to create matchers and
+//  then merge them in using mergeAutomata.  Has to the dance with
+//  addAutomaton or makeShellStyleAutomaton and either drops that in to startTable if it's the first
+//
+func (m *valueMatcher) addAutomaton(val []byte, useThisTransition *fieldMatcher) *fieldMatcher {
 
 	table := m.startTable
 
-	// loop through all but the last character in val
-	for i := 0; i < len(val)-1; i++ {
-		utf8Byte := val[i]
+	// loop through all the bytes in val
+	for _, utf8Byte := range val {
 		step := table.step(utf8Byte)
 
 		if step == nil {
 			// nothing here, just drop in a new smallTable
 			newTable := newSmallTable()
-			table.addRange([]byte{utf8Byte}, newTable)
+			table.addByteStep(utf8Byte, newTable)
 			table = newTable
 		} else {
 			table = step.SmallTable()
 		}
 	}
 
-	// is there an existing step from the last character?
-	lastCh := val[len(val)-1]
-	step := table.step(lastCh)
+	// now add a terminator
+	lastStep := table.step(ValueTerminator)
 
-	// if no, build a new smallTransition with an empty smallTable and the right fieldMatcher
+	// if no terminator transition yet, build a new smallTransition with an empty smallTable and the right fieldMatcher
 	// Note that the useThisTransition logic only applies here because it's only used on the very
-	//  first entry in a new valueMatcher's smallTable
-	if step == nil {
+	// first entry in a new valueMatcher's smallTable
+	if lastStep == nil {
 		var newTrans *fieldMatcher
 		if useThisTransition != nil {
 			newTrans = useThisTransition
@@ -154,25 +209,20 @@ func (m *valueMatcher) addSteps(val []byte, useThisTransition *fieldMatcher) *fi
 			newTrans = newFieldMatcher()
 		}
 
-		newSmallTrans := &smallTransition{
-			smallTable:      newSmallTable(),
-			fieldTransition: newTrans,
-		}
-		table.addRange([]byte{lastCh}, newSmallTrans)
+		newSmallTrans := newSmallTransition(newTrans)
+		table.addByteStep(ValueTerminator, newSmallTrans)
 		return newTrans
 	}
 
-	// there is a step forward. If it's already a smallTransition, we just return the existing field transition that's there
-	smallTrans, ok := step.(*smallTransition)
-	if ok {
-		return smallTrans.fieldTransition
+	// there is a terminator step forward. If it's already a smallTransition, we just return the existing field
+	// transition that's there
+	if lastStep.HasTransition() {
+		return lastStep.SmallTransition().fieldTransition
 	}
 
-	// the step is just a smallTable - we need to turn it into a smallTransition
-	newTrans := &smallTransition{
-		smallTable:      step.(*smallTable),
-		fieldTransition: newFieldMatcher(),
-	}
-	table.addRange([]byte{lastCh}, newTrans)
+	// the terminator step is just a smallTable - we need to turn it into a smallTransition
+	newTrans := newSmallTransition(newFieldMatcher())
+	newTrans.smallTable = lastStep.SmallTable()
+	table.addByteStep(ValueTerminator, newTrans)
 	return newTrans.fieldTransition
 }

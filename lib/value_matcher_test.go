@@ -140,6 +140,8 @@ func TestFuzzValueMatcher(t *testing.T) {
 	lb := len(bytes)
 	strLen := 12
 	used := make(map[X]bool)
+
+	// make ten thousand 12-char strings, randomized
 	for i := 0; i < 10000; i++ {
 		str := ""
 		for j := 0; j < strLen; j++ {
@@ -149,6 +151,8 @@ func TestFuzzValueMatcher(t *testing.T) {
 		pNames = append(pNames, str)
 		used[str] = true
 	}
+
+	// add a pattern for each string
 	pBase := `{"a": [ "999" ]}`
 	for _, pName := range pNames {
 		err := m.AddPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
@@ -156,6 +160,8 @@ func TestFuzzValueMatcher(t *testing.T) {
 			t.Errorf("addPattern %s: %s", pName, err.Error())
 		}
 	}
+
+	// make sure all the patterns match
 	eBase := `{"a": "999"}`
 	for _, pName := range pNames {
 		event := strings.ReplaceAll(eBase, "999", pName.(string))
@@ -171,6 +177,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 			}
 		}
 	}
+
 	// now let's run 1000 more random strings that shouldn't match
 	shouldNot := 0
 	for shouldNot < len(pNames) {
@@ -200,12 +207,16 @@ func TestFuzzWithNumbers(t *testing.T) {
 	m := NewMatcher()
 	var pNames []X
 	used := make(map[X]bool)
+
+	// make ten thousand random numbers between 1 and 100K. There are probably dupes?
 	for i := 0; i < 10000; i++ {
 		n := rand.Int63n(1000000)
 		ns := fmt.Sprintf("%d", n)
 		pNames = append(pNames, ns)
 		used[ns] = true
 	}
+
+	// add a pattern for each number
 	pBase := `{"a": [ 999 ]}`
 	for _, pName := range pNames {
 		err := m.AddPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
@@ -213,6 +224,8 @@ func TestFuzzWithNumbers(t *testing.T) {
 			t.Errorf("addPattern %s: %s", pName, err.Error())
 		}
 	}
+
+	// make sure all the patterns match
 	eBase := `{"a": 999}`
 	for _, pName := range pNames {
 		event := strings.ReplaceAll(eBase, "999", pName.(string))
@@ -228,7 +241,8 @@ func TestFuzzWithNumbers(t *testing.T) {
 			}
 		}
 	}
-	// now let's run 1000 more random strings that shouldn't match
+
+	// now let's run 1000 more random numbers that shouldn't match
 	shouldNot := 0
 	for shouldNot < len(pNames) {
 		n := rand.Int63n(1000000)
@@ -239,6 +253,8 @@ func TestFuzzWithNumbers(t *testing.T) {
 		}
 		shouldNot++
 		event := strings.ReplaceAll(eBase, "999", ns)
+		// breaks on 98463
+		// fmt.Println("Event: " + event)
 		matches, err := m.MatchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Errorf("shouldNot botch on %s: %s", event, err.Error())
