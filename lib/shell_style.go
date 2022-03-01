@@ -21,7 +21,7 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 	// no adjacent wildcards
 	valBytes := []byte(shellString)
 	for i := 1; i < len(valBytes); i++ {
-		if valBytes[i] == '*' && valBytes[i - 1] == '*' {
+		if valBytes[i] == '*' && valBytes[i-1] == '*' {
 			err = errors.New("adjacent '*' characters not allowed in shellstyle pattern")
 			return
 		}
@@ -45,12 +45,35 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 	return
 }
 
-// makeShellStyleAutomaton - recognize a "-delimited string containing one or more '*' globs. It's useful that
-//  the string ends with a '"' because we don't have to deal with the special case of '*' at end.  Arguably, if
-//  we ignored the '"' markers, we could be a little more efficient matching "foo*" but it'd add complexity
-func makeShellStyleAutomaton(val []byte, useThisTansition *fieldMatcher) (start smallStep, nextField *fieldMatcher) {
+// makeShellStyleAutomaton - recognize a "-delimited string containing one or more '*' globs.
+// TODO: Add “?”
+func makeShellStyleAutomaton(val []byte, useThisTansition *fieldMatcher) (start *smallTable, nextField *fieldMatcher) {
 	table := newSmallTable()
 	start = table
+	if useThisTansition != nil {
+		nextField = useThisTansition
+	} else {
+		nextField = newFieldMatcher()
+	}
+
+	// since this is provided as a string, the last byte will be '"'. In the special case where the pattern ends
+	//  with '*' (and thus the string ends with '*"', we will insert a successful transition as soon as we hit
+	//  that last '*', so that the reaching the transition doesn't require going through the trailing characters to
+	//  reach the '"'
+	if val[len(val) - 2] == '*' {
+		for i := 0; i < len(val) - 2; i++ {
+			ch := val[i]
+			if ch == '*' {
+				table.addRangeSteps(0, ByteCeiling, table)
+			} else {
+				next := newSmallTable()
+				table.addByteStep(ch, next)
+				table = next
+			}
+		}
+		table.addRangeSteps(0, ByteCeiling, newSmallTransition(nextField))
+		return
+	}
 
 	// loop through all but last byte
 	for i := 0; i < len(val)-1; i++ {
@@ -65,12 +88,6 @@ func makeShellStyleAutomaton(val []byte, useThisTansition *fieldMatcher) (start 
 		}
 	}
 
-	// last byte, can't be '*'
-	if useThisTansition != nil {
-		nextField = useThisTansition
-	} else {
-		nextField = newFieldMatcher()
-	}
 	table.addByteStep(val[len(val)-1], newSmallTransition(nextField))
 	return
 }

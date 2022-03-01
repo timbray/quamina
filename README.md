@@ -64,6 +64,15 @@ The following patterns would match it:
 ```json
 {"Foo": [ { "exists": false } ] }
 ```
+```json
+{ 
+  "Image": {
+    "Thumbnail": {
+      "Url": [ { "shellstyle": "http://*.example.com/*" } ]
+    }
+  }
+}
+```
 The structure of the pattern, in terms of field names
 and nesting, must be the same as the structure of the event 
 to be matched.  The field values are always given
@@ -73,7 +82,7 @@ field in the event is array-valued, matching is true
 if the intersection of the arrays is non-empty.
 
 Fields which are not mentioned in the pattern will
-be assumed to match, but all Fields must match. So the
+be assumed to match, but all Fields mentioned must match. So the
 semantics are effectively an OR on each field's values, 
 but an AND on the field names.
 
@@ -88,7 +97,7 @@ same number.
 patterns and events must be valid UTF-8.  Unescaped characters
 smaller than 0x1F (illegal per JSON), and bytes with value
 greater than 0XF4 (can't occur in correctly composed UTF-8)
-will be rejected by the API.
+are rejected by the APIs.
 
 ```go
 func NewMatcher() *Matcher
@@ -123,7 +132,7 @@ func (m *Matcher) MatchesForJSONEvent(event []byte) ([]X, error)
 The `event` argument must be a JSON object encoded in
 correct UTF-8. It would be 
 easy to extend Matcher to handle other data formats; see the
-`Flattener` interface and its implementation in `FJ`.
+`Flattener` interface and its implementation in `fj.go`.
 
 The `error` return value is nil unless there was an
 error in the event JSON.

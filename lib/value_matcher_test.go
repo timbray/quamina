@@ -32,10 +32,6 @@ func TestAddTransition(t *testing.T) {
 		val:   "two",
 	}
 	t2 := m.addTransition(v2)
-	tXtra = m.addTransition(v2)
-	if tXtra != t2 {
-		t.Error("dupe trans missed")
-	}
 
 	t2x := m.transitionOn([]byte("two"))
 	if len(t2x) != 1 || t2x[0] != t2 {
@@ -78,6 +74,27 @@ func TestAddTransition(t *testing.T) {
 	}
 	if !contains(t4x, t4) || !contains(t4x, t2) {
 		t.Error("missing contains")
+	}
+}
+
+func TestMultiTransitions(t *testing.T) {
+	patX := `{"foo": [ { "shellstyle": "*x*b" } ]}`
+	patY := `{"foo": [ { "shellstyle": "*y*b" } ]}`
+
+	m := NewMatcher()
+	if m.AddPattern("X", patX) != nil {
+		t.Error("add patX")
+	}
+	if m.AddPattern("Y", patY) != nil {
+		t.Error("add patY")
+	}
+	e := `{"foo": "axyb"}`
+	matches, err := m.MatchesForJSONEvent([]byte(e))
+	if err != nil {
+		t.Error("m4: " + err.Error())
+	}
+	if len(matches) != 2 {
+		t.Error("just one")
 	}
 }
 
@@ -264,6 +281,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 		}
 	}
 }
+
 func contains(list []*fieldMatcher, s *fieldMatcher) bool {
 	for _, l := range list {
 		if l == s {

@@ -40,7 +40,7 @@ var trueBytes = []byte("true")
 var falseBytes = []byte("false")
 var nullBytes = []byte("null")
 
-// fjState - this is a finite matcher machine parser, or rather a collection of smaller FSM parsers. Some of these
+// fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
 //  states are used in only one function, others in multiple places
 type fjState int
 

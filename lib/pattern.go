@@ -39,7 +39,8 @@ type patternBuild struct {
 // patternFromJSON - I love naked returns and I cannot lie
 func patternFromJSON(jsonBytes []byte) (fields []*patternField, namesUsed map[string]bool, err error) {
 	// we can't use json.Unmarshal because it round-trips numbers through float64 and %f so they won't end up matching
-	//  what the caller actually wrote in the patternField
+	//  what the caller actually wrote in the patternField. json.Decoder is kind of slow due to excessive
+	//  memory allocation, but I haven't got around to prematurely optimizing the addPattern code path
 	var pb patternBuild
 	pb.jd = json.NewDecoder(bytes.NewReader(jsonBytes))
 	pb.isNameUsed = make(map[string]bool)
@@ -99,7 +100,6 @@ func readPatternObject(pb *patternBuild) error {
 }
 
 func readPatternMember(pb *patternBuild) error {
-
 	t, err := pb.jd.Token()
 	if err == io.EOF {
 		return errors.New("patternField atEnd mid-field")
@@ -227,22 +227,4 @@ func readExistsSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 		err = errors.New("trailing garbage in 'existsMatches' pattern")
 	}
 	return
-}
-
-// for debugging
-func (f *patternField) String() string {
-	s := fmt.Sprintf("p=%s: ", f.path)
-	var v string
-	for _, val := range f.vals {
-		switch val.vType {
-		case existsTrueType:
-			v = " exists:true"
-		case existsFalseType:
-			v = " exists:false"
-		default:
-			v = " <" + val.val + ">"
-		}
-		s += v
-	}
-	return s
 }

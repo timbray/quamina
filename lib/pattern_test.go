@@ -19,6 +19,7 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"xxx": [ {"x": 1} ]`,
 		`{"xxx": [ { [`,
 		`{"xxx": [ { "exists": 23 } ] }`,
+		`{"xxx": [ { "exists": true }, 15 ] }`,
 		`{"xxx": [ { "exists": true, "a": 3 }] }`,
 		`{"xxx": [ { "exists": false, "x": ["a", 3 ] }] }`,
 		`{"abc": [ {"shellstyle":15} ] }`,

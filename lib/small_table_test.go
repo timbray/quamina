@@ -9,29 +9,21 @@ func TestCombiner(t *testing.T) {
 
 	// "jab"
 	A0 := newSmallTable()
-	A0.name = "A0"
 	A1 := newSmallTable()
-	A1.name = "A1"
 	A2 := newSmallTable()
-	A2.name = "A2"
 	A3 := newSmallTable()
-	A3.name = "A3"
 	A0.addByteStep('j', A1)
 	A1.addByteStep('a', A2)
 	A2.addByteStep('b', A3)
 	AFM := newFieldMatcher()
 	AFM.transitions["AFM"] = newValueMatcher()
 	st := newSmallTransition(AFM)
-	st.SmallTable().name = "A4*"
 	A3.addByteStep(ValueTerminator, st)
 
 	// *ay*
 	B0 := newSmallTable()
-	B0.name = "B0"
 	B1 := newSmallTable()
-	B1.name = "B1"
 	B2 := newSmallTable()
-	B2.name = "B2"
 	B0.addRangeSteps(0, ByteCeiling, B0)
 	B0.addByteStep('a', B1)
 	B1.addRangeSteps(0, ByteCeiling, B0)
@@ -39,10 +31,9 @@ func TestCombiner(t *testing.T) {
 	BFM := newFieldMatcher()
 	BFM.transitions["BFM"] = newValueMatcher()
 	st = newSmallTransition(BFM)
-	st.SmallTable().name = "B3*"
 	B2.addRangeSteps(0, ByteCeiling, st)
 
-	combo := mergeAutomata(A0, B0, make(map[string]smallStep))
+	combo := mergeOne(A0, B0, make(map[string]smallStep))
 
 	vm := &valueMatcher{
 		startTable: combo.SmallTable(),
@@ -58,11 +49,8 @@ func TestCombiner(t *testing.T) {
 
 	// "*yy"
 	C0 := newSmallTable()
-	C0.name = "C0"
 	C1 := newSmallTable()
-	C1.name = "C1"
 	C2 := newSmallTable()
-	C2.name = "C2"
 	C0.addRangeSteps(0, ByteCeiling, C0)
 	C0.addByteStep('y', C1)
 	C1.addRangeSteps(0, ByteCeiling, C0)
@@ -71,10 +59,9 @@ func TestCombiner(t *testing.T) {
 	CFM := newFieldMatcher()
 	CFM.transitions["CFM"] = newValueMatcher()
 	st = newSmallTransition(CFM)
-	st.SmallTable().name = "C3*"
 	C2.addByteStep(ValueTerminator, st)
 
-	combo = mergeAutomata(vm.startTable, C0, make(map[string]smallStep))
+	combo = mergeOne(vm.startTable, C0, make(map[string]smallStep))
 	vm.startTable = combo.SmallTable()
 	matches = vm.transitionOn([]byte("jab"))
 	if len(matches) != 1 || matches[0].transitions["AFM"] == nil {

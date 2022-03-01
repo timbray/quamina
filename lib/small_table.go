@@ -7,21 +7,20 @@ import "fmt"
 //  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, *smallStep}
 //  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 //  byte values 3 and 4 (0-based) map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
-//  ceilings: 3,   5,    0x34, 0x35, Utf8ByteCeiling
+//  ceilings: 3,   5,    0x34, 0x35, ByteCeiling
 //     steps: nil, &ss1, nil,  &ss2, nil
-//  invariant: The last element of ceilings is always Utf8ByteCeiling
+//  invariant: The last element of ceilings is always ByteCeiling
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
 //  ranges of bytes.  This could be done simply with a byte array of size ByteCeiling for each state in the machine,
 //  or a map[byte]smallStep, but both would be size-inefficient, particularly in the case where you're implementing
 //  ranges.  Now, the step function is O(N) in the number of entries, but empirically, the number of entries is
-//  small even in large machines, so skipping throgh the ceilings list is measurably about the same speed as a map
+//  small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
 //  or array construct
 type smallTable struct {
-	name   string
 	slices *stSlices
 }
 
-// stSlices exists so that we can construct the ceilings and states arrays and then atomically update both at
+// stSlices exists so that we can construct the ceilings and steps arrays and then atomically update both at
 //  the same time, in place, while other threads are using the table
 type stSlices struct {
 	ceilings []byte
@@ -29,7 +28,7 @@ type stSlices struct {
 }
 
 // ByteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go byte, which is uint8. The values
-//  0xF5-0xFF can't appear in UTF-8 strings, we use 0xF5 as a value terminator, so characters F6 and higher
+//  0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
 //  can't appear.
 const ByteCeiling int = 0xf6
 
@@ -63,30 +62,38 @@ func (t *smallTable) step(utf8Byte byte) smallStep {
 }
 
 // mergeAutomata computes the union of two valueMatch automata
-//  invariant: neither argument is nil
-//  TODO: Make sure it's thread-safe, as in doesn't write into existing tables from either new or existing
-func mergeAutomata(existing, newStep smallStep, memoize map[string]smallStep) smallStep {
+//  INVARIANT: neither argument is nil
+//  INVARIANT: To be thread-safe, no existing table can be updated
+func mergeAutomata(existing, newStep smallStep) *smallTable {
+	return mergeOne(existing, newStep, make(map[string]smallStep)).SmallTable()
+}
+
+func mergeOne(existing, newStep smallStep, memoize map[string]smallStep) smallStep {
 	var combined smallStep
+
+	// to support automata that loop back to themselves (typically on *) we have to stop recursing (and also
+	//  trampolined recursion)
+	// I'm not sure this is the best way to key a map with two interface{} variables. Among other things, it
+	// relies on the ordering, but a glance at this func seems to show that's OK in this particular situation
 	mKey := fmt.Sprintf("%v%v", existing, newStep)
 	combined, ok := memoize[mKey]
 	if ok {
 		return combined
 	}
 
-	// we always take the transition from the existing step
-	// switch is easier than if/else
+	// we always take the transition from the existing step, even if there's another in the merged-in step
 	switch {
-	case (!(existing.HasTransition() || newStep.HasTransition())):
+	case !(existing.HasTransition() || newStep.HasTransition()):
 		combined = newSmallTable()
 	case existing.HasTransition() && newStep.HasTransition():
-		combined = newSmallTransition(existing.SmallTransition().fieldTransition)
+		transitions := append(existing.SmallTransition().fieldMatchers, newStep.SmallTransition().fieldMatchers...)
+		combined = newSmallMultiTransition(transitions)
 	case existing.HasTransition() && (!newStep.HasTransition()):
-		combined = newSmallTransition(existing.SmallTransition().fieldTransition)
+		combined = newSmallMultiTransition(existing.SmallTransition().fieldMatchers)
 	case (!existing.HasTransition()) && newStep.HasTransition():
-		combined = newSmallTransition(newStep.SmallTransition().fieldTransition)
+		combined = newSmallMultiTransition(newStep.SmallTransition().fieldMatchers)
 	}
 	memoize[mKey] = combined
-	combined.SmallTable().name = fmt.Sprintf("(%s/%s)", existing.SmallTable().name, newStep.SmallTable().name)
 
 	uExisting := unpack(existing.SmallTable())
 	uNew := unpack(newStep.SmallTable())
@@ -101,7 +108,7 @@ func mergeAutomata(existing, newStep smallStep, memoize map[string]smallStep) sm
 		case stepExisting == nil && stepNew != nil:
 			uComb[i] = stepNew
 		case stepExisting != nil && stepNew != nil:
-			uComb[i] = mergeAutomata(stepExisting, stepNew, memoize)
+			uComb[i] = mergeOne(stepExisting, stepNew, memoize)
 		}
 	}
 	combined.SmallTable().pack(&uComb)
@@ -155,14 +162,3 @@ func (t *smallTable) addRangeSteps(floor int, ceiling int, step smallStep) {
 	}
 	t.pack(unpacked)
 }
-
-/*
-func (t *smallTable) addRange(utf8Bytes []byte, step smallStep) {
-	// TODO update fuzz test to include this
-	unpacked := unpack(t)
-	for _, utf8Byte := range utf8Bytes {
-		unpacked[utf8Byte] = step
-	}
-	t.pack(unpacked)
-}
-*/

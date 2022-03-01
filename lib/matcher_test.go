@@ -64,6 +64,7 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "Title": [ { "exists": true } ] } }`,
 		`{"Image": { "Width": [800], "Title": [ { "exists": true } ], "Animated": [ false ] } }`,
 		`{"Image": { "Width": [800], "IDs": [ { "exists": true } ] } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://*.example.com/*" } ] } } }`,
 	}
 
 	var err error
@@ -80,7 +81,6 @@ func TestExerciseMatching(t *testing.T) {
 		if len(matches) != 1 {
 			t.Errorf("Matches %s Length %d", should, len(matches))
 		}
-
 	}
 
 	shouldNotMatches := []string{
@@ -132,5 +132,4 @@ func TestSimpleAddPattern(t *testing.T) {
 	if !ok {
 		t.Error("No trans from start on 'a'")
 	}
-	// TODO: Consider hand-checking the smallValueMacher structure
 }

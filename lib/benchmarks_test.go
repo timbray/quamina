@@ -8,15 +8,6 @@ import (
 	"time"
 )
 
-/*
-properties.17TH:1579
-properties.BALANCE: 1
-properties.CRANLEIGH: 7
-properties.ODD_EVEN": "O"': 97561
-properties.BLOCK_NUM  0256T: 810
-properties.geometry.coordinates: 37.80805250792249: 2
-*/
-
 const oneMeg = 1024 * 1024
 
 func TestCRANLEIGH(t *testing.T) {
@@ -37,7 +28,7 @@ func TestCRANLEIGH(t *testing.T) {
 	}
 	var matches []X
 	lines := [][]byte{[]byte(jCranleigh), []byte(j108492)}
-	// lines := [][]byte{[]byte(j108492)}
+
 	for _, line := range lines {
 		mm, err := m.MatchesForJSONEvent(line)
 		if err != nil {
@@ -56,6 +47,9 @@ func TestCRANLEIGH(t *testing.T) {
 
 const thresholdPerformance = 120000.0
 
+// TestCityLots is the benchmark that was used in most of Quamina's performance tuning.  It's fairly pessimal in
+//  that it uses geometry/co-ordintes, which will force the fj flattener to process the big arrays of numbers in
+//  each line.  A high proportion of typical Quamina workloads should run faster.
 func TestCityLots(t *testing.T) {
 	file, err := os.Open("../test_data/citylots.jlines")
 	if err != nil {
@@ -149,5 +143,126 @@ library, which would be unacceptable.`
 			t.Errorf("For %s, wanted=%d, result=%d", match, wanted[match], count)
 		}
 	}
+}
 
+func TestMySoftwareHatesMe(t *testing.T) {
+	line := `{ "type": "Feature", "properties": { "STREET": "BELVEDERE" }  }`
+	m := NewMatcher()
+	Bpat := `{"properties": {"STREET":[ {"shellstyle": "B*"} ] } }`
+	EEEpat := `{"properties": {"STREET":[ {"shellstyle": "*E*E*E*"} ] } }`
+
+	if m.AddPattern("EEE", EEEpat) != nil {
+		t.Error("Huh add?")
+	}
+	matches, err := m.MatchesForJSONEvent([]byte(line))
+	if len(matches) != 1 || matches[0] != "EEE" {
+		t.Error("Failed to match EEE")
+	}
+
+	m = NewMatcher()
+	_ = m.AddPattern("B", Bpat)
+	_ = m.AddPattern("EEE", EEEpat)
+
+	matches, err = m.MatchesForJSONEvent([]byte(line))
+	if err != nil {
+		t.Error("Huh? " + err.Error())
+	}
+	if !containsX(matches, "B") {
+		t.Error("no match for B")
+	}
+	if !containsX(matches, "EEE") {
+		t.Error("no match for EEE")
+	}
+}
+
+func containsX(list []X, x X) bool {
+	for _, in := range list {
+		if in == x {
+			return true
+		}
+	}
+	return false
+}
+
+// exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
+func TestBigShellStyle(t *testing.T) {
+	file, err := os.Open("../test_data/citylots.jlines")
+	if err != nil {
+		t.Error("Can't open file: " + err.Error())
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, oneMeg)
+	scanner.Buffer(buf, oneMeg)
+
+	m := NewMatcher()
+
+	wanted := map[X]int{
+		"A": 5883, "B": 12765, "C": 14824, "D": 6124, "E": 3402, "F": 7999, "G": 8555,
+		"H": 7829, "I": 1330, "J": 3853, "K": 2595, "L": 8168, "M": 14368, "N": 3710,
+		"O": 3413, "P": 11250, "Q": 719, "R": 4354, "S": 13255, "T": 4209, "U": 4636,
+		"V": 4322, "W": 4162, "X": 0, "Y": 721, "Z": 25,
+	}
+
+	funky := map[X]int{
+		`{"properties": {"STREET":[ {"shellstyle": "N*P*"} ] } }`:    927,
+		`{"properties": {"STREET":[ {"shellstyle": "*E*E*E*"} ] } }`: 1212,
+	}
+
+	for letter := range wanted {
+		pat := fmt.Sprintf(`{"properties": {"STREET":[ {"shellstyle": "%s*"} ] } }`, letter)
+		err := m.AddPattern(letter, pat)
+		if err != nil {
+			t.Errorf("err on %c: %s", letter, err.Error())
+		}
+	}
+
+	for funk := range funky {
+		err := m.AddPattern(funk, funk.(string))
+		if err != nil {
+			t.Errorf("err on %c: %s", funk, err.Error())
+		}
+	}
+	fmt.Println(matcherStats(m))
+
+	lineCount := 0
+	var lines [][]byte
+	for scanner.Scan() {
+		lineCount++
+		lines = append(lines, []byte(scanner.Text()))
+	}
+	lCounts := make(map[X]int)
+	before := time.Now()
+	for _, line := range lines {
+		matches, err := m.MatchesForJSONEvent(line)
+		if err != nil {
+			t.Error("Matches4JSON: " + err.Error())
+		}
+
+		for _, match := range matches {
+			lc, ok := lCounts[match]
+			if ok {
+				lCounts[match] = lc + 1
+			} else {
+				lCounts[match] = 1
+			}
+		}
+	}
+	elapsed := float64(time.Now().Sub(before).Milliseconds())
+	perSecond := float64(lineCount) / (elapsed / 1000.0)
+	fmt.Printf("%.2f matches/second with letter rules\n\n", perSecond)
+
+	for k, wc := range wanted {
+		if lCounts[k] != wc {
+			t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
+		}
+	}
+	for k, wc := range funky {
+		if lCounts[k] != wc {
+			t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
+		}
+	}
 }
