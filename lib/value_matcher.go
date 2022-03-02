@@ -19,6 +19,11 @@ type valueMatcher struct {
 	existsTransitions   []*fieldMatcher
 }
 
+// smallStep is used by the valueMatcher automaton - every step through the automaton requires a smallTable and for
+//  some of them, taking the step means you've matched a value and can transition to a new fieldMatcher. Since there
+//  are lots of steps, we don't want to carry the []*fieldMatcher information around on the vast majority of
+//  of steps that don't have any such transitions. So a smallStep can be either just a smallTable or ar a smallTable
+//  with an attached *fieldMatcher slice
 type smallStep interface {
 	SmallTable() *smallTable
 	SmallTransition() *smallTransition
@@ -26,8 +31,8 @@ type smallStep interface {
 }
 
 // ValueTerminator - whenever we're trying to match a value, we virtually add one of these as the last character, both
-//  when building the automaton and matching a value.  This simplifies things because you can write a pattern to
-//  match for example "foo" by writing it as
+//  when building the automaton and matching a value.  This simplifies things because you don't have to treat
+//  absolute-string-match (only works at last char in value) and prefix match differently.
 const ValueTerminator byte = 0xf5
 
 type smallTransition struct {
