@@ -64,15 +64,7 @@ The following patterns would match it:
 ```json
 {"Foo": [ { "exists": false } ] }
 ```
-```json
-{ 
-  "Image": {
-    "Thumbnail": {
-      "Url": [ { "shellstyle": "http://*.example.com/*" } ]
-    }
-  }
-}
-```
+
 The structure of the pattern, in terms of field names
 and nesting, must be the same as the structure of the event 
 to be matched.  The field values are always given
