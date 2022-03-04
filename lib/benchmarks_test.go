@@ -253,7 +253,7 @@ func TestBigShellStyle(t *testing.T) {
 	}
 	elapsed := float64(time.Now().Sub(before).Milliseconds())
 	perSecond := float64(lineCount) / (elapsed / 1000.0)
-	fmt.Printf("%.2f matches/second with letter rules\n\n", perSecond)
+	fmt.Printf("%.2f matches/second with letter patterns\n\n", perSecond)
 
 	for k, wc := range wanted {
 		if lCounts[k] != wc {
@@ -265,4 +265,65 @@ func TestBigShellStyle(t *testing.T) {
 			t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
 		}
 	}
+}
+
+func TestPatternAddition(t *testing.T) {
+	w := worder{0, readWWords(t)}
+
+	// now we're going to add 10K patterns.
+	m := NewMatcher()
+	before := time.Now()
+	fieldCount := 0
+	for x1 := 0; x1 < 10; x1++ {
+		for x2 := 0; x2 < 20; x2++ {
+			pat := fmt.Sprintf(`{"%s": { "%s": [ "%s"`, w.next(), w.next(), w.next())
+			for x3 := 0; x3 < 99; x3++ {
+				pat = pat + fmt.Sprintf(`, "%s"`, w.next())
+			}
+			fieldCount += 100
+			pat = pat + `] } }`
+			pName := string(w.next()) + string(w.next())
+			err := m.AddPattern(pName, pat)
+			if err != nil {
+				t.Error("addPattern " + err.Error())
+			}
+		}
+	}
+	fmt.Println("stats:" + matcherStats(m))
+	elapsed := float64(time.Now().Sub(before).Milliseconds())
+	perSecond := float64(fieldCount) / (elapsed / 1000.0)
+	fmt.Printf("%.2f fields/second\n\n", perSecond)
+}
+
+type worder struct {
+	index int
+	lines [][]byte
+}
+
+func (w *worder) next() []byte {
+	w.index += 761 // relatively prime with the number of lines
+	w.index = w.index % len(w.lines)
+	return w.lines[w.index]
+}
+
+func readWWords(t *testing.T) [][]byte {
+	// that's a list from the Wordle source code with a few erased to get a prime number
+	file, err := os.Open("../test_data/wwords.txt")
+	if err != nil {
+		t.Error("Can't open file: " + err.Error())
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, oneMeg)
+	scanner.Buffer(buf, oneMeg)
+
+	lineCount := 0
+	var lines [][]byte
+	for scanner.Scan() {
+		lineCount++
+		lines = append(lines, []byte(scanner.Text()))
+	}
+	return lines
 }

@@ -61,7 +61,11 @@ func (t *smallTable) step(utf8Byte byte) smallStep {
 	panic("Malformed SmallTable")
 }
 
-// mergeAutomata computes the union of two valueMatch automata
+// mergeAutomata computes the union of two valueMatch automata.  If you look up the textbook theory about this,
+//  they say to compute the set product for automata A and B and build A0B0, A0B1 … A1BN, A1B0 … but if you look
+//  at that you realize that many of the product states aren't reachable. So you compute A0B0 and then keep
+//  recursing on the transitions coming out there, I'm pretty sure you get a correct result. I don't know if it's
+//  minimal or even avoids being wasteful.
 //  INVARIANT: neither argument is nil
 //  INVARIANT: To be thread-safe, no existing table can be updated
 func mergeAutomata(existing, newStep smallStep) *smallTable {
@@ -81,7 +85,8 @@ func mergeOne(existing, newStep smallStep, memoize map[string]smallStep) smallSt
 		return combined
 	}
 
-	// we always take the transition from the existing step, even if there's another in the merged-in step
+	// TODO: this works, all the tests pass, but I'm not satisfied witih it. My intuition is that you ought
+	//  to be able to come out of this with just one *fieldMatcher, parhaps with a merged matches list.
 	switch {
 	case !(existing.HasTransition() || newStep.HasTransition()):
 		combined = newSmallTable()
@@ -113,6 +118,18 @@ func mergeOne(existing, newStep smallStep, memoize map[string]smallStep) smallSt
 	}
 	combined.SmallTable().pack(&uComb)
 	return combined
+}
+
+// loadSmallTable with a default value and one or more byte values, trying to be efficient about it
+func (t *smallTable) load(defaultStep smallStep, positions []byte, steps []smallStep) {
+	var u unpackedTable
+	for i := range u {
+		u[i] = defaultStep
+	}
+	for i, position := range positions {
+		u[position] = steps[i]
+	}
+	t.pack(&u)
 }
 
 // unpackedTable replicates the data in the smallTable ceilings and steps arrays.  It's quite hard to

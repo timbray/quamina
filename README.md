@@ -64,7 +64,15 @@ The following patterns would match it:
 ```json
 {"Foo": [ { "exists": false } ] }
 ```
-
+```json
+{ 
+  "Image": {
+    "Thumbnail": {
+      "Url": [ { "shellstyle": "*.example.com/*" } ]
+    }
+  }
+}
+```
 The structure of the pattern, in terms of field names
 and nesting, must be the same as the structure of the event 
 to be matched.  The field values are always given
@@ -142,7 +150,7 @@ The performance of `MatchesForJSONEvent` is strongly
 sublinear in the number of patterns. It’s not quite `O(1)`
 as it varies somewhat as a function of the number of 
 unique fields that appear in all the patterns that have 
-been added to the machine, but remains sublinear in that 
+been added to the matcher, but remains sublinear in that 
 number. 
 
 A word of explanation is in order. Quamina compiles the
