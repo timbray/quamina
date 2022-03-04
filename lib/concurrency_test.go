@@ -29,7 +29,7 @@ func updateTree(m *Matcher, use37 bool, t *testing.T, ch chan string) {
 func TestConcurrency(t *testing.T) {
 	const UpdateLines = 250
 
-	// this is a cut/paste of TestCityLots, except for every few lines we add another rule to the matcher,
+	// this is a cut/paste of TestCityLots, except for every few lines we add another pattern to the matcher,
 	//  focusing on the fields that are being used by the patterns. The idea is to exercise concurrent
 	//  update and use of the automaton
 	// I was initially surprised that adding 860 or so changes to the automaton while it's running doesn't seem to

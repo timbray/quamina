@@ -3,13 +3,13 @@ package quamina
 import "fmt"
 
 type stats struct {
-	fmCount int
+	fmCount   int
 	fmVisited map[*fieldMatcher]bool
-	vmCount int
+	vmCount   int
 	vmVisited map[*valueMatcher]bool
-	stCount int
+	stCount   int
 	stVisited map[*smallTable]bool
-	siCount int
+	siCount   int
 }
 
 func matcherStats(m *Matcher) string {

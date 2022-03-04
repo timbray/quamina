@@ -91,9 +91,8 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 
 	// step through the smallTables, byte by byte
 	table := m.startTable
-	var step smallStep
 	for _, utf8Byte := range val {
-		step = table.step(utf8Byte)
+		step := table.step(utf8Byte)
 		if step == nil {
 			return transitions
 		}

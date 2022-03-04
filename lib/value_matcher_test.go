@@ -98,6 +98,27 @@ func TestMultiTransitions(t *testing.T) {
 	}
 }
 
+func TestAY(t *testing.T) {
+	m := NewMatcher()
+	pat := `{"x": [ { "shellstyle": "*ay*"} ] }`
+	err := m.AddPattern("AY", pat)
+	if err != nil {
+		t.Error("AY: " + err.Error())
+	}
+	shouldMatch := []string{"ay", "aay", "aaaayyyyy", "xyzay", "ayxxxx"}
+	e := `{"x": "X"}`
+	for _, sm := range shouldMatch {
+		p := strings.ReplaceAll(e, "X", sm)
+		matches, err := m.MatchesForJSONEvent([]byte(p))
+		if err != nil {
+			t.Error("bad JSON: " + err.Error())
+		}
+		if len(matches) != 1 || matches[0] != "AY" {
+			t.Errorf("%s didn't match", sm)
+		}
+	}
+}
+
 func TestOverlappingValues(t *testing.T) {
 	m := NewMatcher()
 	p1 := `{"a": ["foo"]}`
