@@ -180,24 +180,27 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	return nextField
 }
 
-// makeStringAutomaton is the simplest-case way to create a utf8-based automaton based on smallTables. Note
-//  the addition of a ValueTerminator
-func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (start *smallTable, nextField *fieldMatcher) {
-	table := newSmallTable()
-	start = table
-
-	for _, ch := range val {
-		next := newSmallTable()
-		table.addByteStep(ch, next)
-		table = next
-	}
-
+// makeStringAutomaton creates a utf8-based automaton using smallTables. Note
+//  the addition of a ValueTerminator. The implementation is recursive because this allows the use of the
+//  makeSmallTable call, which reduces memory churn. Converting from a straightforward implementation to this
+//  approximately doubled the fields/second rate in addPattern
+func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable, *fieldMatcher) {
+	var nextField *fieldMatcher
 	if useThisTransition != nil {
 		nextField = useThisTransition
 	} else {
 		nextField = newFieldMatcher()
 	}
+	return oneAutomatonStep(val, 0, nextField), nextField
+}
 
-	table.addByteStep(ValueTerminator, newSmallTransition(nextField))
-	return
+func oneAutomatonStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
+	var nextStep smallStep
+	if index == len(val)-1 {
+		lastStep := newSmallTransition(nextField)
+		nextStep = makeSmallTable(nil, []byte{ValueTerminator}, []smallStep{lastStep})
+	} else {
+		nextStep = oneAutomatonStep(val, index+1, nextField)
+	}
+	return makeSmallTable(nil, []byte{val[index]}, []smallStep{nextStep})
 }

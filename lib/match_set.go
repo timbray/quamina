@@ -12,7 +12,7 @@ func newMatchSet() *matchSet {
 
 // this is klunky and slow but I don't want to put a lock in the access path
 func (m *matchSet) addX(x X) {
-	newSet := make(map[X]bool)
+	newSet := make(map[X]bool, len(m.set)+1)
 	for k := range m.set {
 		newSet[k] = true
 	}

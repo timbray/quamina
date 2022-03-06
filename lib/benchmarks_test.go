@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"testing"
 	"time"
 )
@@ -267,20 +269,29 @@ func TestBigShellStyle(t *testing.T) {
 	}
 }
 
+// TestPatternAddition adds a whole lot of string-only rules as fast as possible  The profiler says that the
+//  performance is totally doinated by the garbage-collector thrashing, in particular it has to allocate
+//  ~220K smallTables.  Tried https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap/
+//  but it doesn't seem to help.
+//  TODO: Find a way to allocate less tables.
 func TestPatternAddition(t *testing.T) {
 	w := worder{0, readWWords(t)}
 
-	// now we're going to add 10K patterns.
+	var msBefore, msAfter runtime.MemStats
+
+	// now we're going to add 200 fields, 200 values, so 40K name/value pairs. There might be some duplication?
 	m := NewMatcher()
 	before := time.Now()
 	fieldCount := 0
+	runtime.ReadMemStats(&msBefore)
+	debug.SetGCPercent(500)
 	for x1 := 0; x1 < 10; x1++ {
 		for x2 := 0; x2 < 20; x2++ {
 			pat := fmt.Sprintf(`{"%s": { "%s": [ "%s"`, w.next(), w.next(), w.next())
-			for x3 := 0; x3 < 99; x3++ {
+			for x3 := 0; x3 < 199; x3++ {
 				pat = pat + fmt.Sprintf(`, "%s"`, w.next())
 			}
-			fieldCount += 100
+			fieldCount += 200
 			pat = pat + `] } }`
 			pName := string(w.next()) + string(w.next())
 			err := m.AddPattern(pName, pat)
@@ -289,6 +300,9 @@ func TestPatternAddition(t *testing.T) {
 			}
 		}
 	}
+	runtime.ReadMemStats(&msAfter)
+	delta := 1.0 / 1000000.0 * float64(msAfter.Alloc - msBefore.Alloc)
+	fmt.Printf("before %d, after %d, delta %f\n", msBefore.Alloc, msAfter.Alloc, delta)
 	fmt.Println("stats:" + matcherStats(m))
 	elapsed := float64(time.Now().Sub(before).Milliseconds())
 	perSecond := float64(fieldCount) / (elapsed / 1000.0)

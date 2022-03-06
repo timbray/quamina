@@ -1,7 +1,5 @@
 package quamina
 
-import "fmt"
-
 // smallTable serves as a lookup table that encodes mappings between ranges of byte values and the SmallStep
 //  transition on any byte in the range.
 //  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, *smallStep}
@@ -17,7 +15,7 @@ import "fmt"
 //  small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
 //  or array construct
 type smallTable struct {
-	slices *stSlices
+	slices stSlices
 }
 
 // stSlices exists so that we can construct the ceilings and steps arrays and then atomically update both at
@@ -34,7 +32,7 @@ const ByteCeiling int = 0xf6
 
 func newSmallTable() *smallTable {
 	return &smallTable{
-		slices: &stSlices{
+		slices: stSlices{
 			ceilings: []byte{byte(ByteCeiling)},
 			steps:    []smallStep{nil},
 		},
@@ -69,17 +67,20 @@ func (t *smallTable) step(utf8Byte byte) smallStep {
 //  INVARIANT: neither argument is nil
 //  INVARIANT: To be thread-safe, no existing table can be updated
 func mergeAutomata(existing, newStep smallStep) *smallTable {
-	return mergeOne(existing, newStep, make(map[string]smallStep)).SmallTable()
+	return mergeOne(existing, newStep, make(map[stepKey]smallStep)).SmallTable()
 }
 
-func mergeOne(existing, newStep smallStep, memoize map[string]smallStep) smallStep {
+// stepKey exists to serve as the key for the memoize map that's needed to control recursion in mergeAutomata
+type stepKey struct {
+	existing smallStep
+	newStep  smallStep
+}
+func mergeOne(existing, newStep smallStep, memoize map[stepKey]smallStep) smallStep {
 	var combined smallStep
 
 	// to support automata that loop back to themselves (typically on *) we have to stop recursing (and also
 	//  trampolined recursion)
-	// I'm not sure this is the best way to key a map with two interface{} variables. Among other things, it
-	// relies on the ordering, but a glance at this func seems to show that's OK in this particular situation
-	mKey := fmt.Sprintf("%v%v", existing, newStep)
+	mKey := stepKey{existing: existing, newStep:  newStep}
 	combined, ok := memoize[mKey]
 	if ok {
 		return combined
@@ -118,6 +119,37 @@ func mergeOne(existing, newStep smallStep, memoize map[string]smallStep) smallSt
 	}
 	combined.SmallTable().pack(&uComb)
 	return combined
+}
+
+// TODO: Clean up from here on down - too many funcs doing about the same thing, and also it seems that
+//  we never want to have more than one "range", which is the whole table.
+
+// makeSmallTable creates a pre-loaded small table, with all bytes not otherwise specified having the defaultStep
+//  value, and then a few other values with their indexes and values specified in the other two arguments. The
+//  goal is to reduce memory churn
+// constraint: positions must be provided in order
+func makeSmallTable(defaultStep smallStep, indices []byte, steps []smallStep) *smallTable {
+	t := smallTable{
+		slices: stSlices{
+			ceilings: make([]byte, 0, len(indices)+2),
+			steps:    make([]smallStep, 0, len(indices)+2),
+		}}
+	slices := &t.slices
+	var lastIndex byte = 0
+	for i, index := range indices {
+		if index > lastIndex {
+			slices.ceilings = append(slices.ceilings, index)
+			slices.steps = append(slices.steps, defaultStep)
+		}
+		slices.ceilings = append(slices.ceilings, index+1)
+		slices.steps = append(slices.steps, steps[i])
+		lastIndex = index + 1
+	}
+	if indices[len(indices)-1] < byte(ByteCeiling) {
+		slices.ceilings = append(slices.ceilings, byte(ByteCeiling))
+		slices.steps = append(slices.steps, defaultStep)
+	}
+	return &t
 }
 
 // loadSmallTable with a default value and one or more byte values, trying to be efficient about it
@@ -163,7 +195,7 @@ func (t *smallTable) pack(u *unpackedTable) {
 	}
 	slices.ceilings = append(slices.ceilings, byte(ByteCeiling))
 	slices.steps = append(slices.steps, lastStep)
-	t.slices = &slices // atomic update
+	t.slices = slices // atomic update
 }
 
 func (t *smallTable) addByteStep(utf8Byte byte, step smallStep) {

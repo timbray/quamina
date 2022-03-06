@@ -52,6 +52,7 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 //  have to stay in the looking-for-'b' state because you have seen the 'a'.  Similarly, when you see 'xabac', when
 //  you're looking for 'c' and you see the 'a', once again, you have to go to the looking-for-'b' state.  Let's
 //  call the 'a the bounceBackByte and the looking-for-b state the bounceBackStep
+// TODO: Make this recursive like makeStringAutomaton
 func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start *smallTable, nextField *fieldMatcher) {
 	table := newSmallTable()
 	start = table

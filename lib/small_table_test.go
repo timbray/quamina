@@ -5,6 +5,33 @@ import (
 	"testing"
 )
 
+func TestMakeSmallTable(t *testing.T) {
+	tMST(t, []byte{1, 2, 33})
+	tMST(t, []byte{0, 1, 2, 33, byte(ByteCeiling - 1)})
+	tMST(t, []byte{2, 33, byte(ByteCeiling - 1)})
+	tMST(t, []byte{0, 1, 2, 33})
+}
+
+func tMST(t *testing.T, b []byte) {
+	comp := newSmallTable()
+	sdef := newSmallTable()
+	comp.addRangeSteps(0, ByteCeiling, sdef)
+	var steps []smallStep
+	for _, pos := range b {
+		onestep := newSmallTable()
+		steps = append(steps, onestep)
+		comp.addByteStep(pos, onestep)
+	}
+	table := makeSmallTable(sdef, b, steps)
+	uComp := unpack(comp)
+	uT := unpack(table)
+	for i := range uComp {
+		if uComp[i] != uT[i] {
+			t.Errorf("wrong at %d", i)
+		}
+	}
+}
+
 func TestCombiner(t *testing.T) {
 
 	// "jab"
@@ -33,7 +60,7 @@ func TestCombiner(t *testing.T) {
 	st = newSmallTransition(BFM)
 	B2.addRangeSteps(0, ByteCeiling, st)
 
-	combo := mergeOne(A0, B0, make(map[string]smallStep))
+	combo := mergeOne(A0, B0, make(map[stepKey]smallStep))
 
 	vm := &valueMatcher{
 		startTable: combo.SmallTable(),
@@ -61,7 +88,7 @@ func TestCombiner(t *testing.T) {
 	st = newSmallTransition(CFM)
 	C2.addByteStep(ValueTerminator, st)
 
-	combo = mergeOne(vm.startTable, C0, make(map[string]smallStep))
+	combo = mergeOne(vm.startTable, C0, make(map[stepKey]smallStep))
 	vm.startTable = combo.SmallTable()
 	matches = vm.transitionOn([]byte("jab"))
 	if len(matches) != 1 || matches[0].transitions["AFM"] == nil {
@@ -85,7 +112,7 @@ func TestUnpack(t *testing.T) {
 	st1 := newSmallTable()
 
 	st := smallTable{
-		slices: &stSlices{
+		slices: stSlices{
 			ceilings: []uint8{2, 3, byte(ByteCeiling)},
 			steps:    []smallStep{nil, st1, nil},
 		},
