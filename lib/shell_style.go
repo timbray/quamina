@@ -20,11 +20,15 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 
 	// no adjacent wildcards
 	valBytes := []byte(shellString)
-	for i := 1; i < len(valBytes); i++ {
-		if valBytes[i] == '*' && valBytes[i-1] == '*' {
-			err = errors.New("adjacent '*' characters not allowed in shellstyle pattern")
-			return
+	globs := 0
+	for _, ch := range valBytes {
+		if ch == '*' {
+			globs++
 		}
+	}
+	if globs > 1 {
+		err = errors.New("only one '*' character allowed in a shellstyle pattern")
+		return
 	}
 
 	pathVals = append(pathVals, typedVal{vType: shellStyleType, val: `"` + shellString + `"`})
@@ -45,13 +49,7 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 	return
 }
 
-// mssA2 - recognize a "-delimited string containing one or more '*' globs.
-//  This isn't quite as simple as you'd think.  Consider matching "*abc". When you see an 'a' you move to a state
-//  where you're looking for 'b'. So if it's not a 'b' you go back to the '*' state. But suppose you see "xaabc";
-//  when you're in that looking-for-'b' state and you see that second 'a', you don't go back to the '*' state, you
-//  have to stay in the looking-for-'b' state because you have seen the 'a'.  Similarly, when you see 'xabac', when
-//  you're looking for 'c' and you see the 'a', once again, you have to go to the looking-for-'b' state.  Let's
-//  call the 'a the bounceBackByte and the looking-for-b state the bounceBackStep
+// makeShellStyleAutomaton - recognize a "-delimited string containing one '*' glob.
 // TODO: Make this recursive like makeStringAutomaton
 func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start *smallTable, nextField *fieldMatcher) {
 	table := newSmallTable()
@@ -62,11 +60,8 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 		nextField = newFieldMatcher()
 	}
 
-	var bounceBackByte byte
-	var bounceBackStep smallStep = nil
+	// loop through all but last byte
 	var globStep smallStep = nil
-
-	// loop through all but last bytea
 	i := 0
 	for i < len(val)-1 {
 		ch := val[i]
@@ -77,16 +72,12 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 				table.addRangeSteps(0, ByteCeiling, lastStep)
 				return
 			}
+			table.addRangeSteps(0, ByteCeiling, table)
 			globStep = table
-			i++
-			bounceBackStep = newSmallTable()
-			bounceBackByte = val[i]
-			table.load(table, []byte{val[i]}, []smallStep{bounceBackStep})
-			table = bounceBackStep.SmallTable()
 		} else {
 			next := newSmallTable()
 			if globStep != nil {
-				table.load(globStep, []byte{bounceBackByte}, []smallStep{bounceBackStep})
+				table.addRangeSteps(0, ByteCeiling, globStep)
 			}
 			table.addByteStep(ch, next)
 			table = next

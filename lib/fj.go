@@ -175,6 +175,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 			}
 
 			var val []byte
+			var alt []byte
 			switch ch {
 			case '"':
 				val, err = fj.readStringValue()
@@ -185,7 +186,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 			case 'n':
 				val, err = fj.readLiteral(nullBytes)
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				val, err = fj.readNumber()
+				val, alt, err = fj.readNumber()
 			case '[':
 				if !fj.nameTracker.IsNameUsed(memberName) {
 					fj.skipping++
@@ -228,6 +229,9 @@ func (fj *FJ) readObject(pathName []byte) error {
 					fj.storeObjectMemberField(pathForChild(pathName, memberName), arrayTrail, val)
 				}
 			}
+			if alt != nil {
+				alt = nil
+			}
 			state = afterValueState
 		case afterValueState:
 			switch ch {
@@ -265,6 +269,7 @@ func (fj *FJ) readArray(pathName []byte) error {
 	for {
 		ch := fj.ch()
 		var val []byte // resets on each loop
+		var alt []byte
 		switch state {
 		case inArrayState:
 			// bypass space before element value. A bit klunky but allows for immense simplification
@@ -285,7 +290,7 @@ func (fj *FJ) readArray(pathName []byte) error {
 			case 'n':
 				val, err = fj.readLiteral(nullBytes)
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				val, err = fj.readNumber()
+				val, alt, err = fj.readNumber()
 			case '{':
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
@@ -315,6 +320,9 @@ func (fj *FJ) readArray(pathName []byte) error {
 					fj.storeArrayElementField(pathName, val)
 				}
 			}
+			if alt != nil {
+				alt = nil
+			}
 			state = afterValueState
 		case afterValueState:
 			switch ch {
@@ -341,7 +349,7 @@ func (fj *FJ) readArray(pathName []byte) error {
  *  these higher-level funcs are going to advance the pointer after each invocation
  */
 
-func (fj *FJ) readNumber() ([]byte, error) {
+func (fj *FJ) readNumber() ([]byte, []byte, error) {
 	numStart := fj.eventIndex
 	state := numberStartState
 	for {
@@ -354,7 +362,7 @@ func (fj *FJ) readNumber() ([]byte, error) {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				state = numberIntegralPartState
 			default:
-				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case numberIntegralPartState:
 			switch ch {
@@ -366,9 +374,16 @@ func (fj *FJ) readNumber() ([]byte, error) {
 				state = numberExpState
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
-				return fj.event[numStart : fj.eventIndex+1], nil
+				// TODO: Too expensive; make it possible for people to ask for this
+				//bytes := fj.event[numStart : fj.eventIndex+1]
+				//c, err := canonicalize(bytes)
+				var alt []byte
+				//if err == nil {
+				//	alt = []byte(c)
+				//}
+				return fj.event[numStart : fj.eventIndex+1], alt, nil
 			default:
-				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case numberFracState:
 			switch ch {
@@ -376,11 +391,18 @@ func (fj *FJ) readNumber() ([]byte, error) {
 				// no-op
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
-				return fj.event[numStart : fj.eventIndex+1], nil
+				bytes := fj.event[numStart : fj.eventIndex+1]
+				// TODO: Too expensive; make it possible for people to ask for this
+				// c, err := canonicalize(bytes)
+				var alt []byte
+				//if err == nil {
+				//	alt = []byte(c)
+				//}
+				return bytes, alt, nil
 			case 'e':
 				state = numberExpState
 			default:
-				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case numberExpState:
 			switch ch {
@@ -388,13 +410,20 @@ func (fj *FJ) readNumber() ([]byte, error) {
 				// no-op
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
-				return fj.event[numStart : fj.eventIndex+1], nil
+				// bytes := fj.event[numStart : fj.eventIndex+1]
+				// TODO: Too expensive; make it possible for people to ask for this
+				// c, err := canonicalize(bytes)
+				var alt []byte
+				// if err == nil {
+				//	alt = []byte(c)
+				// }
+				return fj.event[numStart : fj.eventIndex+1], alt, nil
 			}
 		default:
-			return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+			return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 		}
 		if fj.step() != nil {
-			return nil, fj.error("event truncated in number")
+			return nil, nil, fj.error("event truncated in number")
 		}
 	}
 }

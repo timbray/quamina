@@ -67,11 +67,20 @@ The following patterns would match it:
 ```json
 { 
   "Image": {
-    "Thumbnail": {
-      "Url": [ { "shellstyle": "*.example.com/*" } ]
-    }
+    "Thumbnail": { "Url": [ { "shellstyle": "*9943" } ] }
   }
 }
+{
+  "Image": {
+    "Thumbnail": { "Url": [ { "shellstyle": "http://www.example.com/*" } ] }
+  }
+}
+{
+  "Image": {
+    "Thumbnail": { "Url": [ { "shellstyle": "http://www.example.com/*9943" } ] }
+  }
+}
+
 ```
 The structure of the pattern, in terms of field names
 and nesting, must be the same as the structure of the event 

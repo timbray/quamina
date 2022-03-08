@@ -64,7 +64,10 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "Title": [ { "exists": true } ] } }`,
 		`{"Image": { "Width": [800], "Title": [ { "exists": true } ], "Animated": [ false ] } }`,
 		`{"Image": { "Width": [800], "IDs": [ { "exists": true } ] } }`,
-		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://*.example.com/*" } ] } } }`,
+		//`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://*.example.com/*" } ] } } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "*9943" } ] } } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*" } ] } } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*9943" } ] } } }`,
 	}
 
 	var err error

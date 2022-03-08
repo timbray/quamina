@@ -42,6 +42,18 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 	var nextFieldMatchers []*fieldMatcher
 	for _, val := range field.vals {
 		nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(val))
+
+		// if the val is a number, let's add a transition on the canonicalized number
+		if val.vType == numberType {
+			c, err := canonicalize([]byte(val.val))
+			if err == nil {
+				number := typedVal{
+					vType: literalType,
+					val:   c,
+				}
+				nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(number))
+			}
+		}
 	}
 	return nextFieldMatchers
 }
