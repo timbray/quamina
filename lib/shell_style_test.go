@@ -2,10 +2,36 @@ package quamina
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 )
+
+func TestLongCase(t *testing.T) {
+	m := NewMatcher()
+	pat := `{"x": [ {"shellstyle": "*abab"} ] }`
+	err := m.AddPattern("x", pat)
+	if err != nil {
+		t.Error("addPat? " + err.Error())
+	}
+	shoulds := []string{
+		"abaabab",
+		"ababab",
+		"ababaabab",
+	}
+	for _, should := range shoulds {
+		event := fmt.Sprintf(`{"x": "%s"}`, should)
+		fmt.Printf("E: %s\n", event)
+		matches, err := m.MatchesForJSONEvent([]byte(event))
+		if err != nil {
+			t.Error("m4j " + err.Error())
+		}
+		if len(matches) != 1 {
+			t.Error("MISSED: " + should)
+		}
+	}
+}
 
 func TestNfaMerging(t *testing.T) {
 	aMatches := []string{
