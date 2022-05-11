@@ -55,7 +55,7 @@ func (m *Matcher) AddPattern(x X, patternJSON string) error {
 	// The matcher contains several map[this]that maps but Go maps aren't thread-safe.  This could be solved
 	//  with a straightforward mutex or the fancy sync.Map, but I succumbed to premature optimization and decided
 	//  I didn't want any of that stuff in the Match* path.  So in each case the map (or map-like structure in
-	//  smallTable) is copied, the copy updated, then the whole map updated atomically in the containing structure
+	//  smallDfaTable) is copied, the copy updated, then the whole map updated atomically in the containing structure
 	//  see: https://medium.com/@deckarep/the-new-kid-in-town-gos-sync-map-de24a6bf7c2c
 	m.lock.Lock()
 	defer m.lock.Unlock()

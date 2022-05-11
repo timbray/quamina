@@ -36,6 +36,8 @@ type patternBuild struct {
 	isNameUsed map[string]bool
 }
 
+// TODO: Improve unit test coverage of error conditions
+
 // patternFromJSON - I love naked returns and I cannot lie
 func patternFromJSON(jsonBytes []byte) (fields []*patternField, namesUsed map[string]bool, err error) {
 	// we can't use json.Unmarshal because it round-trips numbers through float64 and %f so they won't end up matching

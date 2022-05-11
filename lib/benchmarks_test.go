@@ -125,10 +125,10 @@ func TestCityLots(t *testing.T) {
 		message1 := fmt.Sprintf("Events-per-second benchmark ran at %.0f events per second, below threshold of %.0f.",
 			perSecond, thresholdPerformance)
 		message2 := `
-It may be that re-running the benchmark test will address this, or it may be that you're running on a machine
-that is slower than the one the software was developed on, in which case you might want to readjust the 
-"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the 
-library, which would be unacceptable.`
+		It may be that re-running the benchmark test will address this, or it may be that you're running on a machine
+		that is slower than the one the software was developed on, in which case you might want to readjust the
+		"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the
+		library, which would be unacceptable.`
 		t.Errorf(message1 + message2)
 	}
 
@@ -178,17 +178,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 		t.Error("no match for EEE")
 	}
 }
- */
-
-
-func containsX(list []X, x X) bool {
-	for _, in := range list {
-		if in == x {
-			return true
-		}
-	}
-	return false
-}
+*/
 
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
@@ -218,7 +208,7 @@ func TestBigShellStyle(t *testing.T) {
 		`{"properties": {"STREET":[ {"shellstyle": "N*P*"} ] } }`:    927,
 		`{"properties": {"STREET":[ {"shellstyle": "*E*E*E*"} ] } }`: 1212,
 	}
-	 */
+	*/
 
 	for letter := range wanted {
 		pat := fmt.Sprintf(`{"properties": {"STREET":[ {"shellstyle": "%s*"} ] } }`, letter)
@@ -229,13 +219,13 @@ func TestBigShellStyle(t *testing.T) {
 	}
 
 	/*
-	for funk := range funky {
-		err := m.AddPattern(funk, funk.(string))
-		if err != nil {
-			t.Errorf("err on %s: %s", funk, err.Error())
+		for funk := range funky {
+			err := m.AddPattern(funk, funk.(string))
+			if err != nil {
+				t.Errorf("err on %s: %s", funk, err.Error())
+			}
 		}
-	}
-	 */
+	*/
 	fmt.Println(matcherStats(m))
 
 	lineCount := 0
@@ -271,13 +261,13 @@ func TestBigShellStyle(t *testing.T) {
 		}
 	}
 	/*
-	for k, wc := range funky {
-		if lCounts[k] != wc {
-			t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
+		for k, wc := range funky {
+			if lCounts[k] != wc {
+				t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
+			}
 		}
-	}
-	
-	 */
+
+	*/
 }
 
 // TestPatternAddition adds a whole lot of string-only rules as fast as possible  The profiler says that the
@@ -285,6 +275,7 @@ func TestBigShellStyle(t *testing.T) {
 //  ~220K smallTables.  Tried https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap/
 //  but it doesn't seem to help.
 //  TODO: Find a way to allocate less tables.
+//  TODO: Add shellstyle patterns
 func TestPatternAddition(t *testing.T) {
 	w := worder{0, readWWords(t)}
 
@@ -312,7 +303,7 @@ func TestPatternAddition(t *testing.T) {
 		}
 	}
 	runtime.ReadMemStats(&msAfter)
-	delta := 1.0 / 1000000.0 * float64(msAfter.Alloc - msBefore.Alloc)
+	delta := 1.0 / 1000000.0 * float64(msAfter.Alloc-msBefore.Alloc)
 	fmt.Printf("before %d, after %d, delta %f\n", msBefore.Alloc, msAfter.Alloc, delta)
 	fmt.Println("stats:" + matcherStats(m))
 	elapsed := float64(time.Now().Sub(before).Milliseconds())

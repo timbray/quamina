@@ -18,6 +18,10 @@ func updateTree(m *Matcher, use37 bool, t *testing.T, ch chan string) {
 	} else {
 		val = fmt.Sprintf(`"%d"`, rand.Int())
 		pattern = fmt.Sprintf(`{ "properties": { "STREET": [ %s ] } }`, val)
+		/* TODO: alternate literal and shellstyle addition
+		val = fmt.Sprintf(`"*%d"`, rand.Int())
+		pattern = fmt.Sprintf(`{ "properties": { "STREET": [ {"shellstyle": %s } ] } }`, val)
+		*/
 	}
 	err := m.AddPattern(val, pattern)
 	if err != nil {
@@ -45,21 +49,24 @@ func TestConcurrency(t *testing.T) {
 
 	patterns := []string{
 		`{ "properties": { "STREET": [ "CRANLEIGH" ] } }`,
+		`{ "properties": { "STREET": [ { "shellstyle": "B*K"} ] } }`,
 		`{ "properties": { "STREET": [ "17TH" ], "ODD_EVEN": [ "E"] } }`,
 		`{ "geometry": { "coordinates": [ 37.807807921694092 ] } }`,
 		`{ "properties": { "MAPBLKLOT": ["0011008"], "BLKLOT": ["0011008"]},  "geometry": { "coordinates": [ 37.807807921694092 ] } } `,
 	}
 	names := []string{
 		"CRANLEIGH",
+		"shellstyle",
 		"17TH Even",
 		"Geometry",
 		"0011008",
 	}
 	wanted := map[X]int{
-		"CRANLEIGH": 7,
-		"17TH Even": 836,
-		"Geometry":  2,
-		"0011008":   1,
+		"CRANLEIGH":  7,
+		"shellstyle": 746,
+		"17TH Even":  836,
+		"Geometry":   2,
+		"0011008":    1,
 	}
 
 	scanner := bufio.NewScanner(file)
@@ -85,6 +92,7 @@ func TestConcurrency(t *testing.T) {
 	lineCount = 0
 	before := time.Now()
 	ch := make(chan string, 1000)
+	sent := 0
 	for _, line := range lines {
 		matches, err := m.MatchesForJSONEvent(line)
 		if err != nil {
@@ -93,6 +101,7 @@ func TestConcurrency(t *testing.T) {
 		lineCount++
 		if lineCount%UpdateLines == 0 {
 			use37 = !use37
+			sent++
 			go updateTree(m, use37, t, ch)
 		}
 		for _, match := range matches {
@@ -103,11 +112,10 @@ func TestConcurrency(t *testing.T) {
 			results[match] = count + 1
 		}
 	}
-	fmt.Println()
 
 	elapsed := float64(time.Now().Sub(before).Milliseconds())
 	perSecond := float64(lineCount) / (elapsed / 1000.0)
-	fmt.Printf("%.2f matches/second with updates\n\n", perSecond)
+	fmt.Printf("\n%.2f matches/second with updates\n\n", perSecond)
 
 	err = scanner.Err()
 	if err != nil {
@@ -125,7 +133,8 @@ func TestConcurrency(t *testing.T) {
 
 	// now we go back and make sure that all those AddPattern calls actually made it into the Matcher
 	close(ch)
-	for val := range ch {
+	for i := 0; i < sent; i++ {
+		val := <-ch
 		var event string
 		if val[0] == '"' {
 			event = fmt.Sprintf(`{"properties": { "STREET": %s} }`, val)

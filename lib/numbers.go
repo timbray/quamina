@@ -6,8 +6,9 @@ import (
 	"strconv"
 )
 
+// TODO: Make this more efficient and improve unit-test coverage
 const (
-	nineDigits = 1000000000.0
+	nineDigits        = 1000000000.0
 	digitsOfPrecision = 18
 )
 
@@ -24,6 +25,5 @@ func canonicalize(s []byte) (string, error) {
 	if f >= nineDigits || f <= -nineDigits {
 		return "", errors.New(fmt.Sprintf("number is outside of range [%f, %f]", -nineDigits, nineDigits))
 	}
-	return fmt.Sprintf("%019.0f", (f + nineDigits) * nineDigits), nil
+	return fmt.Sprintf("%019.0f", (f+nineDigits)*nineDigits), nil
 }
-

@@ -16,6 +16,7 @@ import (
 //  the fields & values can be represented as []byte slices using a couple of offsets into the underlying event.
 //  There is an exception, namely strings that contain \-prefixed JSON escapes; since we want to work with the
 //  actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
+// TODO: There are gaps in the unit-test coverage, including nearly all the error conditions
 type FJ struct {
 	event       []byte      // event being processed, treated as immutable
 	eventIndex  int         // current byte index into the event

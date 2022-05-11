@@ -1,11 +1,57 @@
 package quamina
 
 import (
+	"bufio"
+	"os"
+	"strings"
 	"testing"
 )
 
+func TestNfaMerging(t *testing.T) {
+	aMatches := []string{
+		`"Afoo"`,
+		`"ABA"`,
+	}
+	bMatches := []string{
+		`"BAB"`,
+		`"Bbar"`,
+	}
+	var f1 = &fieldMatcher{}
+	var f2 = &fieldMatcher{}
+	nfa1, _ := makeShellStyleAutomaton([]byte(`"A*"`), f1)
+	nfa2, _ := makeShellStyleAutomaton([]byte(`"B*"`), f2)
+
+	v1 := &valueMatcher{startNfa: nfa1}
+	v2 := &valueMatcher{startNfa: nfa2}
+
+	for _, aMatch := range aMatches {
+		t1 := v1.transitionOn([]byte(aMatch))
+		if len(t1) != 1 || t1[0] != f1 {
+			t.Error("mismatch on " + aMatch)
+		}
+	}
+	for _, bMatch := range bMatches {
+		t1 := v2.transitionOn([]byte(bMatch))
+		if len(t1) != 1 || t1[0] != f2 {
+			t.Error("mismatch on " + bMatch)
+		}
+	}
+
+	combo := mergeNfas(nfa1, nfa2)
+	v3 := &valueMatcher{startNfa: combo}
+	ab := append(aMatches, bMatches...)
+	for _, match := range ab {
+		t3 := v3.transitionOn([]byte(match))
+		if len(t3) != 1 {
+			t.Error("Fail on " + match)
+		}
+	}
+
+}
+
 func TestMakeShellStyleAutomaton(t *testing.T) {
 	patterns := []string{
+		`"*ST"`,
 		`"foo*"`,
 		`"*foo"`,
 		`"*foo*"`,
@@ -13,6 +59,7 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 		`"*xx*yy*"`,
 	}
 	shouldsForPatterns := [][]string{
+		{`"STA ST"`, `"1ST"`},
 		{`"fooabc"`, `"foo"`},
 		{`"afoo"`, `"foo"`},
 		{`"xxfooyy"`, `"fooyy"`, `"xxfoo"`, `"foo"`},
@@ -20,6 +67,7 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 		{`"abxxcdyyef"`, `"xxcdyyef"`, `"abxxyyef"`, `"abxxcdyy"`, `"abxxyy"`, `"xxcdyy"`, `"xxyyef"`, `"xxyy"`},
 	}
 	shouldNotForPatterns := [][]string{
+		{`"STA"`, `"STAST "`},
 		{`"afoo"`, `"fofo"`},
 		{`"foox"`, `"afooo"`},
 		{`"afoa"`, `"fofofoxooxoo"`},
@@ -28,19 +76,24 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 	}
 
 	for i, pattern := range patterns {
+		// fmt.Printf("p=%s\n", pattern)
 		myNext := newFieldMatcher()
 		a, wanted := makeShellStyleAutomaton([]byte(pattern), myNext)
 		if wanted != myNext {
 			t.Error("bad next on: " + pattern)
 		}
 		for _, should := range shouldsForPatterns[i] {
-			gotTrans := traverseA(a, should)
-			if wanted != gotTrans {
+			// fmt.Printf("should: %s\n", should)
+			var transitions []*fieldMatcher
+			gotTrans := oneNfaStep(a, 0, []byte(should), transitions)
+			if len(gotTrans) != 1 || gotTrans[0] != wanted {
 				t.Errorf("Failure for %s on %s", pattern, should)
 			}
 		}
 		for _, shouldNot := range shouldNotForPatterns[i] {
-			gotTrans := traverseA(a, shouldNot)
+			// fmt.Printf("shouldn't: %s\n", shouldNot)
+			var transitions []*fieldMatcher
+			gotTrans := oneNfaStep(a, 0, []byte(shouldNot), transitions)
 			if gotTrans != nil {
 				t.Errorf("bogus match for %s on %s", pattern, shouldNot)
 			}
@@ -48,21 +101,71 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 	}
 }
 
-func traverseA(t *smallTable, val string) *fieldMatcher {
-	var next smallStep
-	for _, ch := range []byte(val) {
-		next = t.step(ch)
-		if next == nil {
-			return nil
-		}
-		if next.HasTransition() {
-			return next.SmallTransition().fieldMatchers[0]
-		}
-		t = next.SmallTable()
+func TestMixedPatterns(t *testing.T) {
+	// let's mix up some prefix, infix, suffix, and exact-match searches
+	x := map[string]int{
+		`"*ST"`:     5754,
+		`"*TH"`:     34310,
+		`"B*K"`:     746,
+		`"C*L"`:     1022,
+		`"CH*"`:     2226,
+		`"Z*"`:      25,
+		`"BANNOCK"`: 22,
+		`"21ST"`:    1370,
+		`"ZOE"`:     19,
+		`"CRYSTAL"`: 6,
 	}
-	if !next.HasTransition() {
-		return nil
+	x1, _ := makeShellStyleAutomaton([]byte(`"*ST"`), nil)
+	x2, _ := makeShellStyleAutomaton([]byte(`"*TH"`), nil)
+	mergeNfas(x1, x2)
+
+	stringTemplate := `{"properties": { "STREET": [ XX ] } }`
+	shellTemplate := `{"properties": {"STREET":[ {"shellstyle": XX} ] } }`
+	m := NewMatcher()
+	for name := range x {
+		var pat string
+		if strings.Contains(name, "*") {
+			pat = strings.ReplaceAll(shellTemplate, "XX", name)
+		} else {
+			pat = strings.ReplaceAll(stringTemplate, "XX", name)
+		}
+
+		err := m.AddPattern(name, pat)
+		if err != nil {
+			t.Error("addPattern: " + name + ", prob=" + err.Error())
+		}
 	}
-	trans := next.SmallTransition()
-	return trans.fieldMatchers[0]
+	got := make(map[X]int)
+	file, err := os.Open("../test_data/citylots.jlines")
+	if err != nil {
+		t.Error("Can't open file: " + err.Error())
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, oneMeg)
+	scanner.Buffer(buf, oneMeg)
+	for scanner.Scan() {
+		line := []byte(scanner.Text())
+		matches, err := m.MatchesForJSONEvent(line)
+		if err != nil {
+			t.Error("Matches4JSON: " + err.Error())
+		}
+		for _, match := range matches {
+			count, ok := got[match]
+			if !ok {
+				got[match] = 1
+			} else {
+				got[match] = count + 1
+			}
+		}
+	}
+	for match, count := range got {
+		sm := match.(string)
+		if x[sm] != count {
+			t.Errorf("For %s wanted %d got %d", sm, x[sm], count)
+		}
+
+	}
 }

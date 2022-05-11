@@ -70,14 +70,22 @@ The following patterns would match it:
     "Thumbnail": { "Url": [ { "shellstyle": "*9943" } ] }
   }
 }
+```
+        
+```json
 {
   "Image": {
-    "Thumbnail": { "Url": [ { "shellstyle": "http://www.example.com/*" } ] }
+    "Thumbnail": { "Url": 
+      [ { "shellstyle": "http://www.example.com/*" } ] }
   }
 }
+```
+
+```json
 {
   "Image": {
-    "Thumbnail": { "Url": [ { "shellstyle": "http://www.example.com/*9943" } ] }
+    "Thumbnail": { "Url": 
+      [ { "shellstyle": "http://www.example.com/*9943" } ] }
   }
 }
 
@@ -95,10 +103,19 @@ be assumed to match, but all Fields mentioned must match. So the
 semantics are effectively an OR on each field's values, 
 but an AND on the field names.
 
+Note that the `shellstyle` patterns can include only
+one `*` character. The architecture probably allows
+support for a larger subset of regular expressions
+but currently,  the testing for just the single -`*`
+patterns is a bit lacking.
+
 Number matching is weak - the number has to appear 
 exactly the same in the pattern and the event. I.e.,
 Quamina doesn't know that 35, 35.000, and 3.5e1 are the
 same number.
+
+There's a fix for this in the code which is commented
+out because it causes a significant performance penalty.
 
 ## APIs
 
@@ -163,8 +180,8 @@ been added to the matcher, but remains sublinear in that
 number. 
 
 A word of explanation is in order. Quamina compiles the
-patterns into a somewhat-decorated DFA and uses that to
-find matches in events; that DFA-based matching process is 
+patterns into a somewhat-decorated automaton and uses 
+that to find matches in events; the matching process is 
 O(1) in the number of patterns.
 
 However, for this to work, the incoming event must be
