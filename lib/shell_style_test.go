@@ -22,7 +22,6 @@ func TestLongCase(t *testing.T) {
 	}
 	for _, should := range shoulds {
 		event := fmt.Sprintf(`{"x": "%s"}`, should)
-		fmt.Printf("E: %s\n", event)
 		matches, err := m.MatchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Error("m4j " + err.Error())
