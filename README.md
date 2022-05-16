@@ -117,6 +117,39 @@ same number.
 There's a fix for this in the code which is commented
 out because it causes a significant performance penalty.
 
+## Flattening and Matching
+
+The first step in finding matches for an Event is 
+“flattening” it, which is to say turning it 
+into a list of pathname/value pairs called Fields. Quamina 
+defines a `Flattener` interface type and provides a 
+JSON-specific implementation in the `FJ` type.
+
+`Flattener` implementations in general will have
+internal state and thus not be thread-safe.
+
+The `MatchesForJSONEvent` API must create a new 
+`FJ` instance for each event so that it 
+can be thread-safe.  This works fine, but creating a 
+new `FJ` instance is expensive enough to slow the 
+rate at which events can be matched by 15% or so.
+
+For maximum performance in matching JSON events, 
+you should create your own `FJ` instance with the 
+`NewFJ(Matcher)` method. You can then use 
+`FJ.Flatten(event)` API to turn multiple successive
+JSON events into `Field` lists and pass them to 
+`Matcher`'s `MatchesForFields()` API, but `FJ` 
+includes a convenience method `FlattenAndMatch(event)` 
+which will call the `Matcher` for you.  As long as 
+each thread has its own `Flattener` instance, 
+everything will remain thread-safe.
+
+Also note that should you wish to process events 
+in a format other than JSON, you can implement 
+the `Flattener` interface and use that to process 
+events in whatever format into Field lists.
+
 ## APIs
 
 **Note**: In all the APIs below, field names and values in both
@@ -156,9 +189,7 @@ func (m *Matcher) MatchesForJSONEvent(event []byte) ([]X, error)
 ```
 
 The `event` argument must be a JSON object encoded in
-correct UTF-8. It would be 
-easy to extend Matcher to handle other data formats; see the
-`Flattener` interface and its implementation in `fj.go`.
+correct UTF-8. 
 
 The `error` return value is nil unless there was an
 error in the Event JSON.
@@ -166,9 +197,32 @@ error in the Event JSON.
 The `[]X` return slice may be empty if none of the Patterns
 match the provided Event. 
 
+```go
+func (m *Matcher) MatchesForFields([]Field) []X
+```
+Performs the functions of `MatchesForJSON` on an 
+Event which has been flattened into a list of `Field`
+instances.
+
 `MatchesForJSONEvent` is thread-safe. Many threads may
 be executing it concurrently, even while `AddPattern` is
 also executing.
+
+```go
+func NewFJ(*Matcher) Flattener
+```
+Creates a new JSON-specific Flattener.
+```go
+func (fj *FJ) Flatten([]byte event) []Field
+```
+Transforms an event, which must be JSON object
+encoded in UTF-8 into a list of `Field` instances.
+
+```go
+func (fj *FJ) FlattenAndMatch([]byte event) ([]X, error)
+```
+Utility function which combines the functions of the 
+`FJ.Flatten` and `Matcher.MatchesForFields` APIs.
 
 ### Performance
 

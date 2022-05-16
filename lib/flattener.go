@@ -33,6 +33,7 @@ type Field struct {
 // "f", "33"
 // "f", "\"x\""
 type Flattener interface {
-	Flatten(event []byte, nameTracker NameTracker) ([]Field, error)
+	Flatten(event []byte) ([]Field, error)
+	FlattenAndMatch(event []byte) ([]X, error)
 	Reset()
 }

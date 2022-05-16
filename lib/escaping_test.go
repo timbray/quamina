@@ -6,9 +6,9 @@ import (
 
 func TestReadMemberName(t *testing.T) {
 	j := `{"😀💋😺": 1, "x\u0078\ud83d\udc8by": "2"}`
-	m := &MockNameTracker{Paths: []string{"😀💋😺", `xx💋y`}}
-	f := NewFJ()
-	fields, err := f.Flatten([]byte(j), m)
+	m := fakeMatcher("😀💋😺", `xx💋y`)
+	f := NewFJ(m)
+	fields, err := f.Flatten([]byte(j))
 	if err != nil {
 		t.Error("TRMN: " + err.Error())
 	}
@@ -25,9 +25,8 @@ func TestReadMemberName(t *testing.T) {
 
 func TestStringValuesWithEscapes(t *testing.T) {
 	j := `{"a": "x\u0078\ud83d\udc8by", "b": "\ud83d\ude00\ud83d\udc8b\ud83d\ude3a"}`
-	m := &MockNameTracker{Paths: []string{"a", "b"}}
-	f := NewFJ()
-	fields, err := f.Flatten([]byte(j), m)
+	f := NewFJ(fakeMatcher("a", "b"))
+	fields, err := f.Flatten([]byte(j))
 	if err != nil {
 		t.Error("TSVWE: " + err.Error())
 	}

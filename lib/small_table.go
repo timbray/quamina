@@ -71,11 +71,11 @@ func newSmallTable[S comparable]() *smallTable[S] {
 }
 
 func (t *smallTable[S]) step(utf8Byte byte) S {
+	// In a genericized context you can't just throw around "nil" you declare a variable and
+	//  Go will ensure it has the zero value, i.e. nil
 	var nilS S
 	for index, ceiling := range t.slices.ceilings {
 		if utf8Byte < ceiling {
-			// In a genericized context you can't just throw around "nil" you declare a variable and
-			//  Go will ensure it has the zero value, i.e. nil
 			if t.slices.steps[index] == nilS {
 				return nilS
 			} else {

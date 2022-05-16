@@ -91,6 +91,7 @@ func TestCityLots(t *testing.T) {
 			t.Error("Addpattern: " + err.Error())
 		}
 	}
+	fj := NewFJ(m)
 	results := make(map[X]int)
 
 	lineCount := 0
@@ -102,7 +103,7 @@ func TestCityLots(t *testing.T) {
 	lineCount = 0
 	before := time.Now()
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		matches, err := fj.FlattenAndMatch(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -236,8 +237,9 @@ func TestBigShellStyle(t *testing.T) {
 	}
 	lCounts := make(map[X]int)
 	before := time.Now()
+	fj := NewFJ(m)
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		matches, err := fj.FlattenAndMatch(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}

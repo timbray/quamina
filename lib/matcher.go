@@ -6,7 +6,7 @@ package quamina
 //  root of an incoming object to the leaf field.
 // Since the order of fields is generally not significant in encoded data objects, the fields are sorted
 //  by name before constructing the automaton, and so are the incoming field lists to be matched, allowing
-//  the atutomaton to work.
+//  the automaton to work.
 
 import (
 	"sort"
@@ -22,7 +22,6 @@ type Matcher struct {
 	startState                *fieldMatcher
 	namesUsed                 map[string]bool
 	presumedExistFalseMatches *matchSet
-	flattener                 Flattener
 	lock                      sync.Mutex
 }
 
@@ -34,7 +33,6 @@ func NewMatcher() *Matcher {
 	m.startState = newFieldMatcher()
 	m.namesUsed = make(map[string]bool)
 	m.presumedExistFalseMatches = newMatchSet()
-	m.flattener = NewFJ()
 	return &m
 }
 
@@ -101,8 +99,7 @@ func (m *Matcher) AddPattern(x X, patternJSON string) error {
 // MatchesForJSONEvent calls the flattener to pull the fields out of the event and
 //  hands over to MatchesForFields
 func (m *Matcher) MatchesForJSONEvent(event []byte) ([]X, error) {
-	m.flattener.Reset()
-	fields, err := m.flattener.Flatten(event, m)
+	fields, err := NewFJ(m).Flatten(event)
 	if err != nil {
 		return nil, err
 	}
