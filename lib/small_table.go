@@ -70,17 +70,11 @@ func newSmallTable[S comparable]() *smallTable[S] {
 	}
 }
 
+// step finds the step in the smallTable that corresponds to the utf8Byte argument. It may return nil.
 func (t *smallTable[S]) step(utf8Byte byte) S {
-	// In a genericized context you can't just throw around "nil" you declare a variable and
-	//  Go will ensure it has the zero value, i.e. nil
-	var nilS S
 	for index, ceiling := range t.slices.ceilings {
 		if utf8Byte < ceiling {
-			if t.slices.steps[index] == nilS {
-				return nilS
-			} else {
-				return t.slices.steps[index]
-			}
+			return t.slices.steps[index]
 		}
 	}
 	panic("Malformed smallTable")

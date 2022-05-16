@@ -126,10 +126,10 @@ func TestCityLots(t *testing.T) {
 		message1 := fmt.Sprintf("Events-per-second benchmark ran at %.0f events per second, below threshold of %.0f.",
 			perSecond, thresholdPerformance)
 		message2 := `
-		It may be that re-running the benchmark test will address this, or it may be that you're running on a machine
-		that is slower than the one the software was developed on, in which case you might want to readjust the
-		"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the
-		library, which would be unacceptable.`
+			It may be that re-running the benchmark test will address this, or it may be that you're running on a machine
+			that is slower than the one the software was developed on, in which case you might want to readjust the
+			"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the
+			library, which would be unacceptable.`
 		t.Errorf(message1 + message2)
 	}
 
