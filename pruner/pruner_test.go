@@ -113,6 +113,10 @@ func TestRebuildSome(t *testing.T) {
 				t.Fatal(i)
 			}
 		}
+		// Maybe check a lot more often.
+		if err := m.checkStats(); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	query := func(verify bool) {
