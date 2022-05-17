@@ -37,7 +37,7 @@ func TestBasic(t *testing.T) {
 
 	// It's okay to update a pattern.
 	if err := m.AddPattern(id, pat); err != nil {
-		t.Fatal("expected protest")
+		t.Fatal(err)
 	}
 
 	got, err := m.MatchesForJSONEvent(event)
