@@ -1,4 +1,4 @@
-# `DelPattern`
+# `DeletePattern`
 
 The core quamina.Matcher doesn't currently support deleting patterns.
 Some of the contemplated implementations of would probably be pretty

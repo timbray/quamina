@@ -42,11 +42,12 @@ type Stats struct {
 	RebuildPurged int
 }
 
-// Matcher provides DelPattern on top of quamina.Matcher.
+// Matcher provides DeletePattern on top of quamina.Matcher.
 //
 // Matcher maintains the set of live patterns, and it will rebuild the
 // underlying matcher synchronously (currently) periodically sduring
-// standard operations (AddPattern, DelPattern, MatchesForJSONEvent).
+// standard operations (AddPattern, DeletePattern,
+// MatchesForJSONEvent).
 //
 // Roughly speaking, the current rebuild policy automatically rebuilds
 // the index when the ratio of filtered patterns to emitted patterns
@@ -77,7 +78,7 @@ type Matcher struct {
 	// lock protectes the pointer the underlying Matcher as well as stats.
 	//
 	// The Matcher pointer is updated after a successful Rebuild.
-	// Stats are updated by Add, Del, and Rebuild.
+	// Stats are updated by Add, Delete, and Rebuild.
 	lock sync.RWMutex
 }
 
@@ -141,17 +142,17 @@ func (m *Matcher) DisableRebuild() {
 // rebuildTrigger provides a way to control when rebuilds are
 // automatically triggered during standard operations.
 //
-// Currently an AddPattern, DelPattern, or MatchesForJSONEvent can
+// Currently an AddPattern, DeletePattern, or MatchesForJSONEvent can
 // trigger a rebuild.  When a rebuild is triggered, it's executed
-// synchronous, the the Add/Del method doesn't return until the
+// synchronous, the the Add/Delete method doesn't return until the
 // rebuild is complete.
 type rebuildTrigger interface {
 	// Rebuild should return true to trigger a rebuild.
 	//
-	// This method is called by AddPattern and DelPattern.  added
-	// is true when called by AddPattern; false otherwise. These
-	// methods do not return until the rebuild is complete, so
-	// beware.
+	// This method is called by AddPattern and DeletePattern.
+	// added is true when called by AddPattern; false
+	// otherwise. These methods do not return until the rebuild is
+	// complete, so beware.
 	Rebuild(added bool, s *Stats) bool
 }
 
@@ -260,10 +261,10 @@ func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) 
 	return acc, nil
 }
 
-// DelPattern "removes" the pattern from the index and maybe rebuilds
-// the index.
-func (m *Matcher) DelPattern(x quamina.X) (bool, error) {
-	had, err := m.live.Del(x)
+// DeletePattern "removes" the pattern from the index and maybe
+// rebuilds the index.
+func (m *Matcher) DeletePattern(x quamina.X) (bool, error) {
+	had, err := m.live.Delete(x)
 	if err == nil {
 		if had {
 			m.lock.Lock()

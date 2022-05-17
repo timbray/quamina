@@ -1,4 +1,5 @@
-// Package pruner supports removing a pattern from a matcher.
+// Package pruner supports removing a pattern (DeletePattern) from a
+// matcher.
 //
 // The core quamina.Matcher doesn't currently support deleting
 // patterns.  Some of the contemplated implementations of would

@@ -50,12 +50,12 @@ func TestBasic(t *testing.T) {
 
 	m.printStats()
 
-	if have, err := m.DelPattern(id); err != nil {
+	if have, err := m.DeletePattern(id); err != nil {
 		t.Fatal(err)
 	} else if !have {
 		t.Fatal(have)
 	}
-	if have, err := m.DelPattern(id); err != nil {
+	if have, err := m.DeletePattern(id); err != nil {
 		t.Fatal(err)
 	} else if have {
 		t.Fatal(have)
@@ -107,7 +107,7 @@ func TestRebuildSome(t *testing.T) {
 
 	depopulate := func() {
 		for i := 0; i < n; i += 2 {
-			if had, err := m.DelPattern(i); err != nil {
+			if had, err := m.DeletePattern(i); err != nil {
 				t.Fatal(err)
 			} else if !had {
 				t.Fatal(i)
@@ -191,7 +191,7 @@ func TestTriggerTooManyFilteredDenom(t *testing.T) {
 	if err := m.AddPattern(1, `{"likes":["tacos"]}`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.DelPattern(1); err != nil {
+	if _, err := m.DeletePattern(1); err != nil {
 		t.Fatal(err)
 	}
 	_, err := m.MatchesForJSONEvent([]byte(`{"likes":"tacos"}`))
@@ -231,7 +231,7 @@ func TestTriggerRebuild(t *testing.T) {
 		}
 
 		if doomed(i) {
-			if _, err := m.DelPattern(i); err != nil {
+			if _, err := m.DeletePattern(i); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -293,7 +293,7 @@ func (s *badState) Get(x quamina.X) (string, error) {
 	return "", s.err
 }
 
-func (s *badState) Del(x quamina.X) (bool, error) {
+func (s *badState) Delete(x quamina.X) (bool, error) {
 	return false, s.err
 }
 
@@ -310,7 +310,7 @@ func TestBadState(t *testing.T) {
 	if err := m.AddPattern(1, `{"likes":["queso"]}`); err == nil {
 		t.Fatal("expected error")
 	}
-	if _, err := m.DelPattern(1); err == nil {
+	if _, err := m.DeletePattern(1); err == nil {
 		t.Fatal("expected error")
 	}
 	if err := m.Rebuild(false); err == nil {

@@ -13,7 +13,7 @@ type State interface {
 	// Add adds a new pattern or updates an old pattern.
 	Add(x quamina.X, pattern string) error
 
-	Del(x quamina.X) (bool, error)
+	Delete(x quamina.X) (bool, error)
 
 	// Iterate calls the given function for every stored pattern.
 	Iterate(func(x quamina.X, pattern string) error) error
@@ -55,7 +55,7 @@ func (s *MemState) Get(x quamina.X) (string, error) {
 	return p, nil
 }
 
-func (s *MemState) Del(x quamina.X) (bool, error) {
+func (s *MemState) Delete(x quamina.X) (bool, error) {
 	s.lock.Lock()
 	_, had := s.m[x]
 	if had {
