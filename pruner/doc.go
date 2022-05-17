@@ -2,11 +2,11 @@
 // matcher.
 //
 // The core quamina.Matcher doesn't currently support deleting
-// patterns.  Some of the contemplated implementations of would
-// probably be pretty difficult.  At least one approach is pretty
-// easy: Wrap the current matcher to filter removed patterns from
-// match results and periodically rebuild the matcher from scrach with
-// the live patterns.
+// patterns.  Some of the contemplated implementations would probably
+// be pretty difficult.  At least one approach is pretty easy: Wrap
+// the current matcher to filter removed patterns from match results
+// and periodically rebuild the matcher from scrach with the live
+// patterns.
 //
 // By default, rebuilding is triggered automatically (synchronously
 // currently) during mutations.  The code also supports pluggable

@@ -26,6 +26,9 @@ type State interface {
 }
 
 // MemState is a State that is just a map (with a RWMutex).
+//
+// Since the State implementation can be provided to the
+// application, we're keeping things simple here initially.
 type MemState struct {
 	lock sync.RWMutex
 	m    map[quamina.X]string

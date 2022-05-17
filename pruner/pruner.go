@@ -115,10 +115,17 @@ func (t *tooMuchFiltering) Rebuild(added bool, s *Stats) bool {
 		return false
 	}
 
+	// If we have seen enough patterns emitted by the core
+	// Matcher, don't rebuild.
 	if s.Emitted+s.Filtered < t.MinAction {
 		return false
 	}
 
+	// We won't rebuild if nothing's been emitted yet.
+	//
+	// In isolating, that heuristic is arguable, but for this
+	// policy we need it.  Otherwise we'll divide by zero, and
+	// nobody wants that.
 	if s.Emitted == 0 {
 		return true
 	}
