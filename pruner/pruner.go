@@ -247,11 +247,11 @@ func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) 
 	// read lock here.
 	var emitted, filtered int64
 	for _, x := range xs {
-		have, err := m.live.Get(x)
+		have, err := m.live.Contains(x)
 		if err != nil {
 			return nil, err
 		}
-		if have == "" {
+		if !have {
 			filtered++
 			continue
 		}

@@ -293,8 +293,8 @@ func (s *badState) Add(x quamina.X, pattern string) error {
 	return s.err
 }
 
-func (s *badState) Get(x quamina.X) (string, error) {
-	return "", s.err
+func (s *badState) Contains(x quamina.X) (bool, error) {
+	return false, s.err
 }
 
 func (s *badState) Delete(x quamina.X) (bool, error) {
@@ -382,4 +382,48 @@ func TestFlattener(t *testing.T) {
 		t.Fatal(got)
 	}
 
+}
+
+func TestMultiplePatternsWithSameId(t *testing.T) {
+	var (
+		m              = NewMatcher(nil)
+		id interface{} = 1
+	)
+
+	if err := m.AddPattern(id, `{"enjoys":["queso"]}`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.AddPattern(id, `{"needs":["chips"]}`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.Rebuild(false); err != nil {
+		t.Fatal(err)
+	}
+
+	// If we weren't able to remember that both patterns are still
+	// live, then one of the two checks below will fail.  In that
+	// case, we can't tell which one in advance (because Go map
+	// iteration order is not specified).
+
+	xs, err := m.MatchesForJSONEvent([]byte(`{"enjoys":"queso"}`))
+
+	check := func() {
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(xs) != id {
+			t.Fatal(xs)
+		}
+		if xs[0] != id {
+			t.Fatal(xs)
+		}
+	}
+
+	check()
+
+	xs, err = m.MatchesForJSONEvent([]byte(`{"needs":"chips"}`))
+
+	check()
 }

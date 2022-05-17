@@ -11,6 +11,9 @@ import (
 // of live patterns.
 type State interface {
 	// Add adds a new pattern or updates an old pattern.
+	//
+	// Note that multiple patterns can be associated with the same
+	// X.
 	Add(x quamina.X, pattern string) error
 
 	Delete(x quamina.X) (bool, error)
@@ -18,12 +21,20 @@ type State interface {
 	// Iterate calls the given function for every stored pattern.
 	Iterate(func(x quamina.X, pattern string) error) error
 
-	// Get returns the pattern for the given X.
+	// Contains returns true if x is in the live set; false
+	// otherwise.
 	//
 	// Since a pattern can't be the empty string, that zero value
 	// indicates no corresponding pattern.
-	Get(x quamina.X) (string, error)
+	Contains(x quamina.X) (bool, error)
 }
+
+type (
+	stringSet map[string]nothing
+	nothing   struct{}
+)
+
+var na = nothing{}
 
 // MemState is a State that is just a map (with a RWMutex).
 //
@@ -31,13 +42,13 @@ type State interface {
 // application, we're keeping things simple here initially.
 type MemState struct {
 	lock sync.RWMutex
-	m    map[quamina.X]string
+	m    map[quamina.X]stringSet
 }
 
 func NewMemState() *MemState {
 	// Accept initial size as a parameter?
 	return &MemState{
-		m: make(map[quamina.X]string),
+		m: make(map[quamina.X]stringSet),
 	}
 }
 
@@ -45,17 +56,21 @@ var ErrExists = fmt.Errorf("pattern already exists for that X")
 
 func (s *MemState) Add(x quamina.X, pattern string) error {
 	s.lock.Lock()
-	// We don't care if the X is already there.
-	s.m[x] = pattern
+	ps, have := s.m[x]
+	if !have {
+		ps = make(stringSet)
+		s.m[x] = ps
+	}
+	ps[pattern] = na
 	s.lock.Unlock()
 	return nil
 }
 
-func (s *MemState) Get(x quamina.X) (string, error) {
+func (s *MemState) Contains(x quamina.X) (bool, error) {
 	s.lock.RLock()
-	p := s.m[x]
+	_, have := s.m[x]
 	s.lock.RUnlock()
-	return p, nil
+	return have, nil
 }
 
 func (s *MemState) Delete(x quamina.X) (bool, error) {
@@ -72,9 +87,11 @@ func (s *MemState) Delete(x quamina.X) (bool, error) {
 func (s *MemState) Iterate(f func(x quamina.X, pattern string) error) error {
 	s.lock.RLock()
 	var err error
-	for x, p := range s.m {
-		if err = f(x, p); err != nil {
-			break
+	for x, ps := range s.m {
+		for p := range ps {
+			if err = f(x, p); err != nil {
+				break
+			}
 		}
 	}
 	s.lock.RUnlock()
