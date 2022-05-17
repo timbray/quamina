@@ -2,7 +2,7 @@ package quamina
 
 // dfaStep and nfaStep are used by the valueMatcher automaton - every step through the
 //  automaton requires a smallTable and for some of them, taking the step means you've matched a value and can
-//  transition to a new fieldMatcher, inw hich case the fieldTransitions slice will be non-nil
+//  transition to a new fieldMatcher, in which case the fieldTransitions slice will be non-nil
 type dfaStep struct {
 	table            *smallTable[DS]
 	fieldTransitions []*fieldMatcher
@@ -20,25 +20,28 @@ type nfaStepList struct {
 }
 type NSL *nfaStepList
 
-// ValueTerminator - whenever we're trying to match a value, we virtually add one of these as the last character, both
-//  when building the automaton and matching a value.  This simplifies things because you don't have to treat
-//  absolute-string-match (only works at last char in value) and prefix match differently.
+// ValueTerminator - whenever we're trying to match a value with a pattern that extends to the end of that
+//  value, we virtually add one of these as the last character, both to the automaton and the value at run-time.
+//  This simplifies things because you don't have to treat absolute-string-match (only works at last char in
+//  value) and prefix match differently.
 const ValueTerminator byte = 0xf5
 
 // smallTable serves as a lookup table that encodes mappings between ranges of byte values and the SmallStep
 //  transition on any byte in the range.
-//  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, *DS}
+//  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, S}
 //  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
-//  byte values 3 and 4 (0-based) map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
+//  byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
 //  ceilings: 3,   5,    0x34, 0x35, ByteCeiling
 //     steps: nil, &ss1, nil,  &ss2, nil
 //  invariant: The last element of ceilings is always ByteCeiling
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
 //  ranges of bytes.  This could be done simply with a byte array of size ByteCeiling for each state in the machine,
-//  or a map[byte]DS, but both would be size-inefficient, particularly in the case where you're implementing
+//  or a map[byte]S, but both would be size-inefficient, particularly in the case where you're implementing
 //  ranges.  Now, the step function is O(N) in the number of entries, but empirically, the number of entries is
 //  small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
-//  or array construct
+//  or array construct. One could imagine making step() smarter and do a binary search in the case where there are
+//  more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
+//  number of those has a good chance of staying in the L1 cache
 type smallTable[S comparable] struct {
 	slices stSlices[S]
 }
@@ -55,6 +58,8 @@ type stSlices[S comparable] struct {
 //  can't appear.
 const ByteCeiling int = 0xf6
 
+// newSmallTable mostly exists to enforce the constraint that every smallTable has a ByteCeiling entry at
+//  the end, which smallTable.step totally depends on.
 func newSmallTable[S comparable]() *smallTable[S] {
 	var s S
 	return &smallTable[S]{
@@ -65,18 +70,14 @@ func newSmallTable[S comparable]() *smallTable[S] {
 	}
 }
 
+// step finds the step in the smallTable that corresponds to the utf8Byte argument. It may return nil.
 func (t *smallTable[S]) step(utf8Byte byte) S {
-	var s S
 	for index, ceiling := range t.slices.ceilings {
 		if utf8Byte < ceiling {
-			if t.slices.steps[index] == s {
-				return s
-			} else {
-				return t.slices.steps[index]
-			}
+			return t.slices.steps[index]
 		}
 	}
-	panic("Malformed Small Table")
+	panic("Malformed smallTable")
 }
 
 // mergeDfas and mergeNfas compute the union of two valueMatch automata.  If you look up the textbook theory about this,
@@ -110,7 +111,7 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 	}
 
 	// TODO: this works, all the tests pass, but I'm not satisfied with it. My intuition is that you ought
-	//  to be able to come out of this with just one *fieldMatcher, parhaps with a merged matches list.
+	//  to be able to come out of this with just one *fieldMatcher
 	newTable := newSmallTable[DS]()
 	switch {
 	case step1.fieldTransitions == nil && step2.fieldTransitions == nil:
@@ -147,20 +148,16 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 
 func dfa2Nfa(table *smallTable[DS]) *smallTable[NSL] {
 	lister := newListMaker()
-	return dfaStep2NfaStep(&dfaStep{table: table}, lister, make(map[*dfaStep]*nfaStep)).table
+	return dfaStep2NfaStep(&dfaStep{table: table}, lister).table
 }
 
-func dfaStep2NfaStep(dStep *dfaStep, lister *listMaker, memoize map[*dfaStep]*nfaStep) *nfaStep {
-	nStep, ok := memoize[dStep]
-	if ok {
-		return nStep
-	}
-	nStep = &nfaStep{table: newSmallTable[NSL](), fieldTransitions: dStep.fieldTransitions}
+func dfaStep2NfaStep(dStep *dfaStep, lister *listMaker) *nfaStep {
+	nStep := &nfaStep{table: newSmallTable[NSL](), fieldTransitions: dStep.fieldTransitions}
 	dUnpacked := unpackTable(dStep.table)
 	var nUnpacked unpackedTable[NSL]
 	for i, nextDStep := range dUnpacked {
 		if nextDStep != nil {
-			nUnpacked[i] = lister.getList(dfaStep2NfaStep(nextDStep, lister, memoize))
+			nUnpacked[i] = lister.getList(dfaStep2NfaStep(nextDStep, lister))
 		}
 	}
 	nStep.table.pack(&nUnpacked)
@@ -223,7 +220,7 @@ func mergeOneNfaStep(step1, step2 *nfaStep, memoize map[nfaStepKey]*nfaStep, lis
 			uComb[i] = lister.getList(comboList...)
 		}
 	}
-	combined.table.unpack(&uComb)
+	combined.table.pack(&uComb)
 	return combined
 }
 
@@ -258,18 +255,6 @@ func makeSmallDfaTable(defaultStep DS, indices []byte, steps []DS) *smallTable[D
 	return &t
 }
 
-// loadSmallTable with a default value and one or more byte values, trying to be efficient about it
-func (t *smallTable[S]) load(defaultStep S, positions []byte, steps []S) {
-	var u unpackedTable[S]
-	for i := range u {
-		u[i] = defaultStep
-	}
-	for i, position := range positions {
-		u[position] = steps[i]
-	}
-	t.pack(&u)
-}
-
 // unpackedTable replicates the data in the smallDfaTable ceilings and steps arrays.  It's quite hard to
 //  update the list structure in a smallDfaTable, but trivial in an unpackedTable.  The idea is that to update
 //  a smallDfaTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
@@ -287,21 +272,6 @@ func unpackTable[S comparable](t *smallTable[S]) *unpackedTable[S] {
 		}
 	}
 	return &u
-}
-
-func (t *smallTable[S]) unpack(u *unpackedTable[S]) {
-	var slices stSlices[S]
-	lastStep := u[0]
-	for unpackedIndex, ss := range u {
-		if ss != lastStep {
-			slices.ceilings = append(slices.ceilings, byte(unpackedIndex))
-			slices.steps = append(slices.steps, lastStep)
-		}
-		lastStep = ss
-	}
-	slices.ceilings = append(slices.ceilings, byte(ByteCeiling))
-	slices.steps = append(slices.steps, lastStep)
-	t.slices = slices
 }
 
 func (t *smallTable[S]) pack(u *unpackedTable[S]) {

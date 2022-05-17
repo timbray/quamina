@@ -18,13 +18,14 @@ import (
 //  actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 // TODO: There are gaps in the unit-test coverage, including nearly all the error conditions
 type FJ struct {
-	event       []byte      // event being processed, treated as immutable
-	eventIndex  int         // current byte index into the event
-	fields      []Field     // the under-construction return value of the Flatten method
-	nameTracker NameTracker // tells whether a segment appears in a pattern; if not, no need to process
-	skipping    int         // track whether we're within the scope of a segment that isn't used
-	arrayTrail  []ArrayPos  // current array-position cookie crumbs
-	arrayCount  int32       // how many arrays we've seen, used in building arrayTrail
+	event      []byte     // event being processed, treated as immutable
+	eventIndex int        // current byte index into the event
+	fields     []Field    // the under-construction return value of the Flatten method
+	skipping   int        // track whether we're within the scope of a segment that isn't used
+	arrayTrail []ArrayPos // current array-position cookie crumbs
+	arrayCount int32      // how many arrays we've seen, used in building arrayTrail
+	matcher    *Matcher   // proceses FJ output, knows if a segment is used; if not, no need to process
+	cleanSheet bool       // initially true, don't have to call Reset()
 }
 
 // Reset an FJ struct so it can be re-used and won't need to be reconstructed for each event to be flattened
@@ -62,19 +63,31 @@ const (
 	readHexDigitState
 )
 
-func NewFJ() Flattener {
-	return &FJ{fields: make([]Field, 0, 32)}
+func NewFJ(matcher *Matcher) Flattener {
+	return &FJ{fields: make([]Field, 0, 32), matcher: matcher, cleanSheet: true}
+}
+
+func (fj *FJ) FlattenAndMatch(event []byte) ([]X, error) {
+	fields, err := fj.Flatten(event)
+	if err != nil {
+		return nil, err
+	}
+	return fj.matcher.MatchesForFields(fields), nil
 }
 
 // Flatten implements the Flattener interface. It assumes that the event is immutable - if you modify the event
 //  bytes while the Matcher is running, grave disorder will ensue.
-func (fj *FJ) Flatten(event []byte, tracker NameTracker) ([]Field, error) {
+func (fj *FJ) Flatten(event []byte) ([]Field, error) {
+	if fj.cleanSheet {
+		fj.cleanSheet = false
+	} else {
+		fj.Reset()
+	}
 	if len(event) == 0 {
 		return nil, fj.error("empty event")
 	}
 	var err error
 	fj.event = event
-	fj.nameTracker = tracker
 	state := startState
 	for {
 		ch := fj.ch()
@@ -151,7 +164,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 				if err != nil {
 					return err
 				}
-				memberIsUsed = (fj.skipping == 0) && fj.nameTracker.IsNameUsed(memberName)
+				memberIsUsed = (fj.skipping == 0) && fj.matcher.IsNameUsed(memberName)
 				state = seekingColonState
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in JSON object", ch))
@@ -189,7 +202,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				val, alt, err = fj.readNumber()
 			case '[':
-				if !fj.nameTracker.IsNameUsed(memberName) {
+				if !fj.matcher.IsNameUsed(memberName) {
 					fj.skipping++
 				}
 				var arrayPath []byte
@@ -200,11 +213,11 @@ func (fj *FJ) readObject(pathName []byte) error {
 				if err != nil {
 					return err
 				}
-				if !fj.nameTracker.IsNameUsed(memberName) {
+				if !fj.matcher.IsNameUsed(memberName) {
 					fj.skipping--
 				}
 			case '{':
-				if !fj.nameTracker.IsNameUsed(memberName) {
+				if !fj.matcher.IsNameUsed(memberName) {
 					fj.skipping++
 				}
 				var objectPath []byte
@@ -215,7 +228,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 				if err != nil {
 					return err
 				}
-				if !fj.nameTracker.IsNameUsed(memberName) {
+				if !fj.matcher.IsNameUsed(memberName) {
 					fj.skipping--
 				}
 			default:

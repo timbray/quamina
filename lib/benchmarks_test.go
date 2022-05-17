@@ -91,6 +91,7 @@ func TestCityLots(t *testing.T) {
 			t.Error("Addpattern: " + err.Error())
 		}
 	}
+	fj := NewFJ(m)
 	results := make(map[X]int)
 
 	lineCount := 0
@@ -102,7 +103,7 @@ func TestCityLots(t *testing.T) {
 	lineCount = 0
 	before := time.Now()
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		matches, err := fj.FlattenAndMatch(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -125,10 +126,10 @@ func TestCityLots(t *testing.T) {
 		message1 := fmt.Sprintf("Events-per-second benchmark ran at %.0f events per second, below threshold of %.0f.",
 			perSecond, thresholdPerformance)
 		message2 := `
-		It may be that re-running the benchmark test will address this, or it may be that you're running on a machine
-		that is slower than the one the software was developed on, in which case you might want to readjust the
-		"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the
-		library, which would be unacceptable.`
+			It may be that re-running the benchmark test will address this, or it may be that you're running on a machine
+			that is slower than the one the software was developed on, in which case you might want to readjust the
+			"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the
+			library, which would be unacceptable.`
 		t.Errorf(message1 + message2)
 	}
 
@@ -236,8 +237,9 @@ func TestBigShellStyle(t *testing.T) {
 	}
 	lCounts := make(map[X]int)
 	before := time.Now()
+	fj := NewFJ(m)
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		matches, err := fj.FlattenAndMatch(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
