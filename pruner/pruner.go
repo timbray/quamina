@@ -190,7 +190,7 @@ func (m *Matcher) maybeRebuild(added bool) error {
 func (m *Matcher) AddPattern(x quamina.X, pat string) error {
 	var err error
 
-	// Do we m.live.Add first, do we m.Matcher.AddPattern first?
+	// Do we m.live.Add first or do we m.Matcher.AddPattern first?
 	if err = m.Matcher.AddPattern(x, pat); err == nil {
 		m.lock.Lock()
 		m.stats.Added++

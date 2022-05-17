@@ -35,7 +35,8 @@ func TestBasic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := m.AddPattern(id, pat); err == nil {
+	// It's okay to update a pattern.
+	if err := m.AddPattern(id, pat); err != nil {
 		t.Fatal("expected protest")
 	}
 

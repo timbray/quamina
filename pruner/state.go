@@ -10,7 +10,9 @@ import (
 // State represents the required capabilities for maintaining the set
 // of live patterns.
 type State interface {
+	// Add adds a new pattern or updates an old pattern.
 	Add(x quamina.X, pattern string) error
+
 	Del(x quamina.X) (bool, error)
 
 	// Iterate calls the given function for every stored pattern.
@@ -40,14 +42,10 @@ var ErrExists = fmt.Errorf("pattern already exists for that X")
 
 func (s *MemState) Add(x quamina.X, pattern string) error {
 	s.lock.Lock()
-	var err error
-	if _, have := s.m[x]; have {
-		err = ErrExists
-	} else {
-		s.m[x] = pattern
-	}
+	// We don't care if the X is already there.
+	s.m[x] = pattern
 	s.lock.Unlock()
-	return err
+	return nil
 }
 
 func (s *MemState) Get(x quamina.X) (string, error) {
