@@ -60,7 +60,7 @@ type Stats struct {
 type Matcher struct {
 	// Matcher is the underlying matcher that does the hard work.
 	//
-	// Matcher should maybe not be public.
+	// Maybe Matcher should maybe not be embedded or public.
 	*quamina.Matcher
 
 	// live is live set of patterns.
@@ -206,15 +206,31 @@ func (m *Matcher) AddPattern(x quamina.X, pat string) error {
 	return err
 }
 
+// NewFJ just calls quamina.FJ.
+func NewFJ(m *Matcher) quamina.Flattener {
+	return quamina.NewFJ(m.Matcher)
+}
+
+// NewFJ calls quamina.NewFJ with this Matcher's core quamina.Matcher
+func (m *Matcher) NewFJ() quamina.Flattener {
+	return quamina.NewFJ(m.Matcher)
+}
+
 // MatchesForJSONEvent calls the underlying MatchesForJSONEvent method
 // and then maybe rebuilds the index.
 func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
-	xs, err := m.Matcher.MatchesForJSONEvent(event)
+	fs, err := m.NewFJ().Flatten(event)
 	if err != nil {
 		return nil, err
 	}
+	return m.MatchesForFields(fs)
+}
 
-	// Delove any X that isn't in the live set.
+func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) {
+
+	xs := m.Matcher.MatchesForFields(fields)
+
+	// Remove any X that isn't in the live set.
 
 	acc := make([]quamina.X, 0, len(xs))
 
@@ -223,9 +239,9 @@ func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
 	// read lock here.
 	var emitted, filtered int64
 	for _, x := range xs {
-		var have string
-		if have, err = m.live.Get(x); err != nil {
-			break
+		have, err := m.live.Get(x)
+		if err != nil {
+			return nil, err
 		}
 		if have == "" {
 			filtered++
@@ -233,10 +249,6 @@ func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
 		}
 		acc = append(acc, x)
 		emitted++
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	m.lock.Lock()

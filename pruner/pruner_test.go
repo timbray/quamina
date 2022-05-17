@@ -125,7 +125,23 @@ func TestRebuildSome(t *testing.T) {
 		}
 	}
 
-	t.Run("rebuuild", func(t *testing.T) {
+	queryFast := func(verify bool) {
+		f := m.NewFJ()
+		for i := 0; i < n; i++ {
+			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
+			fs, err := f.Flatten([]byte(e))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := m.MatchesForFields(fs); err != nil {
+				t.Fatal(err)
+			} else if verify && len(got) != 1 {
+				t.Fatal(got)
+			}
+		}
+	}
+
+	t.Run("rebuild", func(t *testing.T) {
 		// See a rebuild.
 		populate()
 		query(true)
@@ -137,7 +153,7 @@ func TestRebuildSome(t *testing.T) {
 		}
 	})
 
-	t.Run("norebuuild", func(t *testing.T) {
+	t.Run("norebuild", func(t *testing.T) {
 		// Prevent a rebuild.
 		m = NewMatcher(nil)
 		m.DisableRebuild()
@@ -145,6 +161,19 @@ func TestRebuildSome(t *testing.T) {
 		query(true)
 		depopulate()
 		query(false)
+		if s := m.Stats(); 0 != s.RebuildDuration {
+			t.Fatal(s)
+		}
+	})
+
+	t.Run("rebuildafterfj", func(t *testing.T) {
+		// Prevent a rebuild.
+		m = NewMatcher(nil)
+		m.DisableRebuild()
+		populate()
+		queryFast(false)
+		depopulate()
+		queryFast(false)
 		if s := m.Stats(); 0 != s.RebuildDuration {
 			t.Fatal(s)
 		}
@@ -321,4 +350,31 @@ func TestUnsetRebuildTrigger(t *testing.T) {
 	if err := m.maybeRebuild(false); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestFlattener(t *testing.T) {
+	var (
+		m = NewMatcher(nil)
+		f = NewFJ(m) // Variation for test coverage.
+	)
+
+	if err := m.AddPattern(1, `{"wants":["queso"]}`); err != nil {
+		t.Fatal(err)
+	}
+
+	fs, err := f.Flatten([]byte(`{"wants":"queso"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := m.MatchesForFields(fs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatal(got)
+	}
+	if got[0] != 1 {
+		t.Fatal(got)
+	}
+
 }
