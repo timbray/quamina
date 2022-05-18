@@ -7,9 +7,9 @@ import (
 	quamina "quamina/lib"
 )
 
-// State represents the required capabilities for maintaining the set
-// of live patterns.
-type State interface {
+// LivePatternsState represents the required capabilities for
+// maintaining the set of live patterns.
+type LivePatternsState interface {
 	// Add adds a new pattern or updates an old pattern.
 	//
 	// Note that multiple patterns can be associated with the same
@@ -36,9 +36,10 @@ type (
 
 var na = nothing{}
 
-// MemState is a State that is just a map (with a RWMutex).
+// MemState is a LivePatternsState that is just a map (with a
+// RWMutex).
 //
-// Since the State implementation can be provided to the
+// Since the LivePatternsState implementation can be provided to the
 // application, we're keeping things simple here initially.
 type MemState struct {
 	lock sync.RWMutex

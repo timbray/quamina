@@ -65,7 +65,7 @@ type Matcher struct {
 	*quamina.Matcher
 
 	// live is live set of patterns.
-	live State
+	live LivePatternsState
 
 	stats Stats
 
@@ -165,8 +165,8 @@ type rebuildTrigger interface {
 
 // NewMatcher does what you'd expect.
 //
-// The State defaults to MemState.
-func NewMatcher(s State) *Matcher {
+// The LivePatternsState defaults to MemState.
+func NewMatcher(s LivePatternsState) *Matcher {
 	if s == nil {
 		s = NewMemState()
 	}
