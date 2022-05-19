@@ -159,8 +159,24 @@ greater than 0XF4 (can't occur in correctly composed UTF-8)
 are rejected by the APIs.
 
 ```go
-func NewMatcher() *Matcher
+type Matcher interface {
+	AddPattern(x X, pat string) error
+	MatchesForJSONEvent(event []byte) ([]X, error)
+	MatchesForFields(fields []Field) []X
+	DeletePattern(x X) error
+}
 ```
+
+Above are the operations provided by a Matcher. Quamina
+includes an implementation called `CoreMatcher` which
+implements `Matcher`.  In a forthcoming release it will
+provider alternate implementations that offer extra
+features.
+
+```go
+func NewCoreMatcher() *Matcher
+```
+
 Creates a new Matcher, takes no arguments.
 ```go
 func (m *Matcher) AddPattern(x X, patternJSON string) error

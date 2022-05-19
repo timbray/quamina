@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func updateTree(m *Matcher, use37 bool, t *testing.T, ch chan string) {
+func updateTree(m *CoreMatcher, use37 bool, t *testing.T, ch chan string) {
 	var pattern string
 	var val string
 	if use37 {
@@ -73,7 +73,7 @@ func TestConcurrency(t *testing.T) {
 	buf := make([]byte, oneMeg)
 	scanner.Buffer(buf, oneMeg)
 
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	for i := range names {
 		err = m.AddPattern(names[i], patterns[i])
 		if err != nil {

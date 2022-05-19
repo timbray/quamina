@@ -82,7 +82,7 @@ func TestMultiTransitions(t *testing.T) {
 	patX := `{"foo": [ { "shellstyle": "*x*b" } ]}`
 	patY := `{"foo": [ { "shellstyle": "*y*b" } ]}`
 
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	if m.AddPattern("X", patX) != nil {
 		t.Error("add patX")
 	}
@@ -100,7 +100,7 @@ func TestMultiTransitions(t *testing.T) {
 }
 
 func TestAY(t *testing.T) {
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	pat := `{"x": [ { "shellstyle": "*ay*"} ] }`
 	err := m.AddPattern("AY", pat)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestAY(t *testing.T) {
 */
 
 func TestOverlappingValues(t *testing.T) {
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	p1 := `{"a": ["foo"]}`
 	p2 := `{"a": ["football"]}`
 	p3 := `{"a": ["footballer"]}`
@@ -174,7 +174,7 @@ func TestOverlappingValues(t *testing.T) {
 
 func TestFuzzValueMatcher(t *testing.T) {
 	rand.Seed(98543)
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	var pNames []X
 	bytes := "abcdefghijklmnopqrstuvwxyz"
 	lb := len(bytes)
@@ -244,7 +244,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 
 func TestFuzzWithNumbers(t *testing.T) {
 	rand.Seed(98543)
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	var pNames []X
 	used := make(map[X]bool)
 

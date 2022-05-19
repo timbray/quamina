@@ -16,7 +16,7 @@ func TestCRANLEIGH(t *testing.T) {
 
 	jCranleigh := `{ "type": "Feature", "properties": { "MAPBLKLOT": "7222001", "BLKLOT": "7222001", "BLOCK_NUM": "7222", "LOT_NUM": "001", "FROM_ST": "1", "TO_ST": "1", "STREET": "CRANLEIGH", "ST_TYPE": "DR", "ODD_EVEN": "O" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.472773074480756, 37.73439178240811, 0.0 ], [ -122.47278111723567, 37.73451247621523, 0.0 ], [ -122.47242608711845, 37.73452184591072, 0.0 ], [ -122.472418368113281, 37.734401143064396, 0.0 ], [ -122.472773074480756, 37.73439178240811, 0.0 ] ] ] } }`
 	j108492 := `{ "type": "Feature", "properties": { "MAPBLKLOT": "0011008", "BLKLOT": "0011008", "BLOCK_NUM": "0011", "LOT_NUM": "008", "FROM_ST": "500", "TO_ST": "550", "STREET": "BEACH", "ST_TYPE": "ST", "ODD_EVEN": "E" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.418114728237924, 37.807058866808987, 0.0 ], [ -122.418261722815416, 37.807807921694092, 0.0 ], [ -122.417544151208375, 37.807900142836701, 0.0 ], [ -122.417397010603693, 37.807150305505004, 0.0 ], [ -122.418114728237924, 37.807058866808987, 0.0 ] ] ] } }`
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	pCranleigh := `{ "properties": { "STREET": [ "CRANLEIGH" ] } }`
 	p108492 := `{ "properties": { "MAPBLKLOT": ["0011008"], "BLKLOT": ["0011008"]},  "geometry": { "coordinates": [ 37.807807921694092 ] } } `
 
@@ -84,7 +84,7 @@ func TestCityLots(t *testing.T) {
 	buf := make([]byte, oneMeg)
 	scanner.Buffer(buf, oneMeg)
 
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	for i := range names {
 		err = m.AddPattern(names[i], patterns[i])
 		if err != nil {
@@ -152,7 +152,7 @@ func TestCityLots(t *testing.T) {
 /*
 func TestMySoftwareHatesMe(t *testing.T) {
 	line := `{ "type": "Feature", "properties": { "STREET": "BELVEDERE" }  }`
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	Bpat := `{"properties": {"STREET":[ {"shellstyle": "B*"} ] } }`
 	EEEpat := `{"properties": {"STREET":[ {"shellstyle": "*E*E*E*"} ] } }`
 
@@ -164,7 +164,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 		t.Error("Failed to match EEE")
 	}
 
-	m = NewMatcher()
+	m = NewCoreMatcher()
 	_ = m.AddPattern("B", Bpat)
 	_ = m.AddPattern("EEE", EEEpat)
 
@@ -195,7 +195,7 @@ func TestBigShellStyle(t *testing.T) {
 	buf := make([]byte, oneMeg)
 	scanner.Buffer(buf, oneMeg)
 
-	m := NewMatcher()
+	m := NewCoreMatcher()
 
 	wanted := map[X]int{
 		"A": 5883, "B": 12765, "C": 14824, "D": 6124, "E": 3402, "F": 7999, "G": 8555,
@@ -284,7 +284,7 @@ func TestPatternAddition(t *testing.T) {
 	var msBefore, msAfter runtime.MemStats
 
 	// now we're going to add 200 fields, 200 values, so 40K name/value pairs. There might be some duplication?
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	before := time.Now()
 	fieldCount := 0
 	runtime.ReadMemStats(&msBefore)

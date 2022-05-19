@@ -20,6 +20,9 @@ type nfaStepList struct {
 }
 type NSL *nfaStepList
 
+// TODO: declare dfaTable { smallTable[*dfaStep } and nfaTable { smallTable[*nfaStepList] }
+//  and make a bunch of code more concise and readable.
+
 // ValueTerminator - whenever we're trying to match a value with a pattern that extends to the end of that
 //  value, we virtually add one of these as the last character, both to the automaton and the value at run-time.
 //  This simplifies things because you don't have to treat absolute-string-match (only works at last char in
