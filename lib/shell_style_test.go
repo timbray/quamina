@@ -9,7 +9,7 @@ import (
 )
 
 func TestLongCase(t *testing.T) {
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	pat := `{"x": [ {"shellstyle": "*abab"} ] }`
 	err := m.AddPattern("x", pat)
 	if err != nil {
@@ -146,7 +146,7 @@ func TestMixedPatterns(t *testing.T) {
 
 	stringTemplate := `{"properties": { "STREET": [ XX ] } }`
 	shellTemplate := `{"properties": {"STREET":[ {"shellstyle": XX} ] } }`
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	for name := range x {
 		var pat string
 		if strings.Contains(name, "*") {

@@ -18,14 +18,14 @@ import (
 //  actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 // TODO: There are gaps in the unit-test coverage, including nearly all the error conditions
 type FJ struct {
-	event      []byte     // event being processed, treated as immutable
-	eventIndex int        // current byte index into the event
-	fields     []Field    // the under-construction return value of the Flatten method
-	skipping   int        // track whether we're within the scope of a segment that isn't used
-	arrayTrail []ArrayPos // current array-position cookie crumbs
-	arrayCount int32      // how many arrays we've seen, used in building arrayTrail
-	matcher    *Matcher   // proceses FJ output, knows if a segment is used; if not, no need to process
-	cleanSheet bool       // initially true, don't have to call Reset()
+	event      []byte       // event being processed, treated as immutable
+	eventIndex int          // current byte index into the event
+	fields     []Field      // the under-construction return value of the Flatten method
+	skipping   int          // track whether we're within the scope of a segment that isn't used
+	arrayTrail []ArrayPos   // current array-position cookie crumbs
+	arrayCount int32        // how many arrays we've seen, used in building arrayTrail
+	matcher    *CoreMatcher // proceses FJ output, knows if a segment is used; if not, no need to process
+	cleanSheet bool         // initially true, don't have to call Reset()
 }
 
 // Reset an FJ struct so it can be re-used and won't need to be reconstructed for each event to be flattened
@@ -63,7 +63,7 @@ const (
 	readHexDigitState
 )
 
-func NewFJ(matcher *Matcher) Flattener {
+func NewFJ(matcher *CoreMatcher) Flattener {
 	return &FJ{fields: make([]Field, 0, 32), matcher: matcher, cleanSheet: true}
 }
 

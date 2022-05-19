@@ -75,7 +75,7 @@ func TestArrayCorrectness(t *testing.T) {
 	pattern1 := `{"bands": { "members": { "given": [ "Mick" ], "surname": [ "Strummer" ] } } }`
 	pattern2 := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "drums" ] } } }`
 	pattern3 := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "guitar" ] } } }`
-	m := NewMatcher()
+	m := NewCoreMatcher()
 	err := m.AddPattern("Mick strummer", pattern1)
 	if err != nil {
 		t.Error(err.Error())

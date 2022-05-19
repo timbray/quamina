@@ -142,8 +142,8 @@ func testTrackerSelection(fj Flattener, label string, filename string, wantedPat
 	}
 }
 
-func fakeMatcher(segs ...string) *Matcher {
-	m := NewMatcher()
+func fakeMatcher(segs ...string) *CoreMatcher {
+	m := NewCoreMatcher()
 	for _, seg := range segs {
 		m.namesUsed[seg] = true
 	}
