@@ -1,11 +1,14 @@
 package pruner
 
 import (
+	"bufio"
 	"fmt"
 	"log"
-	quamina "quamina/lib"
+	"os"
 	"testing"
 	"time"
+
+	quamina "quamina/lib"
 )
 
 var verbose = false
@@ -50,15 +53,11 @@ func TestBasic(t *testing.T) {
 
 	m.printStats()
 
-	if have, err := m.DeletePattern(id); err != nil {
+	if err := m.DeletePattern(id); err != nil {
 		t.Fatal(err)
-	} else if !have {
-		t.Fatal(have)
 	}
-	if have, err := m.DeletePattern(id); err != nil {
+	if err := m.DeletePattern(id); err != nil {
 		t.Fatal(err)
-	} else if have {
-		t.Fatal(have)
 	}
 
 	m.printStats()
@@ -92,8 +91,8 @@ func TestBasic(t *testing.T) {
 
 func TestRebuildSome(t *testing.T) {
 	var (
+		n = int(2 * defaultRebuildTrigger.MinAction)
 		m = NewMatcher(nil)
-		n = int(defaultRebuildTrigger.MinAction + 100)
 	)
 
 	populate := func() {
@@ -107,10 +106,8 @@ func TestRebuildSome(t *testing.T) {
 
 	depopulate := func() {
 		for i := 0; i < n; i += 2 {
-			if had, err := m.DeletePattern(i); err != nil {
+			if err := m.DeletePattern(i); err != nil {
 				t.Fatal(err)
-			} else if !had {
-				t.Fatal(i)
 			}
 		}
 		// Maybe check a lot more often.
@@ -153,6 +150,7 @@ func TestRebuildSome(t *testing.T) {
 		m.printStats()
 		depopulate()
 		query(false)
+		m.printStats()
 		if s := m.Stats(); 0 == s.RebuildDuration {
 			t.Fatal(s)
 		}
@@ -195,7 +193,7 @@ func TestTriggerTooManyFilteredDenom(t *testing.T) {
 	if err := m.AddPattern(1, `{"likes":["tacos"]}`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.DeletePattern(1); err != nil {
+	if err := m.DeletePattern(1); err != nil {
 		t.Fatal(err)
 	}
 	_, err := m.MatchesForJSONEvent([]byte(`{"likes":"tacos"}`))
@@ -217,12 +215,12 @@ func TestTriggerRebuild(t *testing.T) {
 		doomed  = func(id int) bool {
 			return id%2 == 0
 		}
-		printState = func() {
-			logf("state:")
-			for id, p := range m.live.(*MemState).m {
-				logf("  %v -> %s", id, p)
-			}
-		}
+		// printState = func() {
+		// 	logf("state:")
+		// 	for id, p := range m.live.(*MemState).m {
+		// 		logf("  %v -> %s", id, p)
+		// 	}
+		// }
 	)
 
 	trigger.MinAction = 5
@@ -235,13 +233,13 @@ func TestTriggerRebuild(t *testing.T) {
 		}
 
 		if doomed(i) {
-			if _, err := m.DeletePattern(i); err != nil {
+			if err := m.DeletePattern(i); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
 
-	printState()
+	// printState()
 	m.printStats()
 
 	for i := 0; i < n; i++ {
@@ -261,7 +259,7 @@ func TestTriggerRebuild(t *testing.T) {
 		}
 	}
 
-	printState()
+	// printState()
 	m.printStats()
 
 	s := m.Stats()
@@ -314,7 +312,7 @@ func TestBadState(t *testing.T) {
 	if err := m.AddPattern(1, `{"likes":["queso"]}`); err == nil {
 		t.Fatal("expected error")
 	}
-	if _, err := m.DeletePattern(1); err == nil {
+	if err := m.DeletePattern(1); err == nil {
 		t.Fatal("expected error")
 	}
 	if err := m.Rebuild(false); err == nil {
@@ -433,9 +431,7 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 		t.Fatal(s.Live)
 	}
 
-	if had, err := m.DeletePattern(id); err != nil {
-		t.Fatal(err)
-	} else if !had {
+	if err := m.DeletePattern(id); err != nil {
 		t.Fatal(err)
 	}
 
@@ -449,4 +445,92 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 		t.Fatal(s.Deleted)
 	}
 
+}
+
+func BenchmarkCityLotsCore(b *testing.B) {
+	benchmarkCityLots(b, quamina.NewCoreMatcher())
+}
+
+func BenchmarkCityLotsPruner(b *testing.B) {
+	benchmarkCityLots(b, NewMatcher(nil))
+}
+
+// benchmarkCityLots is distilled from TestCityLots.
+func benchmarkCityLots(b *testing.B, m quamina.Matcher) {
+
+	oneMeg := 1024 * 1024
+	file, err := os.Open("../test_data/citylots.jlines")
+	if err != nil {
+		b.Errorf("Can't open file %s", err)
+	}
+	defer file.Close()
+
+	patterns := []string{
+		`{ "properties": { "STREET": [ "CRANLEIGH" ] } }`,
+		`{ "properties": { "STREET": [ "17TH" ], "ODD_EVEN": [ "E"] } }`,
+		`{ "geometry": { "coordinates": [ 37.807807921694092 ] } }`,
+		`{ "properties": { "MAPBLKLOT": ["0011008"], "BLKLOT": ["0011008"]},  "geometry": { "coordinates": [ 37.807807921694092 ] } } `,
+	}
+	names := []string{
+		"CRANLEIGH",
+		"17TH Even",
+		"Geometry",
+		"0011008",
+	}
+
+	scanner := bufio.NewScanner(file)
+	buf := make([]byte, oneMeg)
+	scanner.Buffer(buf, oneMeg)
+
+	var fj quamina.Flattener
+	switch vv := m.(type) {
+	case *Matcher:
+		fj = quamina.NewFJ(vv.Matcher)
+		vv.DisableRebuild()
+	case *quamina.CoreMatcher:
+		fj = quamina.NewFJ(vv)
+	default:
+		b.Fatalf("%T", vv)
+	}
+
+	for i := range names {
+		err = m.AddPattern(names[i], patterns[i])
+		if err != nil {
+			b.Errorf("AddPattern error %s", err)
+		}
+	}
+	results := make(map[quamina.X]int)
+
+	lineCount := 0
+	var lines [][]byte
+	for scanner.Scan() {
+		lineCount++
+		lines = append(lines, []byte(scanner.Text()))
+	}
+	lineCount = 0
+
+	b.ResetTimer()
+
+	for _, line := range lines {
+		matches, err := fj.FlattenAndMatch(line)
+		if err != nil {
+			b.Errorf("Matches4JSON error %s on %s", err, line)
+		}
+		lineCount++
+		if lineCount == b.N {
+			break
+		}
+		for _, match := range matches {
+			count, ok := results[match]
+			if !ok {
+				count = 0
+			}
+			results[match] = count + 1
+		}
+	}
+
+	err = scanner.Err()
+	if err != nil {
+		b.Errorf("Scanner error %s", err)
+	}
 }

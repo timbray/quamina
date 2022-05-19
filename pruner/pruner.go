@@ -62,7 +62,7 @@ type Matcher struct {
 	// Matcher is the underlying matcher that does the hard work.
 	//
 	// Maybe Matcher should maybe not be embedded or public.
-	*quamina.Matcher
+	Matcher *quamina.CoreMatcher
 
 	// live is live set of patterns.
 	live LivePatternsState
@@ -108,6 +108,7 @@ func newTooMuchFiltering(ratio float64, min int64) *tooMuchFiltering {
 }
 
 func (t *tooMuchFiltering) Rebuild(added bool, s *Stats) bool {
+
 	if added {
 		// No need to think when we're adding a pattern since
 		// that operation cannot result in an increase of
@@ -123,11 +124,11 @@ func (t *tooMuchFiltering) Rebuild(added bool, s *Stats) bool {
 
 	// We won't rebuild if nothing's been emitted yet.
 	//
-	// In isolating, that heuristic is arguable, but for this
+	// In isolation, this heuristic is arguable, but for this
 	// policy we need it.  Otherwise we'll divide by zero, and
 	// nobody wants that.
 	if s.Emitted == 0 {
-		return true
+		return false
 	}
 
 	var (
@@ -170,10 +171,11 @@ func NewMatcher(s LivePatternsState) *Matcher {
 	if s == nil {
 		s = NewMemState()
 	}
+	trigger := *defaultRebuildTrigger // Copy
 	return &Matcher{
-		Matcher:        quamina.NewMatcher(),
+		Matcher:        quamina.NewCoreMatcher(),
 		live:           s,
-		rebuildTrigger: defaultRebuildTrigger,
+		rebuildTrigger: &trigger,
 	}
 }
 
@@ -236,7 +238,10 @@ func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
 
 func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) {
 
-	xs := m.Matcher.MatchesForFields(fields)
+	xs, err := m.Matcher.MatchesForFields(fields)
+	if err != nil {
+		return nil, err
+	}
 
 	// Remove any X that isn't in the live set.
 
@@ -273,7 +278,7 @@ func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) 
 //
 // The return boolean when true indicates that at least one pattern
 // for x was removed.
-func (m *Matcher) DeletePattern(x quamina.X) (bool, error) {
+func (m *Matcher) DeletePattern(x quamina.X) error {
 	// Maybe better to return (int,error) as in
 	// LivePatternStats.Delete(), or maybe just return an error
 	// and nothing else.
@@ -289,7 +294,7 @@ func (m *Matcher) DeletePattern(x quamina.X) (bool, error) {
 		}
 	}
 
-	return 0 < n, err
+	return err
 }
 
 // Rebuild rebuilds the matcher state based on only live patterns.
@@ -313,7 +318,7 @@ func (m *Matcher) rebuild(fearlessly bool) error {
 
 	var (
 		then = time.Now()
-		m1   = quamina.NewMatcher()
+		m1   = quamina.NewCoreMatcher()
 	)
 
 	if fearlessly {

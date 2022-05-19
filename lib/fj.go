@@ -72,7 +72,7 @@ func (fj *FJ) FlattenAndMatch(event []byte) ([]X, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fj.matcher.MatchesForFields(fields), nil
+	return fj.matcher.MatchesForFields(fields)
 }
 
 // Flatten implements the Flattener interface. It assumes that the event is immutable - if you modify the event
