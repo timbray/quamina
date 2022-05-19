@@ -18,3 +18,21 @@ func TestMemIterateFerr(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestStateDelete(t *testing.T) {
+	s := NewMemState()
+
+	if err := s.Add(1, `{"likes":"queso"}`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Add(1, `{"likes":"tacos"}`); err != nil {
+		t.Fatal(err)
+	}
+
+	if n, err := s.Delete(1); err != nil {
+		t.Fatal(err)
+	} else if n != 2 {
+		t.Fatal(n)
+	}
+}

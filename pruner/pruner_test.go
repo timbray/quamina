@@ -297,8 +297,8 @@ func (s *badState) Contains(x quamina.X) (bool, error) {
 	return false, s.err
 }
 
-func (s *badState) Delete(x quamina.X) (bool, error) {
-	return false, s.err
+func (s *badState) Delete(x quamina.X) (int, error) {
+	return 0, s.err
 }
 
 func (s *badState) Iterate(f func(x quamina.X, pattern string) error) error {
@@ -426,4 +426,27 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 	xs, err = m.MatchesForJSONEvent([]byte(`{"needs":"chips"}`))
 
 	check()
+
+	s := m.Stats()
+
+	if s.Live != 2 {
+		t.Fatal(s.Live)
+	}
+
+	if had, err := m.DeletePattern(id); err != nil {
+		t.Fatal(err)
+	} else if !had {
+		t.Fatal(err)
+	}
+
+	s = m.Stats()
+
+	if s.Live != 0 {
+		t.Fatal(s.Live)
+	}
+
+	if s.Deleted != 2 {
+		t.Fatal(s.Deleted)
+	}
+
 }

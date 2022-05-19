@@ -270,19 +270,26 @@ func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) 
 
 // DeletePattern "removes" the pattern from the index and maybe
 // rebuilds the index.
+//
+// The return boolean when true indicates that at least one pattern
+// for x was removed.
 func (m *Matcher) DeletePattern(x quamina.X) (bool, error) {
-	had, err := m.live.Delete(x)
+	// Maybe better to return (int,error) as in
+	// LivePatternStats.Delete(), or maybe just return an error
+	// and nothing else.
+
+	n, err := m.live.Delete(x)
 	if err == nil {
-		if had {
+		if 0 < n {
 			m.lock.Lock()
-			m.stats.Deleted++
-			m.stats.Live--
+			m.stats.Deleted += n
+			m.stats.Live -= n
 			m.maybeRebuild(false)
 			m.lock.Unlock()
 		}
 	}
 
-	return had, err
+	return 0 < n, err
 }
 
 // Rebuild rebuilds the matcher state based on only live patterns.

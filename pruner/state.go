@@ -16,7 +16,9 @@ type LivePatternsState interface {
 	// X.
 	Add(x quamina.X, pattern string) error
 
-	Delete(x quamina.X) (bool, error)
+	// Delete removes all patterns associated with the given x and
+	// returns the number of removed patterns.
+	Delete(x quamina.X) (int, error)
 
 	// Iterate calls the given function for every stored pattern.
 	Iterate(func(x quamina.X, pattern string) error) error
@@ -74,15 +76,16 @@ func (s *MemState) Contains(x quamina.X) (bool, error) {
 	return have, nil
 }
 
-func (s *MemState) Delete(x quamina.X) (bool, error) {
+func (s *MemState) Delete(x quamina.X) (int, error) {
 	s.lock.Lock()
-	_, had := s.m[x]
-	if had {
+	cardinality := 0
+	if xs, have := s.m[x]; have {
+		cardinality = len(xs)
 		delete(s.m, x)
 	}
 	s.lock.Unlock()
 
-	return had, nil
+	return cardinality, nil
 }
 
 func (s *MemState) Iterate(f func(x quamina.X, pattern string) error) error {
