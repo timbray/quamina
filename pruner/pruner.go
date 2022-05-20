@@ -151,15 +151,15 @@ func (m *Matcher) DisableRebuild() {
 //
 // Currently an AddPattern, DeletePattern, or MatchesForFields can
 // trigger a rebuild.  When a rebuild is triggered, it's executed
-// synchronous, the the Add/Delete method doesn't return until the
-// rebuild is complete.
+// synchronously: the the Add/Delete/Match method doesn't return until
+// the rebuild is complete.
 type rebuildTrigger interface {
 	// Rebuild should return true to trigger a rebuild.
 	//
-	// This method is called by AddPattern and DeletePattern.
-	// added is true when called by AddPattern; false
-	// otherwise. These methods do not return until the rebuild is
-	// complete, so beware.
+	// This method is called by AddPatter,DeletePattern, and
+	// MatchesForFields.  added is true when called by AddPattern;
+	// false otherwise. These methods currently do not return
+	// until the rebuild is complete, so beware.
 	Rebuild(added bool, s *Stats) bool
 }
 
@@ -178,9 +178,9 @@ func NewMatcher(s LivePatternsState) *Matcher {
 	}
 }
 
-// maybeRebuild calls rebuildTrigger (if not) and then calls rebuild()
-// if that trigger said to do that.  If rebuildTrigger is nil, no
-// rebuild is executed.
+// maybeRebuild calls rebuildTrigger and calls rebuild() if that
+// trigger said to do that.  If rebuildTrigger is nil, no rebuild is
+// executed.
 //
 // This method assumes the caller has a write lock.
 func (m *Matcher) maybeRebuild(added bool) error {
@@ -194,8 +194,9 @@ func (m *Matcher) maybeRebuild(added bool) error {
 	return nil
 }
 
-// AddPattern calls the underlying AddPattern method and then maybe
-// rebuilds the index (if the AddPattern succeeded).
+// AddPattern calls the underlying quamina.CoreMatcher.AddPattern
+// method and then maybe rebuilds the index (if the AddPattern
+// succeeded).
 func (m *Matcher) AddPattern(x quamina.X, pat string) error {
 	var err error
 
@@ -216,17 +217,20 @@ func (m *Matcher) AddPattern(x quamina.X, pat string) error {
 }
 
 // NewFJ just calls quamina.FJ.
+//
+// Here for convenience only.
 func NewFJ(m *Matcher) quamina.Flattener {
 	return quamina.NewFJ(m.Matcher)
 }
 
 // NewFJ calls quamina.NewFJ with this Matcher's core quamina.Matcher
+//
+// Here for convenience only.
 func (m *Matcher) NewFJ() quamina.Flattener {
 	return quamina.NewFJ(m.Matcher)
 }
 
-// MatchesForJSONEvent calls the underlying MatchesForJSONEvent method
-// and then maybe rebuilds the index.
+// MatchesForJSONEvent calls MatchesForFields with a new Flattener.
 func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
 	fs, err := m.NewFJ().Flatten(event)
 	if err != nil {
@@ -235,6 +239,9 @@ func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
 	return m.MatchesForFields(fs)
 }
 
+// MatchesForFields calls the underlying
+// quamina.CoreMatcher.MatchesForFields and then maybe rebuilds the
+// index.
 func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) {
 
 	xs, err := m.Matcher.MatchesForFields(fields)
@@ -246,9 +253,6 @@ func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) 
 
 	acc := make([]quamina.X, 0, len(xs))
 
-	// We're updating stats.Filtered, so we need a write lock.  If
-	// we forget about stats.Filtered, we can live with only a
-	// read lock here.
 	var emitted, filtered int64
 	for _, x := range xs {
 		have, err := m.live.Contains(x)
@@ -272,16 +276,9 @@ func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) 
 	return acc, nil
 }
 
-// DeletePattern "removes" the pattern from the index and maybe
-// rebuilds the index.
-//
-// The return boolean when true indicates that at least one pattern
-// for x was removed.
+// DeletePattern removes the pattern from the index and maybe rebuilds
+// the index.
 func (m *Matcher) DeletePattern(x quamina.X) error {
-	// Maybe better to return (int,error) as in
-	// LivePatternStats.Delete(), or maybe just return an error
-	// and nothing else.
-
 	n, err := m.live.Delete(x)
 	if err == nil {
 		if 0 < n {

@@ -16,7 +16,7 @@ type LivePatternsState interface {
 	// X.
 	Add(x quamina.X, pattern string) error
 
-	// Delete removes all patterns associated with the given x and
+	// Delete removes all patterns associated with the given X and
 	// returns the number of removed patterns.
 	Delete(x quamina.X) (int, error)
 
@@ -25,9 +25,6 @@ type LivePatternsState interface {
 
 	// Contains returns true if x is in the live set; false
 	// otherwise.
-	//
-	// Since a pattern can't be the empty string, that zero value
-	// indicates no corresponding pattern.
 	Contains(x quamina.X) (bool, error)
 }
 

@@ -12,5 +12,5 @@
 // currently) during mutations.  The code also supports pluggable
 // rebuilding policies, but those features are not currently exposed.
 // A Rebuild method is available for the application to force a
-// rebuild.
+// rebuild, and DisableRebuild() prevents any automatic rebuilding.
 package pruner
