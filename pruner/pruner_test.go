@@ -110,7 +110,6 @@ func TestRebuildSome(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		// Maybe check a lot more often.
 		if err := m.checkStats(); err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +155,7 @@ func TestRebuildSome(t *testing.T) {
 		}
 	})
 
-	t.Run("norebuild", func(t *testing.T) {
+	t.Run("no_rebuild", func(t *testing.T) {
 		// Prevent a rebuild.
 		m = NewMatcher(nil)
 		m.DisableRebuild()
@@ -169,15 +168,13 @@ func TestRebuildSome(t *testing.T) {
 		}
 	})
 
-	t.Run("rebuildafterfj", func(t *testing.T) {
-		// Prevent a rebuild.
+	t.Run("rebuild_after_fj", func(t *testing.T) {
 		m = NewMatcher(nil)
-		m.DisableRebuild()
 		populate()
 		queryFast(false)
 		depopulate()
 		queryFast(false)
-		if s := m.Stats(); 0 != s.RebuildDuration {
+		if s := m.Stats(); 0 == s.RebuildDuration {
 			t.Fatal(s)
 		}
 	})

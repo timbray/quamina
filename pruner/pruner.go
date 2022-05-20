@@ -45,24 +45,23 @@ type Stats struct {
 // Matcher provides DeletePattern on top of quamina.Matcher.
 //
 // Matcher maintains the set of live patterns, and it will rebuild the
-// underlying matcher synchronously (currently) periodically sduring
-// standard operations (AddPattern, DeletePattern,
-// MatchesForJSONEvent).
+// underlying matcher synchronously periodically during standard
+// operations (AddPattern, DeletePattern, MatchesForFields).
 //
 // Roughly speaking, the current rebuild policy automatically rebuilds
 // the index when the ratio of filtered patterns to emitted patterns
 // exceeds 0.2 (and if there's been some traffic).
 //
-// An application can call Rebuild to force a rebuild at any any.  See
-// Stats() to obtain some useful statistics about the matcher.
+// An application can call Rebuild to force a rebuild at any time.
+// See Stats() to obtain some useful statistics about the matcher.
 //
 // Eventually automatically-invoked rebuild policies might be
 // pluggable.
 type Matcher struct {
 	// Matcher is the underlying matcher that does the hard work.
-	//
-	// Maybe Matcher should maybe not be embedded or public.
 	Matcher *quamina.CoreMatcher
+
+	// Maybe Matcher should maybe not be embedded or public.
 
 	// live is live set of patterns.
 	live LivePatternsState
@@ -112,11 +111,11 @@ func (t *tooMuchFiltering) Rebuild(added bool, s *Stats) bool {
 	if added {
 		// No need to think when we're adding a pattern since
 		// that operation cannot result in an increase of
-		// filtered patterns -- I think.
+		// filtered patterns.
 		return false
 	}
 
-	// If we have seen enough patterns emitted by the core
+	// If we haven't seen enough patterns emitted by the core
 	// Matcher, don't rebuild.
 	if s.Emitted+s.Filtered < t.MinAction {
 		return false
@@ -150,7 +149,7 @@ func (m *Matcher) DisableRebuild() {
 // rebuildTrigger provides a way to control when rebuilds are
 // automatically triggered during standard operations.
 //
-// Currently an AddPattern, DeletePattern, or MatchesForJSONEvent can
+// Currently an AddPattern, DeletePattern, or MatchesForFields can
 // trigger a rebuild.  When a rebuild is triggered, it's executed
 // synchronous, the the Add/Delete method doesn't return until the
 // rebuild is complete.
