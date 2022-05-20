@@ -108,15 +108,15 @@ func (m *CoreMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
 	if err != nil {
 		return nil, err
 	}
-	matches := m.MatchesForFields(fields)
-	return matches, nil
+	return m.MatchesForFields(fields)
+
 }
 
 // MatchesForFields takes a list of Field structures and sorts them by pathname; the fields in a pattern to
 //  matched are similarly sorted; thus running an automaton over them works
-func (m *CoreMatcher) MatchesForFields(fields []Field) []X {
+func (m *CoreMatcher) MatchesForFields(fields []Field) ([]X, error) {
 	sort.Slice(fields, func(i, j int) bool { return string(fields[i].Path) < string(fields[j].Path) })
-	return m.matchesForSortedFields(fields).matches()
+	return m.matchesForSortedFields(fields).matches(), nil
 }
 
 // proposedTransition represents a suggestion that the name/value pair at fields[fieldIndex] might allow a transition
