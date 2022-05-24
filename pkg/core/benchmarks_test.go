@@ -8,6 +8,8 @@ import (
 	"runtime/debug"
 	"testing"
 	"time"
+
+	"github.com/timbray/quamina/internal/tools"
 )
 
 const oneMeg = 1024 * 1024
@@ -53,7 +55,7 @@ const thresholdPerformance = 120000.0
 //  that it uses geometry/co-ordintes, which will force the fj flattener to process the big arrays of numbers in
 //  each line.  A high proportion of typical Quamina workloads should run faster.
 func TestCityLots(t *testing.T) {
-	file, err := os.Open(testData("citylots.jlines"))
+	file, err := os.Open(tools.MustTestDataFilename("citylots.jlines"))
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
@@ -183,7 +185,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
-	file, err := os.Open(testData("citylots.jlines"))
+	file, err := os.Open(tools.MustTestDataFilename("citylots.jlines"))
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
@@ -326,7 +328,7 @@ func (w *worder) next() []byte {
 
 func readWWords(t *testing.T) [][]byte {
 	// that's a list from the Wordle source code with a few erased to get a prime number
-	file, err := os.Open(testData("wwords.txt"))
+	file, err := os.Open(tools.MustTestDataFilename("wwords.txt"))
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
