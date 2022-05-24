@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	quamina "github.com/timbray/quamina/pkg/quamina"
+	quamina "github.com/timbray/quamina/pkg/core"
 )
 
 // Stats reports basic counts to aid in deciding when to Rebuild.

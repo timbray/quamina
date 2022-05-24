@@ -1,4 +1,4 @@
-package quamina
+package core
 
 import (
 	"bufio"

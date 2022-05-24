@@ -1,4 +1,4 @@
-package quamina
+package core
 
 // fieldMatcher represents a state in the matching automaton, which matches field names and dispatches to
 //  valueMatcher to complete matching of name/value combinations.  fieldMatcher has a map which is keyed by the

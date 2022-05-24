@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	quamina "github.com/timbray/quamina/pkg/quamina"
+	quamina "github.com/timbray/quamina/pkg/core"
 )
 
 func TestMemIterateFerr(t *testing.T) {
