@@ -161,7 +161,7 @@ func TestMixedPatterns(t *testing.T) {
 		}
 	}
 	got := make(map[X]int)
-	file, err := os.Open("../test_data/citylots.jlines")
+	file, err := os.Open(testData("citylots.jlines"))
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
