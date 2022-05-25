@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"unicode/utf16"
@@ -730,5 +729,5 @@ func (fj *FJ) error(message string) error {
 			lastLineStart = i
 		}
 	}
-	return errors.New(fmt.Sprintf("At line %d col %d: %s", lineNum, fj.eventIndex-lastLineStart, message))
+	return fmt.Errorf("At line %d col %d: %s", lineNum, fj.eventIndex-lastLineStart, message)
 }

@@ -40,7 +40,7 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 	switch tt := t.(type) {
 	case json.Delim:
 		if tt != '}' {
-			err = errors.New(fmt.Sprintf("invalid character %v in 'shellstyle' pattern", tt))
+			err = fmt.Errorf("invalid character %v in 'shellstyle' pattern", tt)
 		}
 	default:
 		err = errors.New("trailing garbage in shellstyle pattern")

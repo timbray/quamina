@@ -31,7 +31,12 @@ func TestLongCase(t *testing.T) {
 		}
 	}
 }
-
+func newNfaWithStart(start *smallTable[*nfaStepList]) *valueMatcher {
+	vm := newValueMatcher()
+	state := &vmFields{startNfa: start}
+	vm.update(state)
+	return vm
+}
 func TestNfaMerging(t *testing.T) {
 	aMatches := []string{
 		`"Afoo"`,
@@ -46,8 +51,8 @@ func TestNfaMerging(t *testing.T) {
 	nfa1, _ := makeShellStyleAutomaton([]byte(`"A*"`), f1)
 	nfa2, _ := makeShellStyleAutomaton([]byte(`"B*"`), f2)
 
-	v1 := &valueMatcher{startNfa: nfa1}
-	v2 := &valueMatcher{startNfa: nfa2}
+	v1 := newNfaWithStart(nfa1)
+	v2 := newNfaWithStart(nfa2)
 
 	for _, aMatch := range aMatches {
 		t1 := v1.transitionOn([]byte(aMatch))
@@ -63,7 +68,7 @@ func TestNfaMerging(t *testing.T) {
 	}
 
 	combo := mergeNfas(nfa1, nfa2)
-	v3 := &valueMatcher{startNfa: combo}
+	v3 := newNfaWithStart(combo)
 	ab := append(aMatches, bMatches...)
 	for _, match := range ab {
 		t3 := v3.transitionOn([]byte(match))
@@ -101,14 +106,12 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 	}
 
 	for i, pattern := range patterns {
-		// fmt.Printf("p=%s\n", pattern)
 		myNext := newFieldMatcher()
 		a, wanted := makeShellStyleAutomaton([]byte(pattern), myNext)
 		if wanted != myNext {
 			t.Error("bad next on: " + pattern)
 		}
 		for _, should := range shouldsForPatterns[i] {
-			// fmt.Printf("should: %s\n", should)
 			var transitions []*fieldMatcher
 			gotTrans := oneNfaStep(a, 0, []byte(should), transitions)
 			if len(gotTrans) != 1 || gotTrans[0] != wanted {
@@ -116,7 +119,6 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 			}
 		}
 		for _, shouldNot := range shouldNotForPatterns[i] {
-			// fmt.Printf("shouldn't: %s\n", shouldNot)
 			var transitions []*fieldMatcher
 			gotTrans := oneNfaStep(a, 0, []byte(shouldNot), transitions)
 			if gotTrans != nil {

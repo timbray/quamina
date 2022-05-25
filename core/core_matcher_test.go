@@ -6,8 +6,7 @@ import (
 )
 
 func TestBasicMatching(t *testing.T) {
-	var x X
-	x = X("testing")
+	var x X = X("testing")
 	pattern := `{"a": [1, 2], "b": [1, "3"]}`
 	m := NewCoreMatcher()
 	err := m.AddPattern(x, pattern)
@@ -35,7 +34,7 @@ func TestBasicMatching(t *testing.T) {
 	}
 	for _, shouldNot := range shouldNotMatch {
 		var matches []X
-		matches, err = m.MatchesForJSONEvent([]byte(shouldNot))
+		matches, _ = m.MatchesForJSONEvent([]byte(shouldNot))
 		if len(matches) != 0 {
 			t.Error("Matched: " + shouldNot)
 		}
@@ -109,8 +108,7 @@ func TestExerciseMatching(t *testing.T) {
 
 func TestSimpleAddPattern(t *testing.T) {
 	// laboriously hand-check the simplest possible automaton
-	var x X
-	x = X("testing")
+	var x X = X("testing")
 	pattern := `{"a": [1, 2], "b": [1, "3"]}`
 	m := NewCoreMatcher()
 	err := m.AddPattern(x, pattern)

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 )
@@ -15,15 +14,15 @@ const (
 func canonicalize(s []byte) (string, error) {
 	var err error
 	if len(s) > digitsOfPrecision {
-		return "", errors.New(fmt.Sprintf("number has %d digits, exceeds max of %d", len(s), digitsOfPrecision))
+		return "", fmt.Errorf("number has %d digits, exceeds max of %d", len(s), digitsOfPrecision)
 	}
 	var f float64
-	f, err = strconv.ParseFloat(string(s), 63)
+	f, err = strconv.ParseFloat(string(s), 64)
 	if err != nil {
 		return "", err
 	}
 	if f >= nineDigits || f <= -nineDigits {
-		return "", errors.New(fmt.Sprintf("number is outside of range [%f, %f]", -nineDigits, nineDigits))
+		return "", fmt.Errorf("number is outside of range [%f, %f]", -nineDigits, nineDigits)
 	}
 	return fmt.Sprintf("%019.0f", (f+nineDigits)*nineDigits), nil
 }

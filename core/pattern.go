@@ -95,7 +95,7 @@ func readPatternObject(pb *patternBuild) error {
 			if tt == '}' {
 				return nil
 			} else {
-				return errors.New(fmt.Sprintf("floating '%v' in object", tt))
+				return fmt.Errorf("floating '%v' in object", tt)
 			}
 		}
 	}
@@ -117,10 +117,10 @@ func readPatternMember(pb *patternBuild) error {
 		case '{':
 			return readPatternObject(pb)
 		default:
-			return errors.New(fmt.Sprintf("pattern malformed, illegal %v", tt))
+			return fmt.Errorf("pattern malformed, illegal %v", tt)
 		}
 	default:
-		return errors.New(fmt.Sprintf("pattern malformed, illegal %v", tt))
+		return fmt.Errorf("pattern malformed, illegal %v", tt)
 	}
 }
 
@@ -141,7 +141,7 @@ func readPatternArray(pb *patternBuild) error {
 		case json.Delim:
 			if tt == ']' {
 				if (containsExclusive != "") && (elementCount > 1) {
-					return errors.New(fmt.Sprintf(`%s cannot be combined with other values in pattern`, containsExclusive))
+					return fmt.Errorf(`%s cannot be combined with other values in pattern`, containsExclusive)
 				}
 				pb.results = append(pb.results, &patternField{path: pathName, vals: pathVals})
 				return nil
@@ -155,7 +155,7 @@ func readPatternArray(pb *patternBuild) error {
 					return err
 				}
 			} else {
-				return errors.New(fmt.Sprintf("pattern malformed, illegal %v", tt))
+				return fmt.Errorf("pattern malformed, illegal %v", tt)
 			}
 		case string:
 			pathVals = append(pathVals, typedVal{stringType, `"` + tt + `"`})
@@ -223,7 +223,7 @@ func readExistsSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 	switch tt := t.(type) {
 	case json.Delim:
 		if tt != '}' {
-			err = errors.New(fmt.Sprintf("invalid character %v in 'existsMatches' pattern", tt))
+			err = fmt.Errorf("invalid character %v in 'existsMatches' pattern", tt)
 		}
 	default:
 		err = errors.New("trailing garbage in 'existsMatches' pattern")

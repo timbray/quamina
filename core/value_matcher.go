@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"sync/atomic"
 )
 
 // valueMatcher represents a byte-driven automaton.  The table needs to be the equivalent of
@@ -14,6 +15,9 @@ import (
 //  to exactly equal the singletonMatch field; if so, the singletonTransition is the return value. This is
 //  to avoid having a long chain of smallTables each with only one entry.
 type valueMatcher struct {
+	updateable atomic.Value
+}
+type vmFields struct {
 	startDfa            *smallTable[*dfaStep]
 	startNfa            *smallTable[*nfaStepList]
 	singletonMatch      []byte
@@ -21,32 +25,47 @@ type valueMatcher struct {
 	existsTransitions   []*fieldMatcher
 }
 
+func (m *valueMatcher) getFields() *vmFields {
+	return m.updateable.Load().(*vmFields)
+}
+func (m *valueMatcher) getFieldsForUpdate() *vmFields {
+	current := m.updateable.Load().(*vmFields)
+	freshState := *current
+	return &freshState
+}
+func (m *valueMatcher) update(state *vmFields) {
+	m.updateable.Store(state)
+}
+
 func newValueMatcher() *valueMatcher {
-	return &valueMatcher{startNfa: nil}
+	var vm valueMatcher
+	vm.update(&vmFields{startNfa: nil})
+	return &vm
 }
 
 func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	var transitions []*fieldMatcher
 
 	// exists transitions are basically a * on the value, so if we got the matcher, add 'em to the output
-	transitions = append(transitions, m.existsTransitions...)
+	fields := m.getFields()
+	transitions = append(transitions, fields.existsTransitions...)
 
 	switch {
-	case m.startNfa != nil:
+	case fields.startNfa != nil:
 		// if an NFA is provided, just use it
 		return m.transitionNfa(val, transitions)
 
-	case m.singletonMatch != nil:
+	case fields.singletonMatch != nil:
 		// if there's a singleton entry here, we either match the val or we're done
 		// Note: We have to check this first because addTransition might be busy
 		//  constructing an automaton, but it's not ready for use yet.  When it's done
 		//  it'll zero out the singletonMatch
-		if bytes.Equal(m.singletonMatch, val) {
-			transitions = append(transitions, m.singletonTransition)
+		if bytes.Equal(fields.singletonMatch, val) {
+			transitions = append(transitions, fields.singletonTransition)
 		}
 		return transitions
 
-	case m.startDfa != nil:
+	case fields.startDfa != nil:
 		return m.transitionDfa(val, transitions)
 
 	default:
@@ -62,7 +81,7 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 //  So instead, we'll recurse like hell and and just follow all the links in order as we come to them,
 //  on the theory that stack hammering is cheaper than slice bashing.
 func (m *valueMatcher) transitionNfa(val []byte, transitions []*fieldMatcher) []*fieldMatcher {
-	return oneNfaStep(m.startNfa, 0, val, transitions)
+	return oneNfaStep(m.getFields().startNfa, 0, val, transitions)
 }
 
 func oneNfaStep(table *smallTable[*nfaStepList], index int, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
@@ -92,7 +111,7 @@ func oneNfaStep(table *smallTable[*nfaStepList], index int, val []byte, transiti
 func (m *valueMatcher) transitionDfa(val []byte, transitions []*fieldMatcher) []*fieldMatcher {
 
 	// step through the smallTables, byte by byte
-	table := m.startDfa
+	table := m.getFields().startDfa
 	for _, utf8Byte := range val {
 		step := table.step(utf8Byte)
 		if step == nil {
@@ -117,33 +136,37 @@ func (m *valueMatcher) transitionDfa(val []byte, transitions []*fieldMatcher) []
 
 func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	valBytes := []byte(val.val)
+	fields := m.getFieldsForUpdate()
 
 	// TODO: Shouldn't these all point to the same fieldMatcher?
 	if val.vType == existsTrueType || val.vType == existsFalseType {
 		next := newFieldMatcher()
-		m.existsTransitions = append(m.existsTransitions, next)
+		fields.existsTransitions = append(fields.existsTransitions, next)
+		m.update(fields)
 		return next
 	}
 
 	// there's already a table, thus an out-degree > 1
-	if m.startDfa != nil || m.startNfa != nil {
+	if fields.startDfa != nil || fields.startNfa != nil {
 
 		if val.vType == shellStyleType {
 			newNfa, nextField := makeShellStyleAutomaton(valBytes, nil)
-			if m.startNfa != nil {
-				m.startNfa = mergeNfas(newNfa, m.startNfa)
+			if fields.startNfa != nil {
+				fields.startNfa = mergeNfas(newNfa, fields.startNfa)
 			} else {
-				m.startNfa = mergeNfas(newNfa, dfa2Nfa(m.startDfa))
-				m.startDfa = nil
+				fields.startNfa = mergeNfas(newNfa, dfa2Nfa(fields.startDfa))
+				fields.startDfa = nil
 			}
+			m.update(fields)
 			return nextField
 		} else {
 			newDfa, nextField := makeStringAutomaton(valBytes, nil)
-			if m.startNfa != nil {
-				m.startNfa = mergeNfas(m.startNfa, dfa2Nfa(newDfa))
+			if fields.startNfa != nil {
+				fields.startNfa = mergeNfas(fields.startNfa, dfa2Nfa(newDfa))
 			} else {
-				m.startDfa = mergeDfas(m.startDfa, newDfa)
+				fields.startDfa = mergeDfas(fields.startDfa, newDfa)
 			}
+			m.update(fields)
 			return nextField
 		}
 	}
@@ -151,41 +174,44 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	// no start table, we have to work with singletons …
 
 	// … unless this is completely virgin, in which case put in the singleton, assuming it's just a string match
-	if m.singletonMatch == nil {
+	if fields.singletonMatch == nil {
 		if val.vType == shellStyleType {
 			newAutomaton, nextField := makeShellStyleAutomaton(valBytes, nil)
-			m.startNfa = newAutomaton
+			fields.startNfa = newAutomaton
+			m.update(fields)
 			return nextField
 		} else {
 			// at the moment this works for everything that's not a shellStyle, but this may not always be true in future
-			m.singletonMatch = valBytes
-			m.singletonTransition = newFieldMatcher()
-			return m.singletonTransition
+			fields.singletonMatch = valBytes
+			fields.singletonTransition = newFieldMatcher()
+			m.update(fields)
+			return fields.singletonTransition
 		}
 	}
 
 	// singleton match is here and this value matches it
-	if (val.vType != shellStyleType) && bytes.Equal(m.singletonMatch, valBytes) {
-		return m.singletonTransition
+	if (val.vType != shellStyleType) && bytes.Equal(fields.singletonMatch, valBytes) {
+		return fields.singletonTransition
 	}
 
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have to build an automaton with
 	//  two values in it
-	singletonAutomaton, _ := makeStringAutomaton(m.singletonMatch, m.singletonTransition)
+	singletonAutomaton, _ := makeStringAutomaton(fields.singletonMatch, fields.singletonTransition)
 	var nextField *fieldMatcher
 	if val.vType == shellStyleType {
 		var newNfa *smallTable[*nfaStepList]
 		newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
-		m.startNfa = mergeNfas(newNfa, dfa2Nfa(singletonAutomaton))
+		fields.startNfa = mergeNfas(newNfa, dfa2Nfa(singletonAutomaton))
 	} else {
 		var newDfa *smallTable[*dfaStep]
 		newDfa, nextField = makeStringAutomaton(valBytes, nil)
-		m.startDfa = mergeDfas(singletonAutomaton, newDfa)
+		fields.startDfa = mergeDfas(singletonAutomaton, newDfa)
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it
-	m.singletonMatch = nil
-	m.singletonTransition = nil
+	fields.singletonMatch = nil
+	fields.singletonTransition = nil
+	m.update(fields)
 	return nextField
 }
 

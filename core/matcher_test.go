@@ -3,14 +3,11 @@ package core
 import "testing"
 
 func TestMatcherInterface(t *testing.T) {
-	var m Matcher
-	m = NewCoreMatcher()
-	_, ok := m.(*CoreMatcher)
-	if !ok {
+	var m Matcher = NewCoreMatcher()
+	if _, ok := m.(*CoreMatcher); !ok {
 		t.Error("Can't cast")
 	}
-	var x X
-	x = "x"
+	var x X = "x"
 	err := m.AddPattern(x, `{"x": [1, 2]}`)
 	if err != nil {
 		t.Error("AddPattern? " + err.Error())
@@ -20,7 +17,7 @@ func TestMatcherInterface(t *testing.T) {
 		t.Error("CoreMatcher allowed Delete!?")
 	}
 	event := `{"x": [3, 1]}`
-	matches, err := m.MatchesForJSONEvent([]byte(event))
+	matches, _ := m.MatchesForJSONEvent([]byte(event))
 	if len(matches) != 1 || matches[0] != x {
 		t.Error("missed match")
 	}

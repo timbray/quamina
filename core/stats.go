@@ -41,12 +41,13 @@ func vmStats(m *valueMatcher, s *stats) {
 	}
 	s.vmVisited[m] = true
 	s.vmCount++
-	if m.singletonMatch != nil {
+	state := m.getFields()
+	if state.singletonMatch != nil {
 		s.siCount++
-		fmStats(m.singletonTransition, s)
+		fmStats(state.singletonTransition, s)
 	}
-	if m.startDfa != nil {
-		smallStats(m.startDfa, s)
+	if state.startDfa != nil {
+		smallStats(state.startDfa, s)
 	}
 }
 

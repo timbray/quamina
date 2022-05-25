@@ -110,7 +110,7 @@ func TestUTF16Escaping(t *testing.T) {
 		b = []byte(bad)
 		f = &FJ{fields: make([]Field, 0, 32)}
 		f.event = b
-		chars, from, err = f.readHexUTF16(4)
+		_, _, err = f.readHexUTF16(4)
 		if err == nil {
 			t.Error("Missed error on " + bad)
 		}

@@ -113,7 +113,7 @@ func TestConcurrency(t *testing.T) {
 		}
 	}
 
-	elapsed := float64(time.Now().Sub(before).Milliseconds())
+	elapsed := float64(time.Since(before).Milliseconds())
 	perSecond := float64(lineCount) / (elapsed / 1000.0)
 	fmt.Printf("\n%.2f matches/second with updates\n\n", perSecond)
 
@@ -132,7 +132,6 @@ func TestConcurrency(t *testing.T) {
 	}
 
 	// now we go back and make sure that all those AddPattern calls actually made it into the Matcher
-	close(ch)
 	for i := 0; i < sent; i++ {
 		val := <-ch
 		var event string
@@ -150,4 +149,5 @@ func TestConcurrency(t *testing.T) {
 			t.Error("problem with: " + val)
 		}
 	}
+	close(ch)
 }

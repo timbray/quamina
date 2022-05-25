@@ -205,7 +205,7 @@ func (m *Matcher) AddPattern(x quamina.X, pat string) error {
 		m.lock.Lock()
 		m.stats.Added++
 		m.stats.Live++
-		m.maybeRebuild(true)
+		_ = m.maybeRebuild(true)
 		m.lock.Unlock()
 		err = m.live.Add(x, pat)
 		// ToDo: Contemplate what do to about an error here
@@ -270,7 +270,7 @@ func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) 
 	m.lock.Lock()
 	m.stats.Filtered += filtered
 	m.stats.Emitted += emitted
-	m.maybeRebuild(false)
+	_ = m.maybeRebuild(false)
 	m.lock.Unlock()
 
 	return acc, nil
@@ -285,7 +285,7 @@ func (m *Matcher) DeletePattern(x quamina.X) error {
 			m.lock.Lock()
 			m.stats.Deleted += n
 			m.stats.Live -= n
-			m.maybeRebuild(false)
+			_ = m.maybeRebuild(false)
 			m.lock.Unlock()
 		}
 	}
@@ -339,7 +339,7 @@ func (m *Matcher) rebuild(fearlessly bool) error {
 		m.stats.Deleted = 0
 		m.stats.Filtered = 0
 		m.stats.LastRebuilt = then
-		m.stats.RebuildDuration = time.Now().Sub(then)
+		m.stats.RebuildDuration = time.Since(then)
 	}
 
 	return err

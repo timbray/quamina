@@ -65,9 +65,9 @@ func TestCombiner(t *testing.T) {
 
 	combo := mergeOneDfaStep(A0, B0, make(map[dfaStepKey]*dfaStep))
 
-	vm := &valueMatcher{
-		startDfa: combo.table,
-	}
+	state := &vmFields{startDfa: combo.table}
+	vm := newValueMatcher()
+	vm.update(state)
 	matches := vm.transitionOn([]byte("jab"))
 	if len(matches) != 1 || matches[0].fields().transitions["AFM"] == nil {
 		t.Error("wanted AFM")
@@ -91,8 +91,8 @@ func TestCombiner(t *testing.T) {
 	st = newDfaTransition(CFM)
 	C2.table.addByteStep(ValueTerminator, st)
 
-	combo = mergeOneDfaStep(&dfaStep{table: vm.startDfa}, C0, make(map[dfaStepKey]*dfaStep))
-	vm.startDfa = combo.table
+	combo = mergeOneDfaStep(&dfaStep{table: vm.getFields().startDfa}, C0, make(map[dfaStepKey]*dfaStep))
+	vm.update(&vmFields{startDfa: combo.table})
 	matches = vm.transitionOn([]byte("jab"))
 	if len(matches) != 1 || matches[0].fields().transitions["AFM"] == nil {
 		t.Error("wanted AFM")

@@ -42,7 +42,7 @@ func TestFJBasic(t *testing.T) {
 
 	justAF := fakeMatcher("a", "f")
 	f = NewFJ(justAF)
-	list, err = f.Flatten([]byte(j))
+	list, _ = f.Flatten([]byte(j))
 	wantedPaths = []string{"a", "f", "f"}
 	wantedVals = []string{"1", "33", "\"x\""}
 	for i, field := range list {
