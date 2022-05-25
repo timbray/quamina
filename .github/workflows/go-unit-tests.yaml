@@ -21,9 +21,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
-
-      - name: Install tparse
-        run: go install github.com/mfridman/tparse@latest
+        with:
+          lfs: true
 
       - name: Set up Go ${{ matrix.go-version }}
         uses: actions/setup-go@fcdc43634adb5f7ae75a9d7a9b9361790f7293e2
@@ -37,9 +36,17 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+            .git/lfs
+
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum', 'testdata/**') }}
           restore-keys: |
             ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+      - name: Checkout LFS objects
+        run: git lfs checkout
+
+      - name: Install tparse
+        run: go install github.com/mfridman/tparse@latest
 
       - name: Check for .codecov.yaml
         id: codecov-enabled
