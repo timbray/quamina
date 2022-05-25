@@ -1,0 +1,23 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    strategy:
+      matrix:
+        go-version: ["1.18"]
+        platform: ["ubuntu-latest"]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
+        
+      - name: Dependency Review
+        uses: actions/dependency-review-action@a9c83d3af6b9031e20feba03b904645bb23d1dab
