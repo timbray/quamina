@@ -1,4 +1,4 @@
-package quamina
+package core
 
 import (
 	"io/ioutil"
@@ -58,7 +58,7 @@ func TestFJBasic(t *testing.T) {
 func TestFJ10Lines(t *testing.T) {
 
 	geo := fakeMatcher("type", "geometry")
-	testTrackerSelection(NewFJ(geo), "L0", "../test_data/cl-sample-0",
+	testTrackerSelection(NewFJ(geo), "L0", "../testdata/cl-sample-0",
 		[]string{"type", "geometry\ntype"},
 		[]string{`"Feature"`, `"Polygon"`},
 		t)
@@ -99,13 +99,13 @@ func TestFJ10Lines(t *testing.T) {
 	}
 
 	coords := fakeMatcher("coordinates", "geometry")
-	testTrackerSelection(NewFJ(coords), "L1", "../test_data/cl-sample-1",
+	testTrackerSelection(NewFJ(coords), "L1", "../testdata/cl-sample-1",
 		coordNames, coordVals, t)
 
 	l2names := []string{"properties\nFROM_ST", "properties\nODD_EVEN"}
 	l2vals := []string{`"1917"`, `"O"`}
 	proFoOd := fakeMatcher("properties", "FROM_ST", "ODD_EVEN")
-	testTrackerSelection(NewFJ(proFoOd), "L2", "../test_data/cl-sample-2",
+	testTrackerSelection(NewFJ(proFoOd), "L2", "../testdata/cl-sample-2",
 		l2names, l2vals, t)
 }
 

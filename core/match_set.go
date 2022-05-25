@@ -1,4 +1,4 @@
-package quamina
+package core
 
 // matchSet is what it says on the tin; implements a set semantic on matches, which are of type X. These could all
 //  be implemented as match[X]bool but this makes the calling code more readable.

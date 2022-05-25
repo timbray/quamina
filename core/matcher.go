@@ -1,4 +1,4 @@
-package quamina
+package core
 
 type Matcher interface {
 	AddPattern(x X, pat string) error

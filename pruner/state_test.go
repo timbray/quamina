@@ -2,8 +2,9 @@ package pruner
 
 import (
 	"fmt"
-	quamina "quamina/lib"
 	"testing"
+
+	quamina "github.com/timbray/quamina/core"
 )
 
 func TestMemIterateFerr(t *testing.T) {
