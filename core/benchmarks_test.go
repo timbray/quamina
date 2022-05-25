@@ -1,4 +1,4 @@
-package quamina
+package core
 
 import (
 	"bufio"
@@ -53,7 +53,7 @@ const thresholdPerformance = 120000.0
 //  that it uses geometry/co-ordintes, which will force the fj flattener to process the big arrays of numbers in
 //  each line.  A high proportion of typical Quamina workloads should run faster.
 func TestCityLots(t *testing.T) {
-	file, err := os.Open("../test_data/citylots.jlines")
+	file, err := os.Open("../testdata/citylots.jlines")
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
@@ -183,7 +183,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
-	file, err := os.Open("../test_data/citylots.jlines")
+	file, err := os.Open("../testdata/citylots.jlines")
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
@@ -326,7 +326,7 @@ func (w *worder) next() []byte {
 
 func readWWords(t *testing.T) [][]byte {
 	// that's a list from the Wordle source code with a few erased to get a prime number
-	file, err := os.Open("../test_data/wwords.txt")
+	file, err := os.Open("../testdata/wwords.txt")
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}

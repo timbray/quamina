@@ -1,4 +1,4 @@
-package quamina
+package core
 
 type ArrayPos struct {
 	Array int32

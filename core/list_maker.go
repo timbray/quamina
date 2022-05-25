@@ -1,4 +1,4 @@
-package quamina
+package core
 
 // this needs to exist so that all all the lists containing a single step to X, or the triple step to X,Y,Z are the
 //  same list, so that pack/unpack work properly

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	quamina "quamina/lib"
+	quamina "github.com/timbray/quamina/core"
 )
 
 var verbose = false
@@ -456,7 +456,7 @@ func BenchmarkCityLotsPruner(b *testing.B) {
 func benchmarkCityLots(b *testing.B, m quamina.Matcher) {
 
 	oneMeg := 1024 * 1024
-	file, err := os.Open("../test_data/citylots.jlines")
+	file, err := os.Open("../testdata/citylots.jlines")
 	if err != nil {
 		b.Errorf("Can't open file %s", err)
 	}

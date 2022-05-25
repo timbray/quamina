@@ -1,4 +1,4 @@
-package quamina
+package core
 
 // dfaStep and nfaStep are used by the valueMatcher automaton - every step through the
 //  automaton requires a smallTable and for some of them, taking the step means you've matched a value and can

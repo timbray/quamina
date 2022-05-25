@@ -1,4 +1,4 @@
-package quamina
+package core
 
 // CoreMatcher represents an automaton that allows matching sequences of name/value field pairs against
 //  patterns, which are combinations of field names and lists of allowed valued field values.
