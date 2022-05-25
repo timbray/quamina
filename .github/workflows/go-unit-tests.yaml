@@ -1,0 +1,72 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: ["main"]
+
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Unit Tests
+    strategy:
+      matrix:
+        go-version: ["1.18"]
+        platform: ["ubuntu-latest"]
+
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
+
+      - name: Install tparse
+        run: go install github.com/mfridman/tparse@latest
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@fcdc43634adb5f7ae75a9d7a9b9361790f7293e2
+        with:
+          go-version: ${{ matrix.go-version }}
+        id: go
+
+      - name: Restore Go cache
+        uses: actions/cache@48af2dc4a9e8278b89d7fa154b955c30c6aaab09
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+      - name: Check for .codecov.yaml
+        id: codecov-enabled
+        uses: andstor/file-existence-action@f02338908d150e00a4b8bebc2dad18bd9e5229b0
+        with:
+          files: .codecov.yaml
+
+      - if: steps.codecov-enabled.outputs.files_exists == 'true'
+        name: Enable Go Coverage
+        run: echo 'COVER_OPTS=-coverprofile=coverage.txt -covermode=atomic' >> $GITHUB_ENV
+
+      - name: Test
+        env:
+          GOFLAGS: "-v -race -count=1 -json"
+        run: go test $COVER_OPTS ./... | tparse -all
+
+      - name: Verify git clean
+        shell: bash
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "${{ github.repository }} up to date."
+          else
+            echo "${{ github.repository }} is dirty."
+            echo "::error:: $(git status)"
+            exit 1
+          fi
+
+      - if: steps.codecov-enabled.outputs.files_exists == 'true'
+        name: Produce Codecov Report
+        uses: codecov/codecov-action@81cd2dc8148241f03f5839d295e000b8f761e378
