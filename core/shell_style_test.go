@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/timbray/quamina/internal/tools"
 )
 
 func TestLongCase(t *testing.T) {
@@ -163,7 +161,7 @@ func TestMixedPatterns(t *testing.T) {
 		}
 	}
 	got := make(map[X]int)
-	file, err := os.Open(tools.MustTestDataFilename("citylots.jlines"))
+	file, err := os.Open("../testdata/citylots.jlines")
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}

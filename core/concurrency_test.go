@@ -7,8 +7,6 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	"github.com/timbray/quamina/internal/tools"
 )
 
 func updateTree(m *CoreMatcher, use37 bool, t *testing.T, ch chan string) {
@@ -41,7 +39,7 @@ func TestConcurrency(t *testing.T) {
 	// I was initially surprised that adding 860 or so changes to the automaton while it's running doesn't seem to
 	//  cause any decrease in performance. But I guess it splits out very cleanly onto another core and really
 	//  doesn't steal any resources from the thread doing the Match calls
-	file, err := os.Open(tools.MustTestDataFilename("citylots.jlines"))
+	file, err := os.Open("../testdata/citylots.jlines")
 	if err != nil {
 		t.Error("Can't open file: " + err.Error())
 	}
