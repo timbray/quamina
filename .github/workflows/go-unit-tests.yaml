@@ -16,7 +16,7 @@ jobs:
         platform: ["ubuntu-latest"]
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -60,8 +60,8 @@ jobs:
 
       - name: Test
         env:
-          GOFLAGS: "-v -race -count=1 -json"
-        run: go test $COVER_OPTS ./... | tparse -all
+          GOFLAGS: "-v -race -count=1"
+        run: go test $COVER_OPTS ./...
 
       - name: Verify git clean
         shell: bash
