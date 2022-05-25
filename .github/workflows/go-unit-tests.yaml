@@ -58,6 +58,9 @@ jobs:
         name: Enable Go Coverage
         run: echo 'COVER_OPTS=-coverprofile=coverage.txt -covermode=atomic' >> $GITHUB_ENV
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Test
         env:
           GOFLAGS: "-v -race -count=1"
