@@ -4,18 +4,18 @@ import (
 	"bytes"
 )
 
-// valueMatcher represents a byte-driven automaton.  The simplest implementation would be
-//  for each step to be driven by the equivalent of a map[byte]nextState.  This is done with the startStep field.
-//  In some cases there is only one byte sequence forward from a state, in which case that would be provided in
-//  the singletonMatch field; if it matches, the singletonTransition is the return value. This is to avoid
-//  having a long of smallTables each with only one entry. The isNFA field is true if the startStep points to
-//  a smallDfaTable in which the values are nfaSteps, i.e. slices of smallSteps.
-// Extra work is being done here with the goal of not wasting memory.  Since Quamina is happy to match basically
-//  any number of patterns, users might reasonably do crazy-sounding things like add a million patterns to a
-//  matcher, then complain about how much memory this takes.
+// valueMatcher represents a byte-driven automaton.  The table needs to be the equivalent of
+//  a map[byte]nextState and is represented by smallTable. Some patterns can be represented by a deterministic
+//  finite automaton (DFA) but others, particularly with a regex failure, need to be represented by a
+//  nondeterministic finite automaton (NFA). NFAs trump DFAs so if a valueMatcher has one, it must be
+//  used in preference to other alternatives.
+// In some cases there is only one byte sequence forward from a state, i.e. a string-valued field with
+//  only one string match. In this case, the DFA and NFA will b null and the value being matched has
+//  to exactly equal the singletonMatch field; if so, the singletonTransition is the return value. This is
+//  to avoid having a long chain of smallTables each with only one entry.
 type valueMatcher struct {
-	startDfa            *smallTable[DS]
-	startNfa            *smallTable[NSL]
+	startDfa            *smallTable[*dfaStep]
+	startNfa            *smallTable[*nfaStepList]
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
 	existsTransitions   []*fieldMatcher
@@ -27,28 +27,31 @@ func newValueMatcher() *valueMatcher {
 
 func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	var transitions []*fieldMatcher
-	transitions = append(transitions, m.existsTransitions...)
-	if m.startNfa != nil {
-		return m.transitionNfa(val, transitions)
-	}
 
-	// if there's a singleton entry here, we either match the val or we're done
-	// Note: We have to check this first because addTransition might be busy
-	//  constructing the table, but it's not ready for use yet.  When it's done
-	//  it'll zero out the singletonMatch
-	if m.singletonMatch != nil {
+	// exists transitions are basically a * on the value, so if we got the matcher, add 'em to the output
+	transitions = append(transitions, m.existsTransitions...)
+
+	switch {
+	case m.startNfa != nil:
+		// if an NFA is provided, just use it
+		return m.transitionNfa(val, transitions)
+
+	case m.singletonMatch != nil:
+		// if there's a singleton entry here, we either match the val or we're done
+		// Note: We have to check this first because addTransition might be busy
+		//  constructing an automaton, but it's not ready for use yet.  When it's done
+		//  it'll zero out the singletonMatch
 		if bytes.Equal(m.singletonMatch, val) {
 			transitions = append(transitions, m.singletonTransition)
 		}
 		return transitions
-	}
 
-	// there's no singleton. If there's also no table, there's nowhere to go
-	if m.startDfa == nil {
+	case m.startDfa != nil:
+		return m.transitionDfa(val, transitions)
+
+	default:
 		return transitions
 	}
-
-	return m.transitionDfa(val, transitions)
 }
 
 // transitionNfa traverses a nondeterministic automaton - unlike a dfa, an input byte can transition
@@ -62,8 +65,10 @@ func (m *valueMatcher) transitionNfa(val []byte, transitions []*fieldMatcher) []
 	return oneNfaStep(m.startNfa, 0, val, transitions)
 }
 
-func oneNfaStep(table *smallTable[NSL], index int, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
+func oneNfaStep(table *smallTable[*nfaStepList], index int, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
 	var utf8Byte byte
+
+	// fake ValueTerminator at the end of every val
 	switch {
 	case index == len(val):
 		utf8Byte = ValueTerminator
@@ -96,15 +101,14 @@ func (m *valueMatcher) transitionDfa(val []byte, transitions []*fieldMatcher) []
 
 		transitions = append(transitions, step.fieldTransitions...)
 
-		// we always initialize the smallDfaTable, even in a dfaTransition step, so no need to check for nil
 		table = step.table
 	}
 
-	// look for terminator
+	// look for terminator after exhausting bytes of val
 	lastStep := table.step(ValueTerminator)
 
 	// we only do a field-level transition if there's one in the table that the last character in val arrives at
-	if lastStep != nil && lastStep.fieldTransitions != nil {
+	if lastStep != nil {
 		transitions = append(transitions, lastStep.fieldTransitions...)
 	}
 
@@ -130,6 +134,7 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 				m.startNfa = mergeNfas(newNfa, m.startNfa)
 			} else {
 				m.startNfa = mergeNfas(newNfa, dfa2Nfa(m.startDfa))
+				m.startDfa = nil
 			}
 			return nextField
 		} else {
@@ -166,15 +171,14 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have to build an automaton with
 	//  two values in it
-	var singletonAutomaton *smallTable[DS]
-	singletonAutomaton, _ = makeStringAutomaton(m.singletonMatch, m.singletonTransition)
+	singletonAutomaton, _ := makeStringAutomaton(m.singletonMatch, m.singletonTransition)
 	var nextField *fieldMatcher
 	if val.vType == shellStyleType {
-		var newNfa *smallTable[NSL]
+		var newNfa *smallTable[*nfaStepList]
 		newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
 		m.startNfa = mergeNfas(newNfa, dfa2Nfa(singletonAutomaton))
 	} else {
-		var newDfa *smallTable[DS]
+		var newDfa *smallTable[*dfaStep]
 		newDfa, nextField = makeStringAutomaton(valBytes, nil)
 		m.startDfa = mergeDfas(singletonAutomaton, newDfa)
 	}
@@ -189,7 +193,7 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 //  the addition of a ValueTerminator. The implementation is recursive because this allows the use of the
 //  makeSmallDfaTable call, which reduces memory churn. Converting from a straightforward implementation to this
 //  approximately doubled the fields/second rate in addPattern
-func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[DS], *fieldMatcher) {
+func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
 	var nextField *fieldMatcher
 	if useThisTransition != nil {
 		nextField = useThisTransition
@@ -199,13 +203,13 @@ func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTab
 	return oneDfaStep(val, 0, nextField), nextField
 }
 
-func oneDfaStep(val []byte, index int, nextField *fieldMatcher) *smallTable[DS] {
-	var nextStep DS
+func oneDfaStep(val []byte, index int, nextField *fieldMatcher) *smallTable[*dfaStep] {
+	var nextStep *dfaStep
 	if index == len(val)-1 {
-		lastStep := &dfaStep{table: newSmallTable[DS](), fieldTransitions: []*fieldMatcher{nextField}}
-		nextStep = &dfaStep{table: makeSmallDfaTable(nil, []byte{ValueTerminator}, []DS{lastStep})}
+		lastStep := &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{nextField}}
+		nextStep = &dfaStep{table: makeSmallDfaTable(nil, []byte{ValueTerminator}, []*dfaStep{lastStep})}
 	} else {
 		nextStep = &dfaStep{table: oneDfaStep(val, index+1, nextField)}
 	}
-	return makeSmallDfaTable(nil, []byte{val[index]}, []DS{nextStep})
+	return makeSmallDfaTable(nil, []byte{val[index]}, []*dfaStep{nextStep})
 }

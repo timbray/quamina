@@ -11,7 +11,7 @@ func TestMatcherInterface(t *testing.T) {
 	}
 	var x X
 	x = "x"
-	err := m.AddPattern(x, `{"x": [1]}`)
+	err := m.AddPattern(x, `{"x": [1, 2]}`)
 	if err != nil {
 		t.Error("AddPattern? " + err.Error())
 	}
@@ -19,7 +19,7 @@ func TestMatcherInterface(t *testing.T) {
 	if err == nil {
 		t.Error("CoreMatcher allowed Delete!?")
 	}
-	event := `{"x": 1}`
+	event := `{"x": [3, 1]}`
 	matches, err := m.MatchesForJSONEvent([]byte(event))
 	if len(matches) != 1 || matches[0] != x {
 		t.Error("missed match")

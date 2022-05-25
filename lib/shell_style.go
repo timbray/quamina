@@ -51,8 +51,8 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 
 // makeShellStyleAutomaton - recognize a "-delimited string containing one '*' glob.
 // TODO: Make this recursive like makeStringAutomaton
-func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start *smallTable[NSL], nextField *fieldMatcher) {
-	table := newSmallTable[NSL]()
+func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start *smallTable[*nfaStepList], nextField *fieldMatcher) {
+	table := newSmallTable[*nfaStepList]()
 	start = table
 	if useThisTransition != nil {
 		nextField = useThisTransition
@@ -73,7 +73,7 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 			//  we know the trailing '"' will be there because of JSON syntax.
 			// TODO: This doesn't even need to be an NFA
 			if i == len(val)-2 {
-				step := &nfaStep{table: newSmallTable[NSL](), fieldTransitions: []*fieldMatcher{nextField}}
+				step := &nfaStep{table: newSmallTable[*nfaStepList](), fieldTransitions: []*fieldMatcher{nextField}}
 				list := lister.getList(step)
 				table.addRangeSteps(0, ByteCeiling, list)
 				return
@@ -86,12 +86,12 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 			// escape the glob on the next char from the pattern - remember the byte and the state escaped to
 			i++
 			globExitByte = val[i]
-			globExitStep = &nfaStep{table: newSmallTable[NSL]()}
+			globExitStep = &nfaStep{table: newSmallTable[*nfaStepList]()}
 			// escape the glob
 			table.addByteStep(globExitByte, lister.getList(globExitStep))
 			table = globExitStep.table
 		} else {
-			nextStep := &nfaStep{table: newSmallTable[NSL]()}
+			nextStep := &nfaStep{table: newSmallTable[*nfaStepList]()}
 
 			// we're going to move forward on 'ch'.  On anything else, we leave it at nil or - if we've passed
 			//  a glob, loop back to the glob stae.  if 'ch' is also the glob exit byte, also put in a transfer
@@ -112,7 +112,7 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 		i++
 	}
 
-	lastStep := &nfaStep{table: newSmallTable[NSL](), fieldTransitions: []*fieldMatcher{nextField}}
+	lastStep := &nfaStep{table: newSmallTable[*nfaStepList](), fieldTransitions: []*fieldMatcher{nextField}}
 	if globExitStep != nil {
 		table.addRangeSteps(0, ByteCeiling, lister.getList(globStep))
 		table.addByteStep(globExitByte, lister.getList(globExitStep))

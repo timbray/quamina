@@ -9,7 +9,7 @@ type stats struct {
 	vmCount   int
 	vmVisited map[*valueMatcher]bool
 	stCount   int
-	stVisited map[*smallTable[DS]]bool
+	stVisited map[*smallTable[*dfaStep]]bool
 	siCount   int
 }
 
@@ -17,9 +17,9 @@ func matcherStats(m *CoreMatcher) string {
 	s := stats{
 		fmVisited: make(map[*fieldMatcher]bool),
 		vmVisited: make(map[*valueMatcher]bool),
-		stVisited: make(map[*smallTable[DS]]bool),
+		stVisited: make(map[*smallTable[*dfaStep]]bool),
 	}
-	fmStats(m.startState, &s)
+	fmStats(m.start().state, &s)
 	return fmt.Sprintf("Field matchers: %d, Value matchers: %d, SmallTables %d, singletons %d",
 		s.fmCount, s.vmCount, s.stCount, s.siCount)
 }
@@ -30,7 +30,7 @@ func fmStats(m *fieldMatcher, s *stats) {
 	}
 	s.fmVisited[m] = true
 	s.fmCount++
-	for _, val := range m.transitions {
+	for _, val := range m.fields().transitions {
 		vmStats(val, s)
 	}
 }
@@ -50,13 +50,13 @@ func vmStats(m *valueMatcher, s *stats) {
 	}
 }
 
-func smallStats(t *smallTable[DS], s *stats) {
+func smallStats(t *smallTable[*dfaStep], s *stats) {
 	if s.stVisited[t] {
 		return
 	}
 	s.stVisited[t] = true
 	s.stCount++
-	for _, step := range t.slices.steps {
+	for _, step := range t.steps {
 		if step != nil {
 			if step.fieldTransitions != nil {
 				for _, m := range step.fieldTransitions {
