@@ -19,6 +19,14 @@ add multiple **Patterns** to it, and then query JSON blobs
 called **Events** to discover which of the patterns match 
 the fields in the event.
 
+### Status
+
+As of late May 2022, Quamina has a lot of unit tests and
+they're all passing.  We are working on getting the 
+GitHub-based CI/CD nailed down and stable.  We have not
+pressed the “release” button, so we reserve the right 
+to change APIs.
+
 ### Patterns
 
 Consider the following JSON Event, taken from the example
@@ -187,8 +195,17 @@ features.
 ```go
 func NewCoreMatcher() *Matcher
 ```
+```go
+func pruner.NewMatcher() *Matcher
+```
 
-Creates a new Matcher, takes no arguments.
+Create new Matchers, take no arguments. The difference
+is that the `pruner.NewMatcher` version supports the
+`DeletePattern()` API. Be careful: It occasionally
+rebuilds the Matcher in stop-the-world fashion, so if you
+delete lots of Patterns in a large Matcher you may 
+encounter occasional elevated latencies.
+
 ```go
 func (m *Matcher) AddPattern(x X, patternJSON string) error
 ```
@@ -285,3 +302,11 @@ Guyanese slave from Africa and father of Jack Gladstone.
 He and his son were involved in the Demerara rebellion 
 of 1823, one of the largest slave revolts in the British 
 colonies before slavery was abolished.
+
+### Credits
+
+@timbray: v1.0 and patches.
+
+@jsmorph: `Pruner` and concurrency testing.
+
+@embano1: CI/CD and project structure.
