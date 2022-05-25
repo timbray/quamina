@@ -12,7 +12,7 @@ import (
 // Test code can update this variable (so we don't have to try to
 // search).  Most tests are run from pkg/*/, so this default is
 // reasonable.
-var TestDataDir = "../../test_data"
+var TestDataDir = "../test_data"
 
 // Exists reports whether the given filename exists.
 func Exists(name string) (bool, error) {

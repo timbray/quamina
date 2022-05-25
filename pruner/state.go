@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	quamina "github.com/timbray/quamina/pkg/core"
+	quamina "github.com/timbray/quamina/core"
 )
 
 // LivePatternsState represents the required capabilities for

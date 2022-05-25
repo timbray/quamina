@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	quamina "github.com/timbray/quamina/pkg/core"
+	quamina "github.com/timbray/quamina/core"
 )
 
 var verbose = false
