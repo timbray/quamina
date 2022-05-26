@@ -16,11 +16,29 @@ jobs:
         platform: ["ubuntu-latest"]
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 5
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
       with:
         fetch-depth: 1
+
+    - name: Set up Go ${{ matrix.go-version }}
+      uses: actions/setup-go@fcdc43634adb5f7ae75a9d7a9b9361790f7293e2
+      with:
+        go-version: ${{ matrix.go-version }}
+      id: go
+      
+    - name: Restore Go cache
+      uses: actions/cache@48af2dc4a9e8278b89d7fa154b955c30c6aaab09
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+          .git/lfs
+        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum', 'testdata/**') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ matrix.go-version }}-
         
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@537aa1903e5d359d0b27dbc19ddd22c5087f3fbc
