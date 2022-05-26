@@ -1,9 +1,9 @@
 # Quamina
 
 [![Tests](https://github.com/timbray/quamina/actions/workflows/go-unit-tests.yaml/badge.svg)](https://github.com/timbray/quamina/actions/workflows/go-unit-tests.yaml)
-[![Latest Release](https://img.shields.io/github/release/timbray/quamina.svg?logo=github&style=flat-square)](https://github.timbray/quamina-app/releases/latest)
-[![Go Report Card](https://goreportcard.com/badge/github.com/timbray/quamina)](https://goreportcard.com/report/github.timbray/quamina-app)
-[![timbray/quamina](https://img.shields.io/github/go-mod/go-version/timbray/quamina)](https://github.timbray/quamina-app)
+[![Latest Release](https://img.shields.io/github/release/timbray/quamina.svg?logo=github&style=flat-square)](https://github.com/timbray/quamina/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/timbray/quamina)](https://goreportcard.com/report/github.com/timbray/quamina)
+[![timbray/quamina](https://img.shields.io/github/go-mod/go-version/timbray/quamina)](https://github.com/timbray/quamina)
 [![Go Reference](https://pkg.go.dev/badge/github.com/timbray/quamina.svg)](https://pkg.go.dev/github.com/timbray/quamina)
 
 <!-- 
