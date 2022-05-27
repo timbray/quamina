@@ -8,7 +8,7 @@ contributions.
 
 Typically, the first step in making a change is to 
 raise an Issue to allow for discussion of the idea. 
-This is important becuase possibly Quamina already
+This is important because possibly Quamina already
 does what you want, in which case perhaps what’s 
 needed is a documentation fix. Possibly the idea 
 has been raised before but failed to convince Quamina’s
