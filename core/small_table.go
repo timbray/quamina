@@ -21,22 +21,22 @@ type nfaStepList struct {
 // TODO: declare dfaTable { smallTable[*dfaStep } and nfaTable { smallTable[*nfaStepList] }
 //  and make a bunch of code more concise and readable.
 
-// ValueTerminator - whenever we're trying to match a value with a pattern that extends to the end of that
+// valueTerminator - whenever we're trying to match a value with a pattern that extends to the end of that
 //  value, we virtually add one of these as the last character, both to the automaton and the value at run-time.
 //  This simplifies things because you don't have to treat absolute-string-match (only works at last char in
 //  value) and prefix match differently.
-const ValueTerminator byte = 0xf5
+const valueTerminator byte = 0xf5
 
 // smallTable serves as a lookup table that encodes mappings between ranges of byte values and the
 //  transition on any byte in the range.
 //  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, S}
 //  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 //  byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
-//  ceilings: 3,   5,    0x34, 0x35, ByteCeiling
+//  ceilings: 3,   5,    0x34, 0x35, byteCeiling
 //     steps: nil, &ss1, nil,  &ss2, nil
-//  invariant: The last element of ceilings is always ByteCeiling
+//  invariant: The last element of ceilings is always byteCeiling
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
-//  ranges of bytes.  This could be done simply with an array of size ByteCeiling for each state in the machine,
+//  ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
 //  or a map[byte]S, but both would be size-inefficient, particularly in the case where you're implementing
 //  ranges.  Now, the step function is O(N) in the number of entries, but empirically, the number of entries is
 //  small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
@@ -48,17 +48,17 @@ type smallTable[S comparable] struct {
 	steps    []S
 }
 
-// ByteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go's byte, which is uint8. The values
+// byteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go's byte, which is uint8. The values
 //  0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
 //  can't appear.
-const ByteCeiling int = 0xf6
+const byteCeiling int = 0xf6
 
-// newSmallTable mostly exists to enforce the constraint that every smallTable has a ByteCeiling entry at
+// newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
 //  the end, which smallTable.step totally depends on.
 func newSmallTable[S comparable]() *smallTable[S] {
 	var sNil S // declared but not assigned, thus serves as nil
 	return &smallTable[S]{
-		ceilings: []byte{byte(ByteCeiling)},
+		ceilings: []byte{byte(byteCeiling)},
 		steps:    []S{sNil},
 	}
 }
@@ -239,8 +239,8 @@ func makeSmallDfaTable(defaultStep *dfaStep, indices []byte, steps []*dfaStep) *
 		t.steps = append(t.steps, steps[i])
 		lastIndex = index + 1
 	}
-	if indices[len(indices)-1] < byte(ByteCeiling) {
-		t.ceilings = append(t.ceilings, byte(ByteCeiling))
+	if indices[len(indices)-1] < byte(byteCeiling) {
+		t.ceilings = append(t.ceilings, byte(byteCeiling))
 		t.steps = append(t.steps, defaultStep)
 	}
 	return &t
@@ -250,7 +250,7 @@ func makeSmallDfaTable(defaultStep *dfaStep, indices []byte, steps []*dfaStep) *
 //  update the list structure in a smallDfaTable, but trivial in an unpackedTable.  The idea is that to update
 //  a smallDfaTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
 // TODO: Figure out how to update a smallDfaTable in place
-type unpackedTable[S comparable] [ByteCeiling]S
+type unpackedTable[S comparable] [byteCeiling]S
 
 func unpackTable[S comparable](t *smallTable[S]) *unpackedTable[S] {
 	var u unpackedTable[S]
@@ -276,7 +276,7 @@ func (t *smallTable[S]) pack(u *unpackedTable[S]) {
 		}
 		lastStep = ss
 	}
-	ceilings = append(ceilings, byte(ByteCeiling))
+	ceilings = append(ceilings, byte(byteCeiling))
 	steps = append(steps, lastStep)
 	t.ceilings = ceilings
 	t.steps = steps

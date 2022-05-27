@@ -2,15 +2,49 @@ package core
 
 import (
 	"bufio"
+	"compress/gzip"
 	"fmt"
 	"os"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"testing"
 	"time"
 )
 
 const oneMeg = 1024 * 1024
+
+var cityLotsLock sync.Mutex
+var cityLotsLines [][]byte
+var cityLotsLineCount int
+
+func getCityLotsLines(t *testing.T) [][]byte {
+	cityLotsLock.Lock()
+	defer cityLotsLock.Unlock()
+	if cityLotsLines != nil {
+		return cityLotsLines
+	}
+	file, err := os.Open("../testdata/citylots.jlines.gz")
+	if err != nil {
+		t.Error("Can't open citlots.jlines.gz: " + err.Error())
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	zr, err := gzip.NewReader(file)
+	if err != nil {
+		t.Error("Can't open zip reader: " + err.Error())
+	}
+
+	scanner := bufio.NewScanner(zr)
+	buf := make([]byte, oneMeg)
+	scanner.Buffer(buf, oneMeg)
+	for scanner.Scan() {
+		cityLotsLineCount++
+		cityLotsLines = append(cityLotsLines, []byte(scanner.Text()))
+	}
+	return cityLotsLines
+}
 
 func TestCRANLEIGH(t *testing.T) {
 
@@ -55,14 +89,6 @@ const thresholdPerformance = 1.0
 //  that it uses geometry/co-ordintes, which will force the fj flattener to process the big arrays of numbers in
 //  each line.  A high proportion of typical Quamina workloads should run faster.
 func TestCityLots(t *testing.T) {
-	file, err := os.Open("../testdata/citylots.jlines")
-	if err != nil {
-		t.Error("Can't open file: " + err.Error())
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-
 	patterns := []string{
 		`{ "properties": { "STREET": [ "CRANLEIGH" ] } }`,
 		`{ "properties": { "STREET": [ "17TH" ], "ODD_EVEN": [ "E"] } }`,
@@ -82,10 +108,7 @@ func TestCityLots(t *testing.T) {
 		"0011008":   1,
 	}
 
-	scanner := bufio.NewScanner(file)
-	buf := make([]byte, oneMeg)
-	scanner.Buffer(buf, oneMeg)
-
+	var err error
 	m := NewCoreMatcher()
 	for i := range names {
 		err = m.AddPattern(names[i], patterns[i])
@@ -96,20 +119,13 @@ func TestCityLots(t *testing.T) {
 	fj := NewFJ(m)
 	results := make(map[X]int)
 
-	lineCount := 0
-	var lines [][]byte
-	for scanner.Scan() {
-		lineCount++
-		lines = append(lines, []byte(scanner.Text()))
-	}
-	lineCount = 0
+	lines := getCityLotsLines(t)
 	before := time.Now()
 	for _, line := range lines {
 		matches, err := fj.FlattenAndMatch(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
-		lineCount++
 		for _, match := range matches {
 			count, ok := results[match]
 			if !ok {
@@ -121,7 +137,7 @@ func TestCityLots(t *testing.T) {
 	fmt.Println()
 
 	elapsed := float64(time.Since(before).Milliseconds())
-	perSecond := float64(lineCount) / (elapsed / 1000.0)
+	perSecond := float64(cityLotsLineCount) / (elapsed / 1000.0)
 	fmt.Printf("%.2f matches/second\n\n", perSecond)
 
 	if perSecond < thresholdPerformance {
@@ -133,11 +149,6 @@ func TestCityLots(t *testing.T) {
 			"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the
 			library, which would be unacceptable.`
 		t.Errorf(message1 + message2)
-	}
-
-	err = scanner.Err()
-	if err != nil {
-		t.Error("Scanner error: " + err.Error())
 	}
 
 	if len(results) != len(wanted) {
@@ -185,18 +196,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
-	file, err := os.Open("../testdata/citylots.jlines")
-	if err != nil {
-		t.Error("Can't open file: " + err.Error())
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-
-	scanner := bufio.NewScanner(file)
-	buf := make([]byte, oneMeg)
-	scanner.Buffer(buf, oneMeg)
-
+	lines := getCityLotsLines(t)
 	m := NewCoreMatcher()
 
 	wanted := map[X]int{
@@ -231,12 +231,6 @@ func TestBigShellStyle(t *testing.T) {
 	*/
 	fmt.Println(matcherStats(m))
 
-	lineCount := 0
-	var lines [][]byte
-	for scanner.Scan() {
-		lineCount++
-		lines = append(lines, []byte(scanner.Text()))
-	}
 	lCounts := make(map[X]int)
 	before := time.Now()
 	fj := NewFJ(m)
@@ -256,7 +250,7 @@ func TestBigShellStyle(t *testing.T) {
 		}
 	}
 	elapsed := float64(time.Since(before).Milliseconds())
-	perSecond := float64(lineCount) / (elapsed / 1000.0)
+	perSecond := float64(cityLotsLineCount) / (elapsed / 1000.0)
 	fmt.Printf("%.2f matches/second with letter patterns\n\n", perSecond)
 
 	for k, wc := range wanted {

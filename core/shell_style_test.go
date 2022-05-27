@@ -1,9 +1,7 @@
 package core
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 )
@@ -163,18 +161,8 @@ func TestMixedPatterns(t *testing.T) {
 		}
 	}
 	got := make(map[X]int)
-	file, err := os.Open("../testdata/citylots.jlines")
-	if err != nil {
-		t.Error("Can't open file: " + err.Error())
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-	scanner := bufio.NewScanner(file)
-	buf := make([]byte, oneMeg)
-	scanner.Buffer(buf, oneMeg)
-	for scanner.Scan() {
-		line := []byte(scanner.Text())
+	lines := getCityLotsLines(t)
+	for _, line := range lines {
 		matches, err := m.MatchesForJSONEvent(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())

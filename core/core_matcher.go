@@ -33,7 +33,7 @@ type coreStart struct {
 }
 
 // X for anything, should eventually be a generic?
-type X interface{}
+type X any
 
 func NewCoreMatcher() *CoreMatcher {
 	m := CoreMatcher{}

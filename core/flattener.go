@@ -35,5 +35,5 @@ type Field struct {
 type Flattener interface {
 	Flatten(event []byte) ([]Field, error)
 	FlattenAndMatch(event []byte) ([]X, error)
-	Reset()
+	reset()
 }

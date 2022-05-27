@@ -75,13 +75,13 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 			if i == len(val)-2 {
 				step := &nfaStep{table: newSmallTable[*nfaStepList](), fieldTransitions: []*fieldMatcher{nextField}}
 				list := lister.getList(step)
-				table.addRangeSteps(0, ByteCeiling, list)
+				table.addRangeSteps(0, byteCeiling, list)
 				return
 			}
 
 			// loop back on everything
 			globStep = &nfaStep{table: table}
-			table.addRangeSteps(0, ByteCeiling, lister.getList(globStep))
+			table.addRangeSteps(0, byteCeiling, lister.getList(globStep))
 
 			// escape the glob on the next char from the pattern - remember the byte and the state escaped to
 			i++
@@ -97,7 +97,7 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 			//  a glob, loop back to the glob stae.  if 'ch' is also the glob exit byte, also put in a transfer
 			//  back to the glob exist state
 			if globExitStep != nil {
-				table.addRangeSteps(0, ByteCeiling, lister.getList(globStep))
+				table.addRangeSteps(0, byteCeiling, lister.getList(globStep))
 				if ch == globExitByte {
 					table.addByteStep(ch, lister.getList(globExitStep, nextStep))
 				} else {
@@ -114,11 +114,11 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 
 	lastStep := &nfaStep{table: newSmallTable[*nfaStepList](), fieldTransitions: []*fieldMatcher{nextField}}
 	if globExitStep != nil {
-		table.addRangeSteps(0, ByteCeiling, lister.getList(globStep))
+		table.addRangeSteps(0, byteCeiling, lister.getList(globStep))
 		table.addByteStep(globExitByte, lister.getList(globExitStep))
-		table.addByteStep(ValueTerminator, lister.getList(lastStep))
+		table.addByteStep(valueTerminator, lister.getList(lastStep))
 	} else {
-		table.addByteStep(ValueTerminator, lister.getList(lastStep))
+		table.addByteStep(valueTerminator, lister.getList(lastStep))
 	}
 	return
 }

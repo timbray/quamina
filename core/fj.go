@@ -28,7 +28,7 @@ type FJ struct {
 }
 
 // Reset an FJ struct so it can be re-used and won't need to be reconstructed for each event to be flattened
-func (fj *FJ) Reset() {
+func (fj *FJ) reset() {
 	fj.eventIndex = 0
 	fj.fields = fj.fields[:0]
 	fj.skipping = 0
@@ -80,7 +80,7 @@ func (fj *FJ) Flatten(event []byte) ([]Field, error) {
 	if fj.cleanSheet {
 		fj.cleanSheet = false
 	} else {
-		fj.Reset()
+		fj.reset()
 	}
 	if len(event) == 0 {
 		return nil, fj.error("empty event")
@@ -471,7 +471,7 @@ func (fj *FJ) readStringValue() ([]byte, error) {
 		} else if ch == '\\' {
 			val, err := fj.readStringValWithEscapes(valStart)
 			return val, err
-		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in string value", ch))
 		}
 		if fj.step() != nil {
@@ -501,7 +501,7 @@ func (fj *FJ) readStringValWithEscapes(nameStart int) ([]byte, error) {
 				return nil, err
 			}
 			val = append(val, unescaped...)
-		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in string value", ch))
 		} else {
 			val = append(val, ch)
@@ -529,7 +529,7 @@ func (fj *FJ) readMemberName() ([]byte, error) {
 		} else if ch == '\\' {
 			name, err := fj.readMemberNameWithEscapes(nameStart)
 			return name, err
-		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in field name", ch))
 		}
 		if fj.step() != nil {
@@ -547,7 +547,7 @@ func (fj *FJ) readMemberNameWithEscapes(nameStart int) ([]byte, error) {
 		if ch == '"' {
 			fj.eventIndex = from
 			return memberName, nil
-		} else if ch <= 0x1f || ch >= byte(ByteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in field name", ch))
 		} else if ch == '\\' {
 			var unescaped []byte
