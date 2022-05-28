@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: ["main"]
 
+concurrency:
+  group: quamina-unit-tests-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Unit Tests
@@ -16,7 +20,7 @@ jobs:
         platform: ["ubuntu-latest"]
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 5
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -48,20 +52,10 @@ jobs:
       - name: Install tparse
         run: go install github.com/mfridman/tparse@latest
 
-      - name: Check for .codecov.yaml
-        id: codecov-enabled
-        uses: andstor/file-existence-action@f02338908d150e00a4b8bebc2dad18bd9e5229b0
-        with:
-          files: .codecov.yaml
-
-      - if: steps.codecov-enabled.outputs.files_exists == 'true'
-        name: Enable Go Coverage
-        run: echo 'COVER_OPTS=-coverprofile=coverage.txt -covermode=atomic' >> $GITHUB_ENV
-
       - name: Test
         env:
           GOFLAGS: "-v -race -count=1 -json"
-        run: go test $COVER_OPTS ./... | tparse -all
+        run: go test ./... | tparse -all
 
       - name: Verify git clean
         shell: bash
@@ -74,6 +68,60 @@ jobs:
             exit 1
           fi
 
-      - if: steps.codecov-enabled.outputs.files_exists == 'true'
-        name: Produce Codecov Report
-        uses: codecov/codecov-action@81cd2dc8148241f03f5839d295e000b8f761e378
+  # see https://github.com/timbray/quamina/issues/28 for details why a separate job
+  coverage:
+      name: Create Coverage Report
+      strategy:
+        matrix:
+          go-version: ["1.18"]
+          platform: ["ubuntu-latest"]
+
+      runs-on: ${{ matrix.platform }}
+      timeout-minutes: 10
+
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
+          with:
+            lfs: true
+
+        - name: Set up Go ${{ matrix.go-version }}
+          uses: actions/setup-go@b22fbbc2921299758641fab08929b4ac52b32923
+          with:
+            go-version: ${{ matrix.go-version }}
+          id: go
+
+        - name: Restore Go cache
+          uses: actions/cache@48af2dc4a9e8278b89d7fa154b955c30c6aaab09
+          with:
+            path: |
+              ~/.cache/go-build
+              ~/go/pkg/mod
+              .git/lfs
+
+            key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum', 'testdata/**') }}
+            restore-keys: |
+              ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+        - name: Checkout LFS objects
+          run: git lfs checkout
+
+        - name: Install tparse
+          run: go install github.com/mfridman/tparse@latest
+
+        - name: Check for .codecov.yaml
+          id: codecov-enabled
+          uses: andstor/file-existence-action@f02338908d150e00a4b8bebc2dad18bd9e5229b0
+          with:
+            files: .codecov.yaml
+
+        - if: steps.codecov-enabled.outputs.files_exists == 'true'
+          name: Produce Go Coverage Report File
+          env:
+            COVER_OPTS: "-coverprofile=coverage.txt -covermode=atomic"
+            GOFLAGS: "-v -count=1 -json"
+          run: go test $COVER_OPTS ./... | tparse -all
+
+        - if: steps.codecov-enabled.outputs.files_exists == 'true'
+          name: Upload Codecov Report
+          uses: codecov/codecov-action@81cd2dc8148241f03f5839d295e000b8f761e378
