@@ -216,23 +216,23 @@ func (m *Matcher) AddPattern(x quamina.X, pat string) error {
 	return err
 }
 
-// NewFJ just calls quamina.FJ.
+// newFJ just calls quamina.FJ.
 //
 // Here for convenience only.
-func NewFJ(m *Matcher) quamina.Flattener {
+func newFJ(m *Matcher) quamina.Flattener {
 	return quamina.NewFJ(m.Matcher)
 }
 
-// NewFJ calls quamina.NewFJ with this Matcher's core quamina.Matcher
+// newFJ calls quamina.NewFJ with this Matcher's core quamina.Matcher
 //
 // Here for convenience only.
-func (m *Matcher) NewFJ() quamina.Flattener {
+func (m *Matcher) newFJ() quamina.Flattener {
 	return quamina.NewFJ(m.Matcher)
 }
 
 // MatchesForJSONEvent calls MatchesForFields with a new Flattener.
 func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
-	fs, err := m.NewFJ().Flatten(event)
+	fs, err := m.newFJ().Flatten(event)
 	if err != nil {
 		return nil, err
 	}
