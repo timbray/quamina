@@ -1,13 +1,15 @@
-package core
+package control
 
 import (
 	"fmt"
+	"github.com/timbray/quamina/core"
+	"github.com/timbray/quamina/flattener"
 	"math/rand"
 	"testing"
 	"time"
 )
 
-func updateTree(m *CoreMatcher, use37 bool, t *testing.T, ch chan string) {
+func updateTree(m *core.CoreMatcher, use37 bool, t *testing.T, ch chan string) {
 	var pattern string
 	var val string
 	if use37 {
@@ -53,7 +55,7 @@ func TestConcurrency(t *testing.T) {
 		"Geometry",
 		"0011008",
 	}
-	wanted := map[X]int{
+	wanted := map[core.X]int{
 		"CRANLEIGH":  7,
 		"shellstyle": 746,
 		"17TH Even":  836,
@@ -62,22 +64,27 @@ func TestConcurrency(t *testing.T) {
 	}
 
 	var err error
-	m := NewCoreMatcher()
+	m := core.NewCoreMatcher()
 	for i := range names {
 		err = m.AddPattern(names[i], patterns[i])
 		if err != nil {
 			t.Error("Addpattern: " + err.Error())
 		}
 	}
-	results := make(map[X]int)
+	results := make(map[core.X]int)
 
 	use37 := true
 	lineCount := 0
 	before := time.Now()
 	ch := make(chan string, 1000)
 	sent := 0
+	fj := flattener.NewFJ()
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		fields, err := fj.Flatten(line, m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -110,6 +117,7 @@ func TestConcurrency(t *testing.T) {
 	}
 
 	// now we go back and make sure that all those AddPattern calls actually made it into the Matcher
+	fj = flattener.NewFJ()
 	for i := 0; i < sent; i++ {
 		val := <-ch
 		var event string
@@ -118,8 +126,12 @@ func TestConcurrency(t *testing.T) {
 		} else {
 			event = fmt.Sprintf(`{"geometry": { "coordinates": [ %s ] } }`, val)
 		}
-		var matches []X
-		matches, err = m.MatchesForJSONEvent([]byte(event))
+		var matches []core.X
+		fields, err := fj.Flatten([]byte(event), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err = m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("after concur: " + err.Error())
 		}

@@ -1,44 +1,46 @@
-package core
+package flattener
 
 import (
+	"github.com/timbray/quamina/fields"
 	"testing"
 )
 
 func TestReadMemberName(t *testing.T) {
 	j := `{"😀💋😺": 1, "x\u0078\ud83d\udc8by": "2"}`
-	m := fakeMatcher("😀💋😺", `xx💋y`)
-	f := NewFJ(m)
-	fields, err := f.Flatten([]byte(j))
+	m := newFakeTracker("😀💋😺", `xx💋y`)
+	f := NewFJ()
+	ff, err := f.Flatten([]byte(j), m)
 	if err != nil {
 		t.Error("TRMN: " + err.Error())
 	}
-	if len(fields) != 2 {
-		t.Errorf("wanted 2 fields got %d", len(fields))
+	if len(ff) != 2 {
+		t.Errorf("wanted 2 fields got %d", len(ff))
 	}
-	if string(fields[0].Path) != "😀💋😺" || string(fields[0].Val) != "1" {
+	if string(ff[0].Path) != "😀💋😺" || string(ff[0].Val) != "1" {
 		t.Error("botched field 0")
 	}
-	if string(fields[1].Path) != "xx💋y" || string(fields[1].Val) != `"2"` {
+	if string(ff[1].Path) != "xx💋y" || string(ff[1].Val) != `"2"` {
 		t.Error("botched field 0")
 	}
 }
 
 func TestStringValuesWithEscapes(t *testing.T) {
 	j := `{"a": "x\u0078\ud83d\udc8by", "b": "\ud83d\ude00\ud83d\udc8b\ud83d\ude3a"}`
-	f := NewFJ(fakeMatcher("a", "b"))
-	fields, err := f.Flatten([]byte(j))
+	m := newFakeTracker("a", "b")
+	f := NewFJ()
+	ff, err := f.Flatten([]byte(j), m)
 	if err != nil {
 		t.Error("TSVWE: " + err.Error())
 	}
-	if len(fields) != 2 {
-		t.Errorf("wanted 2 fields got %d", len(fields))
+	if len(ff) != 2 {
+		t.Errorf("wanted 2 fields got %d", len(ff))
 	}
 	wanted := `"xx💋y"`
-	if string(fields[0].Path) != "a" || string(fields[0].Val) != wanted {
-		t.Errorf("wanted %s got %s", wanted, "["+string(fields[0].Val)+"]")
+	if string(ff[0].Path) != "a" || string(ff[0].Val) != wanted {
+		t.Errorf("wanted %s got %s", wanted, "["+string(ff[0].Val)+"]")
 	}
-	if string(fields[1].Path) != "b" || string(fields[1].Val) != `"😀💋😺"` {
-		t.Errorf("1 wanted %s got %s", `"😀💋😺"`, string(fields[1].Val))
+	if string(ff[1].Path) != "b" || string(ff[1].Val) != `"😀💋😺"` {
+		t.Errorf("1 wanted %s got %s", `"😀💋😺"`, string(ff[1].Val))
 	}
 }
 
@@ -55,7 +57,7 @@ func TestOneEscape(t *testing.T) {
 		`\u0416\ud83d\udc8b\u4e2dz`: `Ж💋中`,
 	}
 	for escape, wanted := range tests {
-		f := &FJ{event: []byte(escape), fields: make([]Field, 0, 32)}
+		f := &FJ{event: []byte(escape), fields: make([]fields.Field, 0, 32)}
 		unescaped, from, err := f.readTextWithEscapes(0)
 		if err != nil {
 			t.Errorf("for %s: %s", escape, err.Error())
@@ -73,7 +75,7 @@ func TestOneEscape(t *testing.T) {
 func TestUTF16Escaping(t *testing.T) {
 	str := `?*\u0066\u006f\u006f<>`
 	b := []byte(str)
-	f := &FJ{fields: make([]Field, 0, 32)}
+	f := &FJ{fields: make([]fields.Field, 0, 32)}
 	f.event = b
 	f.eventIndex = 0
 	chars, from, err := f.readHexUTF16(3)
@@ -88,7 +90,7 @@ func TestUTF16Escaping(t *testing.T) {
 	}
 	str = `?*\u0066\u006f\u006f\t<>`
 	b = []byte(str)
-	f = &FJ{fields: make([]Field, 0, 32)}
+	f = &FJ{fields: make([]fields.Field, 0, 32)}
 	f.event = b
 	f.eventIndex = 0
 	chars, from, err = f.readHexUTF16(3)
@@ -108,7 +110,7 @@ func TestUTF16Escaping(t *testing.T) {
 	}
 	for _, bad := range shouldBeBad {
 		b = []byte(bad)
-		f = &FJ{fields: make([]Field, 0, 32)}
+		f = &FJ{fields: make([]fields.Field, 0, 32)}
 		f.event = b
 		_, _, err = f.readHexUTF16(4)
 		if err == nil {
@@ -139,7 +141,7 @@ func TestUTF16Escaping(t *testing.T) {
 
 	for i, emoji := range emojis {
 		b = []byte(utf16[i])
-		f = &FJ{fields: make([]Field, 0, 32)}
+		f = &FJ{fields: make([]fields.Field, 0, 32)}
 		f.event = b
 		chars, from, err = f.readHexUTF16(2)
 		if err != nil {
@@ -152,4 +154,19 @@ func TestUTF16Escaping(t *testing.T) {
 			t.Errorf("wanted '%s' got '%s'", emoji, string(chars))
 		}
 	}
+}
+
+type fakeTracker map[string]bool
+
+func (f fakeTracker) IsNameUsed(name []byte) bool {
+	return f[string(name)]
+}
+
+func newFakeTracker(segs ...string) NameTracker {
+	var f fakeTracker
+	f = make(map[string]bool)
+	for _, seg := range segs {
+		f[seg] = true
+	}
+	return f
 }

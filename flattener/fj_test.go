@@ -1,4 +1,4 @@
-package core
+package flattener
 
 import (
 	"io/ioutil"
@@ -18,10 +18,10 @@ func bequal(a []byte, b []byte) bool {
 }
 func TestFJBasic(t *testing.T) {
 	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33, "x"]}`
-	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f")
+	allYes := newFakeTracker("a", "b", "c", "d", "e", "e1", "e2", "f")
 
-	f := NewFJ(allYes)
-	list, err := f.Flatten([]byte(j))
+	f := NewFJ()
+	list, err := f.Flatten([]byte(j), allYes)
 
 	if err != nil {
 		t.Error("E: " + err.Error())
@@ -40,9 +40,9 @@ func TestFJBasic(t *testing.T) {
 		}
 	}
 
-	justAF := fakeMatcher("a", "f")
-	f = NewFJ(justAF)
-	list, _ = f.Flatten([]byte(j))
+	justAF := newFakeTracker("a", "f")
+	f = NewFJ()
+	list, _ = f.Flatten([]byte(j), justAF)
 	wantedPaths = []string{"a", "f", "f"}
 	wantedVals = []string{"1", "33", "\"x\""}
 	for i, field := range list {
@@ -57,8 +57,8 @@ func TestFJBasic(t *testing.T) {
 
 func TestFJ10Lines(t *testing.T) {
 
-	geo := fakeMatcher("type", "geometry")
-	testTrackerSelection(NewFJ(geo), "L0", "../testdata/cl-sample-0",
+	geo := newFakeTracker("type", "geometry")
+	testTrackerSelection(NewFJ(), geo, "L0", "../testdata/cl-sample-0",
 		[]string{"type", "geometry\ntype"},
 		[]string{`"Feature"`, `"Polygon"`},
 		t)
@@ -98,23 +98,23 @@ func TestFJ10Lines(t *testing.T) {
 		"geometry\ncoordinates",
 	}
 
-	coords := fakeMatcher("coordinates", "geometry")
-	testTrackerSelection(NewFJ(coords), "L1", "../testdata/cl-sample-1",
+	coords := newFakeTracker("coordinates", "geometry")
+	testTrackerSelection(NewFJ(), coords, "L1", "../testdata/cl-sample-1",
 		coordNames, coordVals, t)
 
 	l2names := []string{"properties\nFROM_ST", "properties\nODD_EVEN"}
 	l2vals := []string{`"1917"`, `"O"`}
-	proFoOd := fakeMatcher("properties", "FROM_ST", "ODD_EVEN")
-	testTrackerSelection(NewFJ(proFoOd), "L2", "../testdata/cl-sample-2",
+	proFoOd := newFakeTracker("properties", "FROM_ST", "ODD_EVEN")
+	testTrackerSelection(NewFJ(), proFoOd, "L2", "../testdata/cl-sample-2",
 		l2names, l2vals, t)
 }
 
 // left here as a memorial
 func TestMinimal(t *testing.T) {
 	a := `{"a": 1}`
-	nt := fakeMatcher("a")
-	f := NewFJ(nt)
-	fields, err := f.Flatten([]byte(a))
+	nt := newFakeTracker("a")
+	f := NewFJ()
+	fields, err := f.Flatten([]byte(a), nt)
 	if err != nil {
 		t.Error("Huh? " + err.Error())
 	}
@@ -122,13 +122,13 @@ func TestMinimal(t *testing.T) {
 		t.Error("Name/Val wrong")
 	}
 }
-func testTrackerSelection(fj Flattener, label string, filename string, wantedPaths []string, wantedVals []string, t *testing.T) {
+func testTrackerSelection(fj Flattener, tracker NameTracker, label string, filename string, wantedPaths []string, wantedVals []string, t *testing.T) {
 	event, err := ioutil.ReadFile(filename)
 	if err != nil {
 		t.Error(filename + ": " + err.Error())
 	}
 
-	list, err := fj.Flatten(event)
+	list, err := fj.Flatten(event, tracker)
 	if err != nil {
 		t.Error(label + ": " + err.Error())
 	}
@@ -140,12 +140,4 @@ func testTrackerSelection(fj Flattener, label string, filename string, wantedPat
 			t.Errorf("pos %d wanted Val %s got %s", i, wantedVals[i], field.Val)
 		}
 	}
-}
-
-func fakeMatcher(segs ...string) *CoreMatcher {
-	m := NewCoreMatcher()
-	for _, seg := range segs {
-		m.start().namesUsed[seg] = true
-	}
-	return m
 }

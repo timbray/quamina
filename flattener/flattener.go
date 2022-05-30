@@ -1,14 +1,6 @@
-package core
+package flattener
 
-type ArrayPos struct {
-	Array int32
-	Pos   int32
-}
-type Field struct {
-	Path       []byte
-	Val        []byte
-	ArrayTrail []ArrayPos
-}
+import "github.com/timbray/quamina/fields"
 
 // Flattener is provided as an interface in the hope that flatterners for other non-JSON message formats might
 //  be implemented.
@@ -33,7 +25,5 @@ type Field struct {
 // "f", "33"
 // "f", "\"x\""
 type Flattener interface {
-	Flatten(event []byte) ([]Field, error)
-	FlattenAndMatch(event []byte) ([]X, error)
-	reset()
+	Flatten(event []byte, tracker NameTracker) ([]fields.Field, error)
 }

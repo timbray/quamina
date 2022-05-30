@@ -1,9 +1,11 @@
-package core
+package control
 
 import (
 	"bufio"
 	"compress/gzip"
 	"fmt"
+	"github.com/timbray/quamina/core"
+	"github.com/timbray/quamina/flattener"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -50,7 +52,7 @@ func TestCRANLEIGH(t *testing.T) {
 
 	jCranleigh := `{ "type": "Feature", "properties": { "MAPBLKLOT": "7222001", "BLKLOT": "7222001", "BLOCK_NUM": "7222", "LOT_NUM": "001", "FROM_ST": "1", "TO_ST": "1", "STREET": "CRANLEIGH", "ST_TYPE": "DR", "ODD_EVEN": "O" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.472773074480756, 37.73439178240811, 0.0 ], [ -122.47278111723567, 37.73451247621523, 0.0 ], [ -122.47242608711845, 37.73452184591072, 0.0 ], [ -122.472418368113281, 37.734401143064396, 0.0 ], [ -122.472773074480756, 37.73439178240811, 0.0 ] ] ] } }`
 	j108492 := `{ "type": "Feature", "properties": { "MAPBLKLOT": "0011008", "BLKLOT": "0011008", "BLOCK_NUM": "0011", "LOT_NUM": "008", "FROM_ST": "500", "TO_ST": "550", "STREET": "BEACH", "ST_TYPE": "ST", "ODD_EVEN": "E" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.418114728237924, 37.807058866808987, 0.0 ], [ -122.418261722815416, 37.807807921694092, 0.0 ], [ -122.417544151208375, 37.807900142836701, 0.0 ], [ -122.417397010603693, 37.807150305505004, 0.0 ], [ -122.418114728237924, 37.807058866808987, 0.0 ] ] ] } }`
-	m := NewCoreMatcher()
+	m := NewQuamina()
 	pCranleigh := `{ "properties": { "STREET": [ "CRANLEIGH" ] } }`
 	p108492 := `{ "properties": { "MAPBLKLOT": ["0011008"], "BLKLOT": ["0011008"]},  "geometry": { "coordinates": [ 37.807807921694092 ] } } `
 
@@ -62,7 +64,7 @@ func TestCRANLEIGH(t *testing.T) {
 	if err != nil {
 		t.Error("!? " + err.Error())
 	}
-	var matches []X
+	var matches []core.X
 	lines := [][]byte{[]byte(jCranleigh), []byte(j108492)}
 
 	for _, line := range lines {
@@ -101,7 +103,7 @@ func TestCityLots(t *testing.T) {
 		"Geometry",
 		"0011008",
 	}
-	wanted := map[X]int{
+	wanted := map[core.X]int{
 		"CRANLEIGH": 7,
 		"17TH Even": 836,
 		"Geometry":  2,
@@ -109,20 +111,24 @@ func TestCityLots(t *testing.T) {
 	}
 
 	var err error
-	m := NewCoreMatcher()
+	m := core.NewCoreMatcher()
 	for i := range names {
 		err = m.AddPattern(names[i], patterns[i])
 		if err != nil {
 			t.Error("Addpattern: " + err.Error())
 		}
 	}
-	fj := NewFJ(m)
-	results := make(map[X]int)
+	fj := flattener.NewFJ()
+	results := make(map[core.X]int)
 
 	lines := getCityLotsLines(t)
 	before := time.Now()
 	for _, line := range lines {
-		matches, err := fj.FlattenAndMatch(line)
+		fields, err := fj.Flatten(line, m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -197,9 +203,9 @@ func TestMySoftwareHatesMe(t *testing.T) {
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
 	lines := getCityLotsLines(t)
-	m := NewCoreMatcher()
+	m := core.NewCoreMatcher()
 
-	wanted := map[X]int{
+	wanted := map[core.X]int{
 		"A": 5883, "B": 12765, "C": 14824, "D": 6124, "E": 3402, "F": 7999, "G": 8555,
 		"H": 7829, "I": 1330, "J": 3853, "K": 2595, "L": 8168, "M": 14368, "N": 3710,
 		"O": 3413, "P": 11250, "Q": 719, "R": 4354, "S": 13255, "T": 4209, "U": 4636,
@@ -228,14 +234,18 @@ func TestBigShellStyle(t *testing.T) {
 				t.Errorf("err on %s: %s", funk, err.Error())
 			}
 		}
+		fmt.Println(core.matcherStats(m))
 	*/
-	fmt.Println(matcherStats(m))
 
-	lCounts := make(map[X]int)
+	lCounts := make(map[core.X]int)
 	before := time.Now()
-	fj := NewFJ(m)
+	fj := flattener.NewFJ()
 	for _, line := range lines {
-		matches, err := fj.FlattenAndMatch(line)
+		fields, err := fj.Flatten(line, m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -280,7 +290,7 @@ func TestPatternAddition(t *testing.T) {
 	var msBefore, msAfter runtime.MemStats
 
 	// now we're going to add 200 fields, 200 values, so 40K name/value pairs. There might be some duplication?
-	m := NewCoreMatcher()
+	m := core.NewCoreMatcher()
 	before := time.Now()
 	fieldCount := 0
 	runtime.ReadMemStats(&msBefore)
@@ -303,7 +313,7 @@ func TestPatternAddition(t *testing.T) {
 	runtime.ReadMemStats(&msAfter)
 	delta := 1.0 / 1000000.0 * float64(msAfter.Alloc-msBefore.Alloc)
 	fmt.Printf("before %d, after %d, delta %f\n", msBefore.Alloc, msAfter.Alloc, delta)
-	fmt.Println("stats:" + matcherStats(m))
+	// fmt.Println("stats:" + core.matcherStats(m))
 	elapsed := float64(time.Since(before).Milliseconds())
 	perSecond := float64(fieldCount) / (elapsed / 1000.0)
 	fmt.Printf("%.2f fields/second\n\n", perSecond)

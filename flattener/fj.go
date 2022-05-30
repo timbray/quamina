@@ -1,7 +1,9 @@
-package core
+package flattener
 
 import (
 	"fmt"
+	"github.com/timbray/quamina/constants"
+	"github.com/timbray/quamina/fields"
 	"strconv"
 	"unicode/utf16"
 )
@@ -17,14 +19,14 @@ import (
 //  actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 // TODO: There are gaps in the unit-test coverage, including nearly all the error conditions
 type FJ struct {
-	event      []byte       // event being processed, treated as immutable
-	eventIndex int          // current byte index into the event
-	fields     []Field      // the under-construction return value of the Flatten method
-	skipping   int          // track whether we're within the scope of a segment that isn't used
-	arrayTrail []ArrayPos   // current array-position cookie crumbs
-	arrayCount int32        // how many arrays we've seen, used in building arrayTrail
-	matcher    *CoreMatcher // proceses FJ output, knows if a segment is used; if not, no need to process
-	cleanSheet bool         // initially true, don't have to call Reset()
+	event      []byte            // event being processed, treated as immutable
+	eventIndex int               // current byte index into the event
+	fields     []fields.Field    // the under-construction return value of the Flatten method
+	skipping   int               // track whether we're within the scope of a segment that isn't used
+	arrayTrail []fields.ArrayPos // current array-position cookie crumbs
+	arrayCount int32             // how many arrays we've seen, used in building arrayTrail
+	cleanSheet bool              // initially true, don't have to call Reset()
+	tracker    NameTracker
 }
 
 // Reset an FJ struct so it can be re-used and won't need to be reconstructed for each event to be flattened
@@ -62,21 +64,13 @@ const (
 	readHexDigitState
 )
 
-func NewFJ(matcher *CoreMatcher) Flattener {
-	return &FJ{fields: make([]Field, 0, 32), matcher: matcher, cleanSheet: true}
-}
-
-func (fj *FJ) FlattenAndMatch(event []byte) ([]X, error) {
-	fields, err := fj.Flatten(event)
-	if err != nil {
-		return nil, err
-	}
-	return fj.matcher.MatchesForFields(fields)
+func NewFJ() Flattener {
+	return &FJ{fields: make([]fields.Field, 0, 32), cleanSheet: true}
 }
 
 // Flatten implements the Flattener interface. It assumes that the event is immutable - if you modify the event
 //  bytes while the Matcher is running, grave disorder will ensue.
-func (fj *FJ) Flatten(event []byte) ([]Field, error) {
+func (fj *FJ) Flatten(event []byte, tracker NameTracker) ([]fields.Field, error) {
 	if fj.cleanSheet {
 		fj.cleanSheet = false
 	} else {
@@ -87,6 +81,7 @@ func (fj *FJ) Flatten(event []byte) ([]Field, error) {
 	}
 	var err error
 	fj.event = event
+	fj.tracker = tracker
 	state := startState
 	for {
 		ch := fj.ch()
@@ -142,9 +137,9 @@ func (fj *FJ) readObject(pathName []byte) error {
 
 	// make a snapshot of the current ArrayPos trail for use in any member fields, because it doesn't change in
 	//  the course of reading an object
-	var arrayTrail []ArrayPos
+	var arrayTrail []fields.ArrayPos
 	if fj.skipping == 0 {
-		arrayTrail = make([]ArrayPos, len(fj.arrayTrail))
+		arrayTrail = make([]fields.ArrayPos, len(fj.arrayTrail))
 		copy(arrayTrail, fj.arrayTrail)
 	}
 
@@ -163,7 +158,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 				if err != nil {
 					return err
 				}
-				memberIsUsed = (fj.skipping == 0) && fj.matcher.IsNameUsed(memberName)
+				memberIsUsed = (fj.skipping == 0) && fj.tracker.IsNameUsed(memberName)
 				state = seekingColonState
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in JSON object", ch))
@@ -201,7 +196,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				val, alt, err = fj.readNumber()
 			case '[':
-				if !fj.matcher.IsNameUsed(memberName) {
+				if !fj.tracker.IsNameUsed(memberName) {
 					fj.skipping++
 				}
 				var arrayPath []byte
@@ -212,11 +207,11 @@ func (fj *FJ) readObject(pathName []byte) error {
 				if err != nil {
 					return err
 				}
-				if !fj.matcher.IsNameUsed(memberName) {
+				if !fj.tracker.IsNameUsed(memberName) {
 					fj.skipping--
 				}
 			case '{':
-				if !fj.matcher.IsNameUsed(memberName) {
+				if !fj.tracker.IsNameUsed(memberName) {
 					fj.skipping++
 				}
 				var objectPath []byte
@@ -227,7 +222,7 @@ func (fj *FJ) readObject(pathName []byte) error {
 				if err != nil {
 					return err
 				}
-				if !fj.matcher.IsNameUsed(memberName) {
+				if !fj.tracker.IsNameUsed(memberName) {
 					fj.skipping--
 				}
 			default:
@@ -471,7 +466,7 @@ func (fj *FJ) readStringValue() ([]byte, error) {
 		} else if ch == '\\' {
 			val, err := fj.readStringValWithEscapes(valStart)
 			return val, err
-		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(constants.ByteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in string value", ch))
 		}
 		if fj.step() != nil {
@@ -501,7 +496,7 @@ func (fj *FJ) readStringValWithEscapes(nameStart int) ([]byte, error) {
 				return nil, err
 			}
 			val = append(val, unescaped...)
-		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(constants.ByteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in string value", ch))
 		} else {
 			val = append(val, ch)
@@ -529,7 +524,7 @@ func (fj *FJ) readMemberName() ([]byte, error) {
 		} else if ch == '\\' {
 			name, err := fj.readMemberNameWithEscapes(nameStart)
 			return name, err
-		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(constants.ByteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in field name", ch))
 		}
 		if fj.step() != nil {
@@ -547,7 +542,7 @@ func (fj *FJ) readMemberNameWithEscapes(nameStart int) ([]byte, error) {
 		if ch == '"' {
 			fj.eventIndex = from
 			return memberName, nil
-		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
+		} else if ch <= 0x1f || ch >= byte(constants.ByteCeiling) {
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in field name", ch))
 		} else if ch == '\\' {
 			var unescaped []byte
@@ -685,17 +680,17 @@ func pathForChild(pathSoFar []byte, nextSegment []byte) []byte {
 //  NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
 //   because of the necessity to construct a new arrayTrail for each element.
 func (fj *FJ) storeArrayElementField(path []byte, val []byte) {
-	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val}
+	f := fields.Field{Path: path, ArrayTrail: make([]fields.ArrayPos, len(fj.arrayTrail)), Val: val}
 	copy(f.ArrayTrail, fj.arrayTrail)
 	fj.fields = append(fj.fields, f)
 }
-func (fj *FJ) storeObjectMemberField(path []byte, arrayTrail []ArrayPos, val []byte) {
-	fj.fields = append(fj.fields, Field{Path: path, ArrayTrail: arrayTrail, Val: val})
+func (fj *FJ) storeObjectMemberField(path []byte, arrayTrail []fields.ArrayPos, val []byte) {
+	fj.fields = append(fj.fields, fields.Field{Path: path, ArrayTrail: arrayTrail, Val: val})
 }
 
 func (fj *FJ) enterArray() {
 	fj.arrayCount++
-	fj.arrayTrail = append(fj.arrayTrail, ArrayPos{fj.arrayCount, 0})
+	fj.arrayTrail = append(fj.arrayTrail, fields.ArrayPos{fj.arrayCount, 0})
 }
 func (fj *FJ) leaveArray() {
 	fj.arrayTrail = fj.arrayTrail[:len(fj.arrayTrail)-1]

@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"github.com/timbray/quamina/constants"
 	"sync/atomic"
 )
 
@@ -87,10 +88,10 @@ func (m *valueMatcher) transitionNfa(val []byte, transitions []*fieldMatcher) []
 func oneNfaStep(table *smallTable[*nfaStepList], index int, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
 	var utf8Byte byte
 
-	// fake valueTerminator at the end of every val
+	// fake constants.ValueTerminator at the end of every val
 	switch {
 	case index == len(val):
-		utf8Byte = valueTerminator
+		utf8Byte = constants.ValueTerminator
 	case index < len(val):
 		utf8Byte = val[index]
 	default:
@@ -124,7 +125,7 @@ func (m *valueMatcher) transitionDfa(val []byte, transitions []*fieldMatcher) []
 	}
 
 	// look for terminator after exhausting bytes of val
-	lastStep := table.step(valueTerminator)
+	lastStep := table.step(constants.ValueTerminator)
 
 	// we only do a field-level transition if there's one in the table that the last character in val arrives at
 	if lastStep != nil {
@@ -216,7 +217,7 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 }
 
 // makeStringAutomaton creates a utf8-based automaton from a literal string using smallTables. Note
-//  the addition of a valueTerminator. The implementation is recursive because this allows the use of the
+//  the addition of a constants.ValueTerminator. The implementation is recursive because this allows the use of the
 //  makeSmallDfaTable call, which reduces memory churn. Converting from a straightforward implementation to this
 //  approximately doubled the fields/second rate in addPattern
 func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
@@ -233,7 +234,7 @@ func oneDfaStep(val []byte, index int, nextField *fieldMatcher) *smallTable[*dfa
 	var nextStep *dfaStep
 	if index == len(val)-1 {
 		lastStep := &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{nextField}}
-		nextStep = &dfaStep{table: makeSmallDfaTable(nil, []byte{valueTerminator}, []*dfaStep{lastStep})}
+		nextStep = &dfaStep{table: makeSmallDfaTable(nil, []byte{constants.ValueTerminator}, []*dfaStep{lastStep})}
 	} else {
 		nextStep = &dfaStep{table: oneDfaStep(val, index+1, nextField)}
 	}

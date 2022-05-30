@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/timbray/quamina/flattener"
 	"testing"
 )
 
@@ -89,7 +90,8 @@ func TestArrayCorrectness(t *testing.T) {
 		t.Error(err.Error())
 	}
 
-	matches, err := m.MatchesForJSONEvent([]byte(bands))
+	fields, _ := flattener.NewFJ().Flatten([]byte(bands), m)
+	matches, err := m.MatchesForFields(fields)
 	if err != nil {
 		t.Error(err.Error())
 	}

@@ -10,6 +10,7 @@ package core
 
 import (
 	"errors"
+	"github.com/timbray/quamina/fields"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -119,19 +120,9 @@ func (m *CoreMatcher) DeletePattern(_ X) error {
 	return errors.New("operation not supported")
 }
 
-// MatchesForJSONEvent calls the flattener to pull the fields out of the event and
-//  hands over to MatchesForFields
-func (m *CoreMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
-	fields, err := NewFJ(m).Flatten(event)
-	if err != nil {
-		return nil, err
-	}
-	return m.MatchesForFields(fields)
-}
-
 // MatchesForFields takes a list of Field structures and sorts them by pathname; the fields in a pattern to
 //  matched are similarly sorted; thus running an automaton over them works
-func (m *CoreMatcher) MatchesForFields(fields []Field) ([]X, error) {
+func (m *CoreMatcher) MatchesForFields(fields []fields.Field) ([]X, error) {
 	sort.Slice(fields, func(i, j int) bool { return string(fields[i].Path) < string(fields[j].Path) })
 	return m.matchesForSortedFields(fields).matches(), nil
 }
@@ -145,7 +136,7 @@ type proposedTransition struct {
 
 // matchesForSortedFields runs the provided list of name/value pairs against the automaton and returns
 //  a possibly-empty list of the patterns that match
-func (m *CoreMatcher) matchesForSortedFields(fields []Field) *matchSet {
+func (m *CoreMatcher) matchesForSortedFields(fields []fields.Field) *matchSet {
 
 	failedExistsFalseMatches := newMatchSet()
 	matches := newMatchSet()
@@ -187,7 +178,7 @@ func (m *CoreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 			//  transition on it, assuming it's not in an object that's in a different element
 			//  of the same array
 			for nextIndex := proposal.fieldIndex + 1; nextIndex < len(fields); nextIndex++ {
-				if noArrayTrailConflict(fields[proposal.fieldIndex].ArrayTrail, fields[nextIndex].ArrayTrail) {
+				if fields[proposal.fieldIndex].IsArrayCompatible(&fields[nextIndex]) {
 					proposals = append(proposals, proposedTransition{fieldIndex: nextIndex, matcher: nextState})
 				}
 			}
@@ -199,27 +190,6 @@ func (m *CoreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 		}
 	}
 	return matches
-}
-
-// Arrays are invisible in the automaton.  That is to say, if an event has
-//  { "a": [ 1, 2, 3 ] }
-//  Then the fields will be a/1, a/2, and a/3
-//  Same for  {"a": [[1, 2], 3]} or any other permutation
-//  So if you have {"a": [ { "b": 1, "c": 2}, {"b": 3, "c": 4}] }
-//  then a pattern like { "a": { "b": 1, "c": 4 } } would match.
-// To prevent that from happening, each ArrayPos contains two numbers; the first identifies the array in
-//  the event that this name/val occurred in, the second the position in the array. We don't allow
-//  transitioning between field values that occur in different positions in the same array.
-//  See the arrays_test unit test for more examples.
-func noArrayTrailConflict(from []ArrayPos, to []ArrayPos) bool {
-	for _, fromAPos := range from {
-		for _, toAPos := range to {
-			if fromAPos.Array == toAPos.Array && fromAPos.Pos != toAPos.Pos {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func (m *CoreMatcher) IsNameUsed(label []byte) bool {

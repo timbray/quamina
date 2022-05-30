@@ -1,8 +1,13 @@
 package core
 
 import (
+	"bufio"
+	"compress/gzip"
 	"fmt"
+	"github.com/timbray/quamina/flattener"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -18,9 +23,11 @@ func TestLongCase(t *testing.T) {
 		"ababab",
 		"ababaabab",
 	}
+	fj := flattener.NewFJ()
 	for _, should := range shoulds {
 		event := fmt.Sprintf(`{"x": "%s"}`, should)
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		fields, _ := fj.Flatten([]byte(event), m)
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("m4j " + err.Error())
 		}
@@ -162,8 +169,13 @@ func TestMixedPatterns(t *testing.T) {
 	}
 	got := make(map[X]int)
 	lines := getCityLotsLines(t)
+	fj := flattener.NewFJ()
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		fields, err := fj.Flatten(line, m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -183,4 +195,38 @@ func TestMixedPatterns(t *testing.T) {
 		}
 
 	}
+}
+
+const oneMeg = 1024 * 1024
+
+var cityLotsLock sync.Mutex
+var cityLotsLines [][]byte
+var cityLotsLineCount int
+
+func getCityLotsLines(t *testing.T) [][]byte {
+	cityLotsLock.Lock()
+	defer cityLotsLock.Unlock()
+	if cityLotsLines != nil {
+		return cityLotsLines
+	}
+	file, err := os.Open("../testdata/citylots.jlines.gz")
+	if err != nil {
+		t.Error("Can't open citlots.jlines.gz: " + err.Error())
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	zr, err := gzip.NewReader(file)
+	if err != nil {
+		t.Error("Can't open zip reader: " + err.Error())
+	}
+
+	scanner := bufio.NewScanner(zr)
+	buf := make([]byte, oneMeg)
+	scanner.Buffer(buf, oneMeg)
+	for scanner.Scan() {
+		cityLotsLineCount++
+		cityLotsLines = append(cityLotsLines, []byte(scanner.Text()))
+	}
+	return cityLotsLines
 }

@@ -1,4 +1,4 @@
-package core
+package flattener
 
 type NameTracker interface {
 	IsNameUsed(label []byte) bool

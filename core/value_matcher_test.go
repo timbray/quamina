@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/timbray/quamina/flattener"
 	"math/rand"
 	"strings"
 	"testing"
@@ -145,7 +146,12 @@ func TestOverlappingValues(t *testing.T) {
 	e1 := `{"x": 3, "a": "foo"}`
 	e2 := `{"x": 3, "a": "football"}`
 	e3 := `{"x": 3, "a": "footballer"}`
-	matches, err := m.MatchesForJSONEvent([]byte(e1))
+	fj := flattener.NewFJ()
+	fields, err := fj.Flatten([]byte(e1), m)
+	if err != nil {
+		t.Error("Flatten: " + err.Error())
+	}
+	matches, err := m.MatchesForFields(fields)
 	if err != nil {
 		t.Error("Error on e1: " + err.Error())
 	}
@@ -155,7 +161,11 @@ func TestOverlappingValues(t *testing.T) {
 		t.Errorf("Failure on e1 - want %v got %v", wantP1, matches[0])
 	}
 
-	matches, err = m.MatchesForJSONEvent([]byte(e2))
+	fields, err = fj.Flatten([]byte(e2), m)
+	if err != nil {
+		t.Error("Flatten: " + err.Error())
+	}
+	matches, err = m.MatchesForFields(fields)
 	if err != nil {
 		t.Error("Error on e2: " + err.Error())
 	}
@@ -163,7 +173,11 @@ func TestOverlappingValues(t *testing.T) {
 		t.Error("Failure on e2")
 	}
 
-	matches, err = m.MatchesForJSONEvent([]byte(e3))
+	fields, err = fj.Flatten([]byte(e3), m)
+	if err != nil {
+		t.Error("Flatten: " + err.Error())
+	}
+	matches, err = m.MatchesForFields(fields)
 	if err != nil {
 		t.Error("Error on e3: " + err.Error())
 	}
@@ -203,9 +217,14 @@ func TestFuzzValueMatcher(t *testing.T) {
 
 	// make sure all the patterns match
 	eBase := `{"a": "999"}`
+	fj := flattener.NewFJ()
 	for _, pName := range pNames {
 		event := strings.ReplaceAll(eBase, "999", pName.(string))
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		fields, err := fj.Flatten([]byte(event), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Errorf("m4J botch on %s: %s", event, err.Error())
 		}
@@ -220,6 +239,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 
 	// now let's run 1000 more random strings that shouldn't match
 	shouldNot := 0
+	fj = flattener.NewFJ()
 	for shouldNot < len(pNames) {
 		str := ""
 		for j := 0; j < strLen; j++ {
@@ -232,7 +252,11 @@ func TestFuzzValueMatcher(t *testing.T) {
 		}
 		shouldNot++
 		event := strings.ReplaceAll(eBase, "999", str)
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		fields, err := fj.Flatten([]byte(event), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Errorf("shouldNot botch on %s: %s", event, err.Error())
 		}
@@ -267,9 +291,14 @@ func TestFuzzWithNumbers(t *testing.T) {
 
 	// make sure all the patterns match
 	eBase := `{"a": 999}`
+	fj := flattener.NewFJ()
 	for _, pName := range pNames {
 		event := strings.ReplaceAll(eBase, "999", pName.(string))
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		fields, err := fj.Flatten([]byte(event), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Errorf("m4J botch on %s: %s", event, err.Error())
 		}
@@ -295,7 +324,11 @@ func TestFuzzWithNumbers(t *testing.T) {
 		event := strings.ReplaceAll(eBase, "999", ns)
 		// breaks on 98463
 		// fmt.Println("Event: " + event)
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		fields, err := fj.Flatten([]byte(event), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Errorf("shouldNot botch on %s: %s", event, err.Error())
 		}

@@ -1,6 +1,8 @@
 package pruner
 
 import (
+	"github.com/timbray/quamina/fields"
+	"github.com/timbray/quamina/flattener"
 	"sync"
 	"time"
 
@@ -79,6 +81,10 @@ type Matcher struct {
 	// The Matcher pointer is updated after a successful Rebuild.
 	// Stats are updated by Add, Delete, and Rebuild.
 	lock sync.RWMutex
+}
+
+func (m *Matcher) IsNameUsed(name []byte) bool {
+	return m.Matcher.IsNameUsed(name)
 }
 
 var defaultRebuildTrigger = newTooMuchFiltering(0.2, 1000)
@@ -216,23 +222,9 @@ func (m *Matcher) AddPattern(x quamina.X, pat string) error {
 	return err
 }
 
-// newFJ just calls quamina.FJ.
-//
-// Here for convenience only.
-func newFJ(m *Matcher) quamina.Flattener {
-	return quamina.NewFJ(m.Matcher)
-}
-
-// newFJ calls quamina.NewFJ with this Matcher's core quamina.Matcher
-//
-// Here for convenience only.
-func (m *Matcher) newFJ() quamina.Flattener {
-	return quamina.NewFJ(m.Matcher)
-}
-
 // MatchesForJSONEvent calls MatchesForFields with a new Flattener.
 func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
-	fs, err := m.newFJ().Flatten(event)
+	fs, err := flattener.NewFJ().Flatten(event, m)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +234,7 @@ func (m *Matcher) MatchesForJSONEvent(event []byte) ([]quamina.X, error) {
 // MatchesForFields calls the underlying
 // quamina.CoreMatcher.MatchesForFields and then maybe rebuilds the
 // index.
-func (m *Matcher) MatchesForFields(fields []quamina.Field) ([]quamina.X, error) {
+func (m *Matcher) MatchesForFields(fields []fields.Field) ([]quamina.X, error) {
 
 	xs, err := m.Matcher.MatchesForFields(fields)
 	if err != nil {

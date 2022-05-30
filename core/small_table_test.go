@@ -1,21 +1,22 @@
 package core
 
 import (
+	"github.com/timbray/quamina/constants"
 	"math/rand"
 	"testing"
 )
 
 func TestMakeSmallTable(t *testing.T) {
 	tMST(t, []byte{1, 2, 33})
-	tMST(t, []byte{0, 1, 2, 33, byte(byteCeiling - 1)})
-	tMST(t, []byte{2, 33, byte(byteCeiling - 1)})
+	tMST(t, []byte{0, 1, 2, 33, byte(constants.ByteCeiling - 1)})
+	tMST(t, []byte{2, 33, byte(constants.ByteCeiling - 1)})
 	tMST(t, []byte{0, 1, 2, 33})
 }
 
 func tMST(t *testing.T, b []byte) {
 	comp := &dfaStep{table: newSmallTable[*dfaStep]()}
 	sdef := &dfaStep{table: newSmallTable[*dfaStep]()}
-	comp.table.addRangeSteps(0, byteCeiling, sdef)
+	comp.table.addRangeSteps(0, constants.ByteCeiling, sdef)
 	var steps []*dfaStep
 	for _, pos := range b {
 		onestep := &dfaStep{table: newSmallTable[*dfaStep]()}
@@ -48,20 +49,20 @@ func TestCombiner(t *testing.T) {
 	AFM := newFieldMatcher()
 	AFM.fields().transitions["AFM"] = newValueMatcher()
 	st := newDfaTransition(AFM)
-	A3.table.addByteStep(valueTerminator, st)
+	A3.table.addByteStep(constants.ValueTerminator, st)
 
 	// *ay*
 	B0 := &dfaStep{table: newSmallTable[*dfaStep]()}
 	B1 := &dfaStep{table: newSmallTable[*dfaStep]()}
 	B2 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	B0.table.addRangeSteps(0, byteCeiling, B0)
+	B0.table.addRangeSteps(0, constants.ByteCeiling, B0)
 	B0.table.addByteStep('a', B1)
-	B1.table.addRangeSteps(0, byteCeiling, B0)
+	B1.table.addRangeSteps(0, constants.ByteCeiling, B0)
 	B1.table.addByteStep('y', B2)
 	BFM := newFieldMatcher()
 	BFM.fields().transitions["BFM"] = newValueMatcher()
 	st = newDfaTransition(BFM)
-	B2.table.addRangeSteps(0, byteCeiling, st)
+	B2.table.addRangeSteps(0, constants.ByteCeiling, st)
 
 	combo := mergeOneDfaStep(A0, B0, make(map[dfaStepKey]*dfaStep))
 
@@ -81,15 +82,15 @@ func TestCombiner(t *testing.T) {
 	C0 := &dfaStep{table: newSmallTable[*dfaStep]()}
 	C1 := &dfaStep{table: newSmallTable[*dfaStep]()}
 	C2 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	C0.table.addRangeSteps(0, byteCeiling, C0)
+	C0.table.addRangeSteps(0, constants.ByteCeiling, C0)
 	C0.table.addByteStep('y', C1)
-	C1.table.addRangeSteps(0, byteCeiling, C0)
+	C1.table.addRangeSteps(0, constants.ByteCeiling, C0)
 	C1.table.addByteStep('y', C2)
-	C2.table.addRangeSteps(0, byteCeiling, C0)
+	C2.table.addRangeSteps(0, constants.ByteCeiling, C0)
 	CFM := newFieldMatcher()
 	CFM.fields().transitions["CFM"] = newValueMatcher()
 	st = newDfaTransition(CFM)
-	C2.table.addByteStep(valueTerminator, st)
+	C2.table.addByteStep(constants.ValueTerminator, st)
 
 	combo = mergeOneDfaStep(&dfaStep{table: vm.getFields().startDfa}, C0, make(map[dfaStepKey]*dfaStep))
 	vm.update(&vmFields{startDfa: combo.table})
@@ -115,7 +116,7 @@ func TestUnpack(t *testing.T) {
 	st1 := &dfaStep{table: newSmallTable[*dfaStep]()}
 
 	st := smallTable[*dfaStep]{
-		ceilings: []uint8{2, 3, byte(byteCeiling)},
+		ceilings: []uint8{2, 3, byte(constants.ByteCeiling)},
 		steps:    []*dfaStep{nil, st1, nil},
 	}
 	u := unpackTable(&st)
@@ -141,7 +142,7 @@ func TestFuzzPack(t *testing.T) {
 
 func fuzzPack(t *testing.T, seed int64) {
 	rand.Seed(seed)
-	var used [byteCeiling]bool
+	var used [constants.ByteCeiling]bool
 	var unpacked unpackedTable[*dfaStep]
 
 	// we're going to full up an unPackedTable with byte[*dfaStep] mappings, 30 clusters of between one and
@@ -151,7 +152,7 @@ func fuzzPack(t *testing.T, seed int64) {
 		var clusterLength, clusterBase int32
 		for {
 			clusterLength = rand.Int31n(4) + 1
-			clusterBase = rand.Int31n(int32(byteCeiling - 6))
+			clusterBase = rand.Int31n(int32(constants.ByteCeiling - 6))
 			var u int32
 			for u = 0; u < clusterLength; u++ {
 				if used[clusterBase+u] {
@@ -174,7 +175,7 @@ func fuzzPack(t *testing.T, seed int64) {
 	}
 	packed := &smallTable[*dfaStep]{}
 	packed.pack(&unpacked)
-	for i := 0; i < byteCeiling; i++ {
+	for i := 0; i < constants.ByteCeiling; i++ {
 		if unpacked[i] != packed.step(byte(i)) {
 			t.Errorf("T1 seed %d at %d", seed, i)
 		}

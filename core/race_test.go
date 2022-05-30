@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/timbray/quamina/flattener"
 	"log"
 	"math/rand"
 	"sync"
@@ -40,11 +41,12 @@ func testConcurrency(t *testing.T, m Matcher) {
 	// }
 
 	query := func(verify bool) {
-		f := NewFJ(m.(*CoreMatcher))
+		m := m.(*CoreMatcher)
+		f := flattener.NewFJ()
 
 		for i := 0; i < n; i++ {
 			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
-			fs, err := f.Flatten([]byte(e))
+			fs, err := f.Flatten([]byte(e), m)
 			if err != nil {
 				t.Fatal(err)
 			}

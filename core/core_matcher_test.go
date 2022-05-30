@@ -2,11 +2,12 @@ package core
 
 import (
 	"fmt"
+	"github.com/timbray/quamina/flattener"
 	"testing"
 )
 
 func TestBasicMatching(t *testing.T) {
-	var x X = X("testing")
+	var x X = "testing"
 	pattern := `{"a": [1, 2], "b": [1, "3"]}`
 	m := NewCoreMatcher()
 	err := m.AddPattern(x, pattern)
@@ -22,9 +23,14 @@ func TestBasicMatching(t *testing.T) {
 		`{"a": 2}`,
 		`{"b": "3"}`,
 	}
+	fj := flattener.NewFJ()
 	for _, should := range shouldMatch {
 		var matches []X
-		matches, err = m.MatchesForJSONEvent([]byte(should))
+		fields, err := fj.Flatten([]byte(should), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err = m.MatchesForFields(fields)
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -34,7 +40,11 @@ func TestBasicMatching(t *testing.T) {
 	}
 	for _, shouldNot := range shouldNotMatch {
 		var matches []X
-		matches, _ = m.MatchesForJSONEvent([]byte(shouldNot))
+		fields, err := fj.Flatten([]byte(shouldNot), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err = m.MatchesForFields(fields)
 		if len(matches) != 0 {
 			t.Error("Matched: " + shouldNot)
 		}
@@ -76,7 +86,12 @@ func TestExerciseMatching(t *testing.T) {
 		if err != nil {
 			t.Error("addPattern " + should + ": " + err.Error())
 		}
-		matches, err := m.MatchesForJSONEvent([]byte(j))
+		fj := flattener.NewFJ()
+		fields, err := fj.Flatten([]byte(j), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("M4J: " + err.Error())
 		}
@@ -90,13 +105,18 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "NotThere": [ { "exists": true } ] } }`,
 		`{"Image": { "IDs": [ { "exists": false } ], "Animated": [ false ] } }`,
 	}
+	fj := flattener.NewFJ()
 	for i, shouldNot := range shouldNotMatches {
 		m := NewCoreMatcher()
 		err = m.AddPattern(fmt.Sprintf("should NOT %d", i), shouldNot)
 		if err != nil {
 			t.Error("addPattern: " + shouldNot + ": " + err.Error())
 		}
-		matches, err := m.MatchesForJSONEvent([]byte(j))
+		fields, err := fj.Flatten([]byte(j), m)
+		if err != nil {
+			t.Error("Flatten: " + err.Error())
+		}
+		matches, err := m.MatchesForFields(fields)
 		if err != nil {
 			t.Error("ShouldNot " + shouldNot + ": " + err.Error())
 		}
@@ -108,7 +128,7 @@ func TestExerciseMatching(t *testing.T) {
 
 func TestSimpleAddPattern(t *testing.T) {
 	// laboriously hand-check the simplest possible automaton
-	var x X = X("testing")
+	var x X = "testing"
 	pattern := `{"a": [1, 2], "b": [1, "3"]}`
 	m := NewCoreMatcher()
 	err := m.AddPattern(x, pattern)
