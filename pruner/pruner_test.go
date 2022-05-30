@@ -127,7 +127,7 @@ func TestRebuildSome(t *testing.T) {
 	}
 
 	queryFast := func(verify bool) {
-		f := m.NewFJ()
+		f := m.newFJ()
 		for i := 0; i < n; i++ {
 			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
 			fs, err := f.Flatten([]byte(e))
@@ -355,7 +355,7 @@ func TestUnsetRebuildTrigger(t *testing.T) {
 func TestFlattener(t *testing.T) {
 	var (
 		m = NewMatcher(nil)
-		f = NewFJ(m) // Variation for test coverage.
+		f = newFJ(m) // Variation for test coverage.
 	)
 
 	if err := m.AddPattern(1, `{"wants":["queso"]}`); err != nil {
