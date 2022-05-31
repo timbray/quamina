@@ -50,15 +50,15 @@ func TestCRANLEIGH(t *testing.T) {
 
 	jCranleigh := `{ "type": "Feature", "properties": { "MAPBLKLOT": "7222001", "BLKLOT": "7222001", "BLOCK_NUM": "7222", "LOT_NUM": "001", "FROM_ST": "1", "TO_ST": "1", "STREET": "CRANLEIGH", "ST_TYPE": "DR", "ODD_EVEN": "O" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.472773074480756, 37.73439178240811, 0.0 ], [ -122.47278111723567, 37.73451247621523, 0.0 ], [ -122.47242608711845, 37.73452184591072, 0.0 ], [ -122.472418368113281, 37.734401143064396, 0.0 ], [ -122.472773074480756, 37.73439178240811, 0.0 ] ] ] } }`
 	j108492 := `{ "type": "Feature", "properties": { "MAPBLKLOT": "0011008", "BLKLOT": "0011008", "BLOCK_NUM": "0011", "LOT_NUM": "008", "FROM_ST": "500", "TO_ST": "550", "STREET": "BEACH", "ST_TYPE": "ST", "ODD_EVEN": "E" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.418114728237924, 37.807058866808987, 0.0 ], [ -122.418261722815416, 37.807807921694092, 0.0 ], [ -122.417544151208375, 37.807900142836701, 0.0 ], [ -122.417397010603693, 37.807150305505004, 0.0 ], [ -122.418114728237924, 37.807058866808987, 0.0 ] ] ] } }`
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	pCranleigh := `{ "properties": { "STREET": [ "CRANLEIGH" ] } }`
 	p108492 := `{ "properties": { "MAPBLKLOT": ["0011008"], "BLKLOT": ["0011008"]},  "geometry": { "coordinates": [ 37.807807921694092 ] } } `
 
-	err := m.AddPattern("CRANLEIGH", pCranleigh)
+	err := m.addPattern("CRANLEIGH", pCranleigh)
 	if err != nil {
 		t.Error("!? " + err.Error())
 	}
-	err = m.AddPattern("108492", p108492)
+	err = m.addPattern("108492", p108492)
 	if err != nil {
 		t.Error("!? " + err.Error())
 	}
@@ -85,23 +85,23 @@ func TestCRANLEIGH(t *testing.T) {
 /*
 func TestMySoftwareHatesMe(t *testing.T) {
 	line := `{ "type": "Feature", "properties": { "STREET": "BELVEDERE" }  }`
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	Bpat := `{"properties": {"STREET":[ {"shellstyle": "B*"} ] } }`
 	EEEpat := `{"properties": {"STREET":[ {"shellstyle": "*E*E*E*"} ] } }`
 
-	if m.AddPattern("EEE", EEEpat) != nil {
+	if m.addPattern("EEE", EEEpat) != nil {
 		t.Error("Huh add?")
 	}
-	matches, err := m.MatchesForJSONEvent([]byte(line))
+	matches, err := m.MatchesForEvent([]byte(line))
 	if len(matches) != 1 || matches[0] != "EEE" {
 		t.Error("Failed to match EEE")
 	}
 
-	m = NewCoreMatcher()
-	_ = m.AddPattern("B", Bpat)
-	_ = m.AddPattern("EEE", EEEpat)
+	m = newCoreMatcher()
+	_ = m.addPattern("B", Bpat)
+	_ = m.addPattern("EEE", EEEpat)
 
-	matches, err = m.MatchesForJSONEvent([]byte(line))
+	matches, err = m.MatchesForEvent([]byte(line))
 	if err != nil {
 		t.Error("Huh? " + err.Error())
 	}
@@ -117,7 +117,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
 	lines := getCityLotsLines(t)
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 
 	wanted := map[X]int{
 		"A": 5883, "B": 12765, "C": 14824, "D": 6124, "E": 3402, "F": 7999, "G": 8555,
@@ -135,7 +135,7 @@ func TestBigShellStyle(t *testing.T) {
 
 	for letter := range wanted {
 		pat := fmt.Sprintf(`{"properties": {"STREET":[ {"shellstyle": "%s*"} ] } }`, letter)
-		err := m.AddPattern(letter, pat)
+		err := m.addPattern(letter, pat)
 		if err != nil {
 			t.Errorf("err on %c: %s", letter, err.Error())
 		}
@@ -143,7 +143,7 @@ func TestBigShellStyle(t *testing.T) {
 
 	/*
 		for funk := range funky {
-			err := m.AddPattern(funk, funk.(string))
+			err := m.addPattern(funk, funk.(string))
 			if err != nil {
 				t.Errorf("err on %s: %s", funk, err.Error())
 			}
@@ -153,13 +153,13 @@ func TestBigShellStyle(t *testing.T) {
 
 	lCounts := make(map[X]int)
 	before := time.Now()
-	fj := NewFJ()
+	fj := newJSONFlattener()
 	for _, line := range lines {
 		fields, err := fj.Flatten(line, m)
 		if err != nil {
 			t.Error("Flatten: " + err.Error())
 		}
-		matches, err := m.MatchesForFields(fields)
+		matches, err := m.matchesForFields(fields)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -204,7 +204,7 @@ func TestPatternAddition(t *testing.T) {
 	var msBefore, msAfter runtime.MemStats
 
 	// now we're going to add 200 fields, 200 values, so 40K name/value pairs. There might be some duplication?
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	before := time.Now()
 	fieldCount := 0
 	runtime.ReadMemStats(&msBefore)
@@ -218,7 +218,7 @@ func TestPatternAddition(t *testing.T) {
 			fieldCount += 200
 			pat = pat + `] } }`
 			pName := string(w.next()) + string(w.next())
-			err := m.AddPattern(pName, pat)
+			err := m.addPattern(pName, pat)
 			if err != nil {
 				t.Error("addPattern " + err.Error())
 			}

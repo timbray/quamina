@@ -9,10 +9,10 @@ import (
 )
 
 func TestConcurrencyCore(t *testing.T) {
-	testConcurrency(t, NewCoreMatcher())
+	testConcurrency(t, newCoreMatcher())
 }
 
-func testConcurrency(t *testing.T, m Matcher) {
+func testConcurrency(t *testing.T, m matcher) {
 	var (
 		goroutines = 4
 		n          = 500
@@ -25,7 +25,7 @@ func testConcurrency(t *testing.T, m Matcher) {
 	populate := func() {
 		for i := 0; i < n; i++ {
 			p := fmt.Sprintf(`{"like":["tacos","queso"],"want":[%d]}`, i)
-			if err := m.AddPattern(i, p); err != nil {
+			if err := m.addPattern(i, p); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -33,22 +33,22 @@ func testConcurrency(t *testing.T, m Matcher) {
 
 	// depopulate := func() {
 	//      for i := 0; i < n; i += 2 {
-	//              if err := m.DeletePattern(i); err != nil {
+	//              if err := m.deletePattern(i); err != nil {
 	//                      t.Fatal(err)
 	//              }
 	//      }
 	// }
 
 	query := func(verify bool) {
-		f := NewFJ()
+		f := newJSONFlattener()
 
 		for i := 0; i < n; i++ {
 			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
-			fs, err := f.Flatten([]byte(e), m.(*CoreMatcher))
+			fs, err := f.Flatten([]byte(e), m.(*coreMatcher))
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, err := m.MatchesForFields(fs); err != nil {
+			if got, err := m.matchesForFields(fs); err != nil {
 				t.Fatal(err)
 			} else if verify && len(got) != 1 {
 				t.Fatal(got)

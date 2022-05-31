@@ -20,7 +20,7 @@ func TestFJBasic(t *testing.T) {
 	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33, "x"]}`
 	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f")
 
-	f := NewFJ()
+	f := newJSONFlattener()
 	list, err := f.Flatten([]byte(j), allYes)
 
 	if err != nil {
@@ -41,7 +41,7 @@ func TestFJBasic(t *testing.T) {
 	}
 
 	justAF := fakeMatcher("a", "f")
-	f = NewFJ()
+	f = newJSONFlattener()
 	list, _ = f.Flatten([]byte(j), justAF)
 	wantedPaths = []string{"a", "f", "f"}
 	wantedVals = []string{"1", "33", "\"x\""}
@@ -58,7 +58,7 @@ func TestFJBasic(t *testing.T) {
 func TestFJ10Lines(t *testing.T) {
 
 	geo := fakeMatcher("type", "geometry")
-	testTrackerSelection(NewFJ(), geo, "L0", "testdata/cl-sample-0",
+	testTrackerSelection(newJSONFlattener(), geo, "L0", "testdata/cl-sample-0",
 		[]string{"type", "geometry\ntype"},
 		[]string{`"Feature"`, `"Polygon"`},
 		t)
@@ -99,13 +99,13 @@ func TestFJ10Lines(t *testing.T) {
 	}
 
 	coords := fakeMatcher("coordinates", "geometry")
-	testTrackerSelection(NewFJ(), coords, "L1", "testdata/cl-sample-1",
+	testTrackerSelection(newJSONFlattener(), coords, "L1", "testdata/cl-sample-1",
 		coordNames, coordVals, t)
 
 	l2names := []string{"properties\nFROM_ST", "properties\nODD_EVEN"}
 	l2vals := []string{`"1917"`, `"O"`}
 	proFoOd := fakeMatcher("properties", "FROM_ST", "ODD_EVEN")
-	testTrackerSelection(NewFJ(), proFoOd, "L2", "testdata/cl-sample-2",
+	testTrackerSelection(newJSONFlattener(), proFoOd, "L2", "testdata/cl-sample-2",
 		l2names, l2vals, t)
 }
 
@@ -113,7 +113,7 @@ func TestFJ10Lines(t *testing.T) {
 func TestMinimal(t *testing.T) {
 	a := `{"a": 1}`
 	nt := fakeMatcher("a")
-	f := NewFJ()
+	f := newJSONFlattener()
 	fields, err := f.Flatten([]byte(a), nt)
 	if err != nil {
 		t.Error("Huh? " + err.Error())
@@ -142,8 +142,8 @@ func testTrackerSelection(fj Flattener, tracker NameTracker, label string, filen
 	}
 }
 
-func fakeMatcher(segs ...string) *CoreMatcher {
-	m := NewCoreMatcher()
+func fakeMatcher(segs ...string) *coreMatcher {
+	m := newCoreMatcher()
 	for _, seg := range segs {
 		m.start().namesUsed[seg] = true
 	}

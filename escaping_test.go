@@ -7,7 +7,7 @@ import (
 func TestReadMemberName(t *testing.T) {
 	j := `{"😀💋😺": 1, "x\u0078\ud83d\udc8by": "2"}`
 	m := fakeMatcher("😀💋😺", `xx💋y`)
-	f := NewFJ()
+	f := newJSONFlattener()
 	fields, err := f.Flatten([]byte(j), m)
 	if err != nil {
 		t.Error("TRMN: " + err.Error())
@@ -25,7 +25,7 @@ func TestReadMemberName(t *testing.T) {
 
 func TestStringValuesWithEscapes(t *testing.T) {
 	j := `{"a": "x\u0078\ud83d\udc8by", "b": "\ud83d\ude00\ud83d\udc8b\ud83d\ude3a"}`
-	f := NewFJ()
+	f := newJSONFlattener()
 	fields, err := f.Flatten([]byte(j), fakeMatcher("a", "b"))
 	if err != nil {
 		t.Error("TSVWE: " + err.Error())
@@ -55,7 +55,7 @@ func TestOneEscape(t *testing.T) {
 		`\u0416\ud83d\udc8b\u4e2dz`: `Ж💋中`,
 	}
 	for escape, wanted := range tests {
-		f := &FJ{event: []byte(escape), fields: make([]Field, 0, 32)}
+		f := &flattenJSON{event: []byte(escape), fields: make([]Field, 0, 32)}
 		unescaped, from, err := f.readTextWithEscapes(0)
 		if err != nil {
 			t.Errorf("for %s: %s", escape, err.Error())
@@ -73,7 +73,7 @@ func TestOneEscape(t *testing.T) {
 func TestUTF16Escaping(t *testing.T) {
 	str := `?*\u0066\u006f\u006f<>`
 	b := []byte(str)
-	f := &FJ{fields: make([]Field, 0, 32)}
+	f := &flattenJSON{fields: make([]Field, 0, 32)}
 	f.event = b
 	f.eventIndex = 0
 	chars, from, err := f.readHexUTF16(3)
@@ -88,7 +88,7 @@ func TestUTF16Escaping(t *testing.T) {
 	}
 	str = `?*\u0066\u006f\u006f\t<>`
 	b = []byte(str)
-	f = &FJ{fields: make([]Field, 0, 32)}
+	f = &flattenJSON{fields: make([]Field, 0, 32)}
 	f.event = b
 	f.eventIndex = 0
 	chars, from, err = f.readHexUTF16(3)
@@ -108,7 +108,7 @@ func TestUTF16Escaping(t *testing.T) {
 	}
 	for _, bad := range shouldBeBad {
 		b = []byte(bad)
-		f = &FJ{fields: make([]Field, 0, 32)}
+		f = &flattenJSON{fields: make([]Field, 0, 32)}
 		f.event = b
 		_, _, err = f.readHexUTF16(4)
 		if err == nil {
@@ -139,7 +139,7 @@ func TestUTF16Escaping(t *testing.T) {
 
 	for i, emoji := range emojis {
 		b = []byte(utf16[i])
-		f = &FJ{fields: make([]Field, 0, 32)}
+		f = &flattenJSON{fields: make([]Field, 0, 32)}
 		f.event = b
 		chars, from, err = f.readHexUTF16(2)
 		if err != nil {

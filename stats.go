@@ -13,7 +13,7 @@ type stats struct {
 	siCount   int
 }
 
-func matcherStats(m *CoreMatcher) string {
+func matcherStats(m *coreMatcher) string {
 	s := stats{
 		fmVisited: make(map[*fieldMatcher]bool),
 		vmVisited: make(map[*valueMatcher]bool),

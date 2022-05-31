@@ -6,6 +6,80 @@ import (
 	"time"
 )
 
+func TestCopy(t *testing.T) {
+	q, err := New()
+	if err != nil {
+		t.Error("New? " + err.Error())
+	}
+	q2 := q.Copy()
+	if q2.matcher != q.matcher || q2.flattener == q.flattener {
+		t.Error("improper copy")
+	}
+}
+
+func TestNewQOptions(t *testing.T) {
+	var q *Quamina
+	var err error
+	var ok bool
+	q, err = New(WithMediaType("application/json"))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	_, ok = q.flattener.(*flattenJSON)
+	if !ok {
+		t.Error("Should be flattenJSON")
+	}
+	_, err = New(WithMediaType("text/html"))
+	if err == nil {
+		t.Error("accepted text/html")
+	}
+	q, err = New(WithFlattener(newJSONFlattener()))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	_, ok = q.flattener.(*flattenJSON)
+	if !ok {
+		t.Error("should be flattenJSON")
+	}
+	_, err = New(WithFlattener(nil))
+	if err == nil {
+		t.Error("accepted nil flattener")
+	}
+	_, err = New(WithPatternStorage(nil))
+	if err == nil {
+		t.Error("accepted WIthPatternStorage")
+	}
+	q, err = New(WithPatternDeletion(true))
+	if err != nil {
+		t.Error("didn't take PatternDeletion(true")
+	}
+	_, ok = q.matcher.(*prunerMatcher)
+	if !ok {
+		t.Error("should be pruner")
+	}
+	q, err = New(WithPatternDeletion(false))
+	if err != nil {
+		t.Error("didn't take PatternDeletion(false")
+	}
+	_, ok = q.matcher.(*coreMatcher)
+	if !ok {
+		t.Error("should be core")
+	}
+	q, err = New(WithPatternDeletion(true), WithPatternDeletion(false), WithFlattener(newJSONFlattener()),
+		WithMediaType("application/json"), WithPatternDeletion(true))
+	if err != nil {
+		t.Error("bad multi: " + err.Error())
+	}
+	_, ok = q.matcher.(*prunerMatcher)
+	if !ok {
+		t.Error("multi should be pruner")
+	}
+	_, ok = q.flattener.(*flattenJSON)
+	if !ok {
+		t.Error("multi should be flattenJSON")
+	}
+}
+
 // reduced to allow unit tests in slow GitHub actions to pass
 // const thresholdPerformance = 120000.0
 const thresholdPerformance = 1.0
@@ -34,7 +108,10 @@ func TestCityLots(t *testing.T) {
 	}
 
 	var err error
-	q := New()
+	q, err := New()
+	if err != nil {
+		t.Error("New(): " + err.Error())
+	}
 	for i := range names {
 		err = q.AddPattern(names[i], patterns[i])
 		if err != nil {
@@ -46,7 +123,7 @@ func TestCityLots(t *testing.T) {
 	lines := getCityLotsLines(t)
 	before := time.Now()
 	for _, line := range lines {
-		matches, err := q.MatchesForJSONEvent(line)
+		matches, err := q.MatchesForEvent(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}

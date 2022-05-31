@@ -8,8 +8,8 @@ import (
 func TestBasicMatching(t *testing.T) {
 	var x X = "testing"
 	pattern := `{"a": [1, 2], "b": [1, "3"]}`
-	m := NewCoreMatcher()
-	err := m.AddPattern(x, pattern)
+	m := newCoreMatcher()
+	err := m.addPattern(x, pattern)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -71,8 +71,8 @@ func TestExerciseMatching(t *testing.T) {
 
 	var err error
 	for i, should := range shouldMatches {
-		m := NewCoreMatcher()
-		err = m.AddPattern(fmt.Sprintf("should %d", i), should)
+		m := newCoreMatcher()
+		err = m.addPattern(fmt.Sprintf("should %d", i), should)
 		if err != nil {
 			t.Error("addPattern " + should + ": " + err.Error())
 		}
@@ -91,8 +91,8 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "IDs": [ { "exists": false } ], "Animated": [ false ] } }`,
 	}
 	for i, shouldNot := range shouldNotMatches {
-		m := NewCoreMatcher()
-		err = m.AddPattern(fmt.Sprintf("should NOT %d", i), shouldNot)
+		m := newCoreMatcher()
+		err = m.addPattern(fmt.Sprintf("should NOT %d", i), shouldNot)
 		if err != nil {
 			t.Error("addPattern: " + shouldNot + ": " + err.Error())
 		}
@@ -106,12 +106,12 @@ func TestExerciseMatching(t *testing.T) {
 	}
 }
 
-func TestSimpleAddPattern(t *testing.T) {
+func TestSimpleaddPattern(t *testing.T) {
 	// laboriously hand-check the simplest possible automaton
 	var x X = "testing"
 	pattern := `{"a": [1, 2], "b": [1, "3"]}`
-	m := NewCoreMatcher()
-	err := m.AddPattern(x, pattern)
+	m := newCoreMatcher()
+	err := m.addPattern(x, pattern)
 	if err != nil {
 		t.Error(err.Error())
 	}

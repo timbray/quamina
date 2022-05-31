@@ -10,19 +10,21 @@
 
 ### Fast pattern-matching library
 
-Quamina provides APIs to create an interface called 
-a **Matcher**,
-add multiple **Patterns** to it, and then query JSON blobs
-called **Events** to discover which of the patterns match 
+**Quamina** implements a data type that has APIs to 
+create an instance and add multiple **Patterns** to it, 
+and then query data objects called **Events** to
+discover  which of the patterns match 
 the fields in the event.
+
+Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
 
 As of late May 2022, Quamina has a lot of unit tests and
-they're all passing.  We are working on getting the 
-GitHub-based CI/CD nailed down and stable.  We have not
-pressed the “release” button, so we reserve the right 
-to change APIs.
+they're all passing.  It has a reasonable basis of
+GitHub-based CI/CD working. We intend to press the
+“release” button any day now, but for the moment 
+we reserve the right to change APIs.
 
 ### Patterns
 
@@ -128,87 +130,79 @@ Number matching is weak - the number has to appear
 exactly the same in the pattern and the event. I.e.,
 Quamina doesn't know that 35, 35.000, and 3.5e1 are the
 same number. There's a fix for this in the code which 
-is commented out because it causes a 
-significant performance penalty.
+is not yet activated because it causes a 
+significant performance penalty, so the API needs to
+be enhanced to only ask for it when you need it.
 
 ## Flattening and Matching
 
 The first step in finding matches for an Event is 
 “flattening” it, which is to say turning it 
 into a list of pathname/value pairs called Fields. Quamina 
-defines a `Flattener` interface type and provides a 
-JSON-specific implementation in the `FJ` type.
+defines a `Flattener` interface type and has a built-in
+`Flattener` for JSON.
 
 `Flattener` implementations in general will have
 internal state and thus not be thread-safe.
 
-The `MatchesForJSONEvent` API must create a new 
-`FJ` instance for each event so that it 
-can be thread-safe.  This works fine, but creating a 
-new `FJ` instance is expensive enough to slow the 
-rate at which events can be matched by 15% or so.
-
-For maximum performance in matching JSON events, 
-you should create your own `FJ` instance with the 
-`NewFJ(Matcher)` method. You can then use 
-`FJ.Flatten(event)` API to turn multiple successive
-JSON events into `Field` lists and pass them to 
-`Matcher`'s `MatchesForFields()` API, but `FJ` 
-includes a convenience method `FlattenAndMatch(event)` 
-which will call the `Matcher` for you.  As long as 
-each thread has its own `Flattener` instance, 
-everything will remain thread-safe.
-
-Also note that should you wish to process events 
+Note that should you wish to process events 
 in a format other than JSON, you can implement 
-the `Flattener` interface and use that to process 
-events in whatever format into Field lists.
+the `Flattener` interface yourself.
 
 ## APIs
-
 **Note**: In all the APIs below, field names and values in both
 Patterns and Events must be valid UTF-8.  Unescaped characters
 smaller than 0x1F (illegal per JSON), and bytes with value
 greater than 0XF4 (can't occur in correctly composed UTF-8)
 are rejected by the APIs.
+### Control APIs
+```go
+func New(...Option) (*Quamina, error)
+
+func WithMediaType(mediaType string) Option
+func WithFlattener(f Flattener) Option
+func WithPatternDeletion(b bool) Option
+func WithPatternStorage(ps LivePatternsState) Option 
+```
+For example:
 
 ```go
-type Matcher interface {
-	AddPattern(x X, pat string) error
-	MatchesForJSONEvent(event []byte) ([]X, error)
-	MatchesForFields(fields []Field) []X
-	DeletePattern(x X) error
-}
+q, err := quamina.New(quamina.New(quamina.WithMediaType("application/json")))
 ```
+The meanings of the `Option` functions are:
 
-Above are the operations provided by a Matcher. Quamina
-includes an implementation called `CoreMatcher` which
-implements `Matcher`.  In a forthcoming release it will
-provider alternate implementations that offer extra
-features.
+`WithMediaType`: In the futue, Quamina will support 
+Events not just in JSON but in other formats such as
+Avro, Protobufs, and so on. This option will make sure
+to invoke the correct Flattener. At the moment, the only
+supported value is `application/json`, the default.
+
+`WithFlattener`: Requests that Quamina flatten events with
+the provided (presumably user-written) Flattener.
+
+`WithPatternDeletion`: If true, arranges that Quamina
+allows Patterns to be deleted from an instance. This is 
+not free; it can incur extra costs in memory and 
+occasional stop-the-world Quamina rebuilds. (We plan
+to improve this.)
+
+`WithPatternStorage`: If you provide an argument that
+supports the `LivePatternStorage` API, Quamina will
+use it to 
+maintain a list of which patterns have currently been
+added but not deleted.  This could be useful if you
+wanted to rebuild Quamina instances for sharded 
+processing or after a system failure. ***Note: Not
+yet implemented.***
+
+### Data APIs
 
 ```go
-func NewCoreMatcher() *Matcher
+func (q *Quamina) AddPattern(x X, patternJSON string) error
 ```
-```go
-func pruner.NewMatcher() *Matcher
-```
-
-Create new Matchers, take no arguments. The difference
-is that the `pruner.NewMatcher` version supports the
-`DeletePattern()` API. Be careful: It occasionally
-rebuilds the Matcher in stop-the-world fashion, so if you
-delete lots of Patterns in a large Matcher you may 
-encounter occasional elevated latencies.
-
-```go
-func (m *Matcher) AddPattern(x X, patternJSON string) error
-```
-
 The first argument identifies the Pattern and will be
-returned by a Matcher when asked to match against Events.
-X is currently `interface{}`. Should it be a generic now
-that Go has them?
+returned by Quamina when asked to match against Events.
+X is defined as `any`.
 
 The Pattern must be provided as a string which is a 
 JSON object as exemplified above in this document.
@@ -217,67 +211,47 @@ The `error` return is used to signal invalid Pattern
 structure, which could be bad UTF-8 or malformed JSON 
 or leaf values which are not provided as arrays.
 
-As many Patterns as desired can be added to a Matcher. 
-The `CoreMatcher` type does not support `DeletePattern()`
-but `pruner.Matcher` does.
+As many Patterns as desired can be added to a Quamina
+instance. 
 
 The `AddPattern` call is single-threaded; if multiple
 threads call it, they will block and execute sequentially.
 
 ```go
-func (m *Matcher) MatchesForJSONEvent(event []byte) ([]X, error)
+func (q *Quamina) MatchesForEvent(event []byte) ([]X, error)
 ```
 
-The `event` argument must be a JSON object encoded in
-correct UTF-8. 
-
 The `error` return value is nil unless there was an
-error in the Event JSON.
+error in the encoding of the Event.
 
 The `[]X` return slice may be empty if none of the Patterns
 match the provided Event. 
 
-```go
-func (m *Matcher) MatchesForFields([]Field) ([]X, error)
-```
-Performs the functions of `MatchesForJSON` on an 
-Event which has been flattened into a list of `Field`
-instances.  At the moment, `CoreMatcher` only returns
-an error if the `[]Field` argument is nil. `pruner.Matcher`
-can return an error if it suffers a failure in its 
-Pattern storage.
+A single Quamina instance is not thread-safe. But 
+instances can share the underlying data structures
+in a safe way.
 
-These matching calls are thread-safe. Many threads may
-be executing it concurrently, even while `AddPattern` is
-also executing.  There is a significant performance 
-penalty if there is a high rate of `AddPattern` in
-combination with matching.
-
-```go
-func NewFJ(*Matcher) Flattener
+```json
+func (q *Quamina) Copy() *Quamina
 ```
-Creates a new JSON-specific Flattener.
-```go
-func (fj *FJ) Flatten([]byte event) []Field
-```
-Transforms an event, which must be JSON object
-encoded in UTF-8, into a list of `Field` instances.
-
-```go
-func (fj *FJ) FlattenAndMatch([]byte event) ([]X, error)
-```
-Utility function which combines the functions of the 
-`FJ.Flatten` and `Matcher.MatchesForFields` APIs.
+This generates a copy of of the target instance 
+which may be used in parallel on another thread, 
+while sharing the underlying data structure. Many
+instances can execute `MatchesForEvent()` calls 
+concurrently, even while one or more of them are 
+also executing `AddPattern()`.  There is a 
+significant performance penalty if there is a high 
+rate of `AddPattern` in parallel with matching.
 
 ### Performance
 
 I used to say that the performance of 
-`MatchesForJSONEvent` was `O(1)` in the number of 
+`MatchesForEvent` was `O(1)` in the number of 
 Patterns. While that’s probably the right way to think
 about it, it’s not *quite* true,
 as it varies somewhat as a function of the number of 
 unique fields that appear in all the patterns that have 
-been added to the matcher, but still remains sublinear 
+been added to Quamina, but still remains sublinear 
 in that number. 
 
 A word of explanation: Quamina compiles the
@@ -290,7 +264,7 @@ flattened into a list of pathname/value pairs and
 sorted.  This process exceeds 50% of execution time, 
 and is optimized by discarding any fields that
 do not appear in one or more of the patterns added
-to the matcher. Thus, adding a new pattern that only
+to Quamina. Thus, adding a new pattern that only
 mentions fields mentioned in previous patterns is
 effectively free i.e. `O(1)` in terms of run-time 
 performance.
@@ -306,7 +280,7 @@ colonies before slavery was abolished.
 
 ### Credits
 
-@timbray: v0.1 and patches.
+@timbray: v0.0 and patches.
 
 @jsmorph: `Pruner` and concurrency testing.
 

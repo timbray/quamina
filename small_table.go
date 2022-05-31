@@ -21,6 +21,11 @@ type nfaStepList struct {
 // TODO: declare dfaTable { smallTable[*dfaStep } and nfaTable { smallTable[*nfaStepList] }
 //  and make a bunch of code more concise and readable.
 
+// byteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go's byte, which is uint8. The values
+//  0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
+//  can't appear.
+const byteCeiling int = 0xf6
+
 // valueTerminator - whenever we're trying to match a value with a pattern that extends to the end of that
 //  value, we virtually add one of these as the last character, both to the automaton and the value at run-time.
 //  This simplifies things because you don't have to treat absolute-string-match (only works at last char in
@@ -47,11 +52,6 @@ type smallTable[S comparable] struct {
 	ceilings []byte
 	steps    []S
 }
-
-// byteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go's byte, which is uint8. The values
-//  0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
-//  can't appear.
-const byteCeiling int = 0xf6
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
 //  the end, which smallTable.step totally depends on.

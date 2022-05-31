@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func updateTree(m *CoreMatcher, use37 bool, t *testing.T, ch chan string) {
+func updateTree(m *coreMatcher, use37 bool, t *testing.T, ch chan string) {
 	var pattern string
 	var val string
 	if use37 {
@@ -21,7 +21,7 @@ func updateTree(m *CoreMatcher, use37 bool, t *testing.T, ch chan string) {
 		pattern = fmt.Sprintf(`{ "properties": { "STREET": [ {"shellstyle": %s } ] } }`, val)
 		*/
 	}
-	err := m.AddPattern(val, pattern)
+	err := m.addPattern(val, pattern)
 	if err != nil {
 		t.Error("Concurrent: " + err.Error())
 	}
@@ -62,11 +62,11 @@ func TestConcurrency(t *testing.T) {
 	}
 
 	var err error
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	for i := range names {
-		err = m.AddPattern(names[i], patterns[i])
+		err = m.addPattern(names[i], patterns[i])
 		if err != nil {
-			t.Error("Addpattern: " + err.Error())
+			t.Error("addPattern: " + err.Error())
 		}
 	}
 	results := make(map[X]int)
@@ -109,7 +109,7 @@ func TestConcurrency(t *testing.T) {
 		}
 	}
 
-	// now we go back and make sure that all those AddPattern calls actually made it into the Matcher
+	// now we go back and make sure that all those addPattern calls actually made it into the matcher
 	for i := 0; i < sent; i++ {
 		val := <-ch
 		var event string

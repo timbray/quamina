@@ -3,18 +3,18 @@ package quamina
 import "testing"
 
 func TestMatcherInterface(t *testing.T) {
-	var m Matcher = NewCoreMatcher()
-	if _, ok := m.(*CoreMatcher); !ok {
+	var m matcher = newCoreMatcher()
+	if _, ok := m.(*coreMatcher); !ok {
 		t.Error("Can't cast")
 	}
 	var x X = "x"
-	err := m.AddPattern(x, `{"x": [1, 2]}`)
+	err := m.addPattern(x, `{"x": [1, 2]}`)
 	if err != nil {
-		t.Error("AddPattern? " + err.Error())
+		t.Error("addPattern? " + err.Error())
 	}
-	err = m.DeletePattern("x")
+	err = m.deletePattern("x")
 	if err == nil {
-		t.Error("CoreMatcher allowed Delete!?")
+		t.Error("coreMatcher allowed Delete!?")
 	}
 	event := `{"x": [3, 1]}`
 	matches, _ := m.MatchesForJSONEvent([]byte(event))

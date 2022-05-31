@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// Stats reports basic counts to aid in deciding when to Rebuild.
-type Stats struct {
+// prunerStats reports basic counts to aid in deciding when to rebuildWhileLocked.
+type prunerStats struct {
 	// Some of these values are ints instead of uints because Go
 	// likes to print uints in hex, and I'd like to see some
 	// temporary logging output in decimal.  ToDo: back to uints?
@@ -21,65 +21,65 @@ type Stats struct {
 	Deleted int
 
 	// Emitted is the count to total patterns found since the last
-	// rebuild.
+	// rebuildWhileLocked.
 	Emitted int64
 
 	// Filtered is the count of pattners that have been removed
-	// from MatchFor results (since the last rebuild) because
+	// from MatchFor results (since the last rebuildWhileLocked) because
 	// their patterns had been removed.
 	Filtered int64
 
-	// LastRebuilt is the time the last rebuild started.
+	// LastRebuilt is the time the last rebuildWhileLocked started.
 	LastRebuilt time.Time
 
-	// RebuildDuration is the duration of the last rebuild.
+	// RebuildDuration is the duration of the last rebuildWhileLocked.
 	RebuildDuration time.Duration
 
 	// RebuildPurged is the count of patterns removed during
-	// rebuild.
+	// rebuildWhileLocked.
 	RebuildPurged int
 }
 
-// PrunerMatcher provides DeletePattern on top of quamina.PrunerMatcher.
+// prunerMatcher provides DeletePattern on top of quamina.matcher.
 //
-// PrunerMatcher maintains the set of live patterns, and it will rebuild the
+// prunerMatcher maintains the set of live patterns, and it will rebuildWhileLocked the
 // underlying matcher synchronously periodically during standard
-// operations (AddPattern, DeletePattern, MatchesForFields).
+// operations (addPattern, DeletePattern, MatchesForFields).
 //
-// Roughly speaking, the current rebuild policy automatically rebuilds
+// Roughly speaking, the current rebuildWhileLocked policy automatically rebuilds
 // the index when the ratio of filtered patterns to emitted patterns
 // exceeds 0.2 (and if there's been some traffic).
 //
-// An application can call Rebuild to force a rebuild at any time.
-// See Stats() to obtain some useful statistics about the matcher.
+// An application can call rebuild to force a rebuildWhileLocked at any time.
+// See prunerStats() to obtain some useful statistics about the matcher.
 //
-// Eventually automatically-invoked rebuild policies might be
+// Eventually automatically-invoked rebuildWhileLocked policies might be
 // pluggable.
-type PrunerMatcher struct {
+type prunerMatcher struct {
 	// Matcher is the underlying matcher that does the hard work.
-	Matcher *CoreMatcher
+	Matcher *coreMatcher
 
-	// Maybe PrunerMatcher should maybe not be embedded or public.
+	// Maybe prunerMatcher should maybe not be embedded or public.
 
 	// live is live set of patterns.
 	live LivePatternsState
 
-	stats Stats
+	stats prunerStats
 
 	// rebuildTrigger, if not nil, determines when a mutation
-	// triggers a rebuild.
+	// triggers a rebuildWhileLocked.
 	//
-	// If nil, no automatic Rebuild is ever triggered.
+	// If nil, no automatic rebuild is ever triggered.
 	rebuildTrigger rebuildTrigger
 
 	// lock protectes the pointer the underlying Matcher as well as stats.
 	//
-	// The Matcher pointer is updated after a successful Rebuild.
-	// Stats are updated by Add, Delete, and Rebuild.
+	// The Matcher pointer is updated after a successful rebuild.
+	// Stats are updated by Add, Delete, and rebuild.
 	lock sync.RWMutex
 }
 
-func (m *PrunerMatcher) IsNameUsed(label []byte) bool {
+func (m *prunerMatcher) IsNameUsed(label []byte) bool {
 	return m.Matcher.IsNameUsed(label)
 }
 
@@ -95,7 +95,7 @@ var defaultRebuildTrigger = newTooMuchFiltering(0.2, 1000)
 //   and found patterns.
 //
 // defaultRebuildTrigger provides the default trigger policy used by
-// NewPrunerMatcher.
+// newPrunerMatcher.
 type tooMuchFiltering struct {
 	FilteredToEmitted float64
 	MinAction         int64
@@ -108,7 +108,8 @@ func newTooMuchFiltering(ratio float64, min int64) *tooMuchFiltering {
 	}
 }
 
-func (t *tooMuchFiltering) Rebuild(added bool, s *Stats) bool {
+// TODO: Figure out how to expose this through the Quamina type
+func (t *tooMuchFiltering) rebuild(added bool, s *prunerStats) bool {
 
 	if added {
 		// No need to think when we're adding a pattern since
@@ -118,12 +119,12 @@ func (t *tooMuchFiltering) Rebuild(added bool, s *Stats) bool {
 	}
 
 	// If we haven't seen enough patterns emitted by the core
-	// PrunerMatcher, don't rebuild.
+	// prunerMatcher, don't rebuildWhileLocked.
 	if s.Emitted+s.Filtered < t.MinAction {
 		return false
 	}
 
-	// We won't rebuild if nothing's been emitted yet.
+	// We won't rebuildWhileLocked if nothing's been emitted yet.
 	//
 	// In isolation, this heuristic is arguable, but for this
 	// policy we need it.  Otherwise we'll divide by zero, and
@@ -141,8 +142,8 @@ func (t *tooMuchFiltering) Rebuild(added bool, s *Stats) bool {
 	return t.FilteredToEmitted < ratio
 }
 
-// DisableRebuild will prevent any automatic rebuilds.
-func (m *PrunerMatcher) DisableRebuild() {
+// disableRebuild will prevent any automatic rebuilds.
+func (m *prunerMatcher) disableRebuild() {
 	m.lock.Lock()
 	m.rebuildTrigger = nil
 	m.lock.Unlock()
@@ -151,59 +152,59 @@ func (m *PrunerMatcher) DisableRebuild() {
 // rebuildTrigger provides a way to control when rebuilds are
 // automatically triggered during standard operations.
 //
-// Currently an AddPattern, DeletePattern, or MatchesForFields can
+// Currently an addPattern, deletePattern, or matchesForFields can
 // trigger a rebuild.  When a rebuild is triggered, it's executed
 // synchronously: the the Add/Delete/Match method doesn't return until
 // the rebuild is complete.
 type rebuildTrigger interface {
-	// Rebuild should return true to trigger a rebuild.
+	// rebuild should return true to trigger a rebuild.
 	//
-	// This method is called by AddPatter,DeletePattern, and
-	// MatchesForFields.  added is true when called by AddPattern;
+	// This method is called by AddPatter,deletePattern, and
+	// matchesForFields.  added is true when called by addPattern;
 	// false otherwise. These methods currently do not return
 	// until the rebuild is complete, so beware.
-	Rebuild(added bool, s *Stats) bool
+	rebuild(added bool, s *prunerStats) bool
 }
 
-// NewPrunerMatcher does what you'd expect.
+// newPrunerMatcher does what you'd expect.
 //
 // The LivePatternsState defaults to MemState.
-func NewPrunerMatcher(s LivePatternsState) *PrunerMatcher {
+func newPrunerMatcher(s LivePatternsState) *prunerMatcher {
 	if s == nil {
 		s = NewMemState()
 	}
 	trigger := *defaultRebuildTrigger // Copy
-	return &PrunerMatcher{
-		Matcher:        NewCoreMatcher(),
+	return &prunerMatcher{
+		Matcher:        newCoreMatcher(),
 		live:           s,
 		rebuildTrigger: &trigger,
 	}
 }
 
-// maybeRebuild calls rebuildTrigger and calls rebuild() if that
-// trigger said to do that.  If rebuildTrigger is nil, no rebuild is
+// maybeRebuild calls rebuildTrigger and calls rebuildWhileLocked() if that
+// trigger said to do that.  If rebuildTrigger is nil, no rebuildWhileLocked is
 // executed.
 //
 // This method assumes the caller has a write lock.
-func (m *PrunerMatcher) maybeRebuild(added bool) error {
+func (m *prunerMatcher) maybeRebuild(added bool) error {
 	if m.rebuildTrigger == nil {
 		return nil
 	}
-	if m.rebuildTrigger.Rebuild(added, &m.stats) {
-		return m.rebuild(added)
+	if m.rebuildTrigger.rebuild(added, &m.stats) {
+		return m.rebuildWhileLocked(added)
 	}
 
 	return nil
 }
 
-// AddPattern calls the underlying quamina.CoreMatcher.AddPattern
-// method and then maybe rebuilds the index (if the AddPattern
+// addPattern calls the underlying quamina.coreMatcher.addPattern
+// method and then maybe rebuilds the index (if the addPattern
 // succeeded).
-func (m *PrunerMatcher) AddPattern(x X, pat string) error {
+func (m *prunerMatcher) addPattern(x X, pat string) error {
 	var err error
 
-	// Do we m.live.Add first or do we m.PrunerMatcher.AddPattern first?
-	if err = m.Matcher.AddPattern(x, pat); err == nil {
+	// Do we m.live.Add first or do we m.prunerMatcher.addPattern first?
+	if err = m.Matcher.addPattern(x, pat); err == nil {
 		m.lock.Lock()
 		m.stats.Added++
 		m.stats.Live++
@@ -211,7 +212,7 @@ func (m *PrunerMatcher) AddPattern(x X, pat string) error {
 		m.lock.Unlock()
 		err = m.live.Add(x, pat)
 		// ToDo: Contemplate what do to about an error here
-		// (or if we got an error from AddPattern after we did
+		// (or if we got an error from addPattern after we did
 		// live.Add.
 	}
 
@@ -219,20 +220,20 @@ func (m *PrunerMatcher) AddPattern(x X, pat string) error {
 }
 
 // MatchesForJSONEvent calls MatchesForFields with a new Flattener.
-func (m *PrunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
-	fs, err := NewFJ().Flatten(event, m)
+func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
+	fs, err := newJSONFlattener().Flatten(event, m)
 	if err != nil {
 		return nil, err
 	}
-	return m.MatchesForFields(fs)
+	return m.matchesForFields(fs)
 }
 
 // MatchesForFields calls the underlying
-// quamina.CoreMatcher.MatchesForFields and then maybe rebuilds the
+// quamina.coreMatcher.matchesForFields and then maybe rebuilds the
 // index.
-func (m *PrunerMatcher) MatchesForFields(fields []Field) ([]X, error) {
+func (m *prunerMatcher) matchesForFields(fields []Field) ([]X, error) {
 
-	xs, err := m.Matcher.MatchesForFields(fields)
+	xs, err := m.Matcher.matchesForFields(fields)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +267,7 @@ func (m *PrunerMatcher) MatchesForFields(fields []Field) ([]X, error) {
 
 // DeletePattern removes the pattern from the index and maybe rebuilds
 // the index.
-func (m *PrunerMatcher) DeletePattern(x X) error {
+func (m *prunerMatcher) deletePattern(x X) error {
 	n, err := m.live.Delete(x)
 	if err == nil {
 		if 0 < n {
@@ -281,28 +282,28 @@ func (m *PrunerMatcher) DeletePattern(x X) error {
 	return err
 }
 
-// Rebuild rebuilds the matcher state based on only live patterns.
+// rebuild rebuilds the matcher state based on only live patterns.
 //
 // If calling fearlessly, then the old matcher is released before
 // building the new one.
 //
-// This method resets the Stats.
-func (m *PrunerMatcher) Rebuild(fearlessly bool) error {
+// This method resets the prunerStats.
+func (m *prunerMatcher) rebuild(fearlessly bool) error {
 	m.lock.Lock()
-	err := m.rebuild(fearlessly)
+	err := m.rebuildWhileLocked(fearlessly)
 	m.lock.Unlock()
 	return err
 }
 
-// rebuild is Rebuild but assumes having the lock.
-func (m *PrunerMatcher) rebuild(fearlessly bool) error {
+// rebuildWhileLocked is rebuild but assumes having the lock.
+func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 	// We assume we have the lock.
 
 	// Nothing fancy here now.
 
 	var (
 		then = time.Now()
-		m1   = NewCoreMatcher()
+		m1   = newCoreMatcher()
 	)
 
 	if fearlessly {
@@ -312,7 +313,7 @@ func (m *PrunerMatcher) rebuild(fearlessly bool) error {
 
 	count := 0
 	err := m.live.Iterate(func(x X, p string) error {
-		err := m1.AddPattern(x, p)
+		err := m1.addPattern(x, p)
 		if err == nil {
 			count++
 		}
@@ -333,9 +334,9 @@ func (m *PrunerMatcher) rebuild(fearlessly bool) error {
 	return err
 }
 
-// Stats returns some statistics that might be helpful to rebuild
+// prunerStats returns some statistics that might be helpful to rebuildWhileLocked
 // policies.
-func (m *PrunerMatcher) Stats() Stats {
+func (m *prunerMatcher) getStats() prunerStats {
 	m.lock.RLock()
 	s := m.stats // Copies
 	m.lock.RUnlock()

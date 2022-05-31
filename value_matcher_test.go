@@ -82,15 +82,15 @@ func TestMultiTransitions(t *testing.T) {
 	patX := `{"foo": [ { "shellstyle": "*x*b" } ]}`
 	patY := `{"foo": [ { "shellstyle": "*y*b" } ]}`
 
-	m := NewCoreMatcher()
-	if m.AddPattern("X", patX) != nil {
+	m := newCoreMatcher()
+	if m.addPattern("X", patX) != nil {
 		t.Error("add patX")
 	}
-	if m.AddPattern("Y", patY) != nil {
+	if m.addPattern("Y", patY) != nil {
 		t.Error("add patY")
 	}
 	e := `{"foo": "axyb"}`
-	matches, err := m.MatchesForJSONEvent([]byte(e))
+	matches, err := m.MatchesForEvent([]byte(e))
 	if err != nil {
 		t.Error("m4: " + err.Error())
 	}
@@ -100,9 +100,9 @@ func TestMultiTransitions(t *testing.T) {
 }
 
 func TestAY(t *testing.T) {
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	pat := `{"x": [ { "shellstyle": "*ay*"} ] }`
-	err := m.AddPattern("AY", pat)
+	err := m.addPattern("AY", pat)
 	if err != nil {
 		t.Error("AY: " + err.Error())
 	}
@@ -110,7 +110,7 @@ func TestAY(t *testing.T) {
 	e := `{"x": "X"}`
 	for _, sm := range shouldMatch {
 		p := strings.ReplaceAll(e, "X", sm)
-		matches, err := m.MatchesForJSONEvent([]byte(p))
+		matches, err := m.MatchesForEvent([]byte(p))
 		if err != nil {
 			t.Error("bad JSON: " + err.Error())
 		}
@@ -122,23 +122,23 @@ func TestAY(t *testing.T) {
 */
 
 func TestOverlappingValues(t *testing.T) {
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	p1 := `{"a": ["foo"]}`
 	p2 := `{"a": ["football"]}`
 	p3 := `{"a": ["footballer"]}`
 	var err error
 	var wantP1 X = "p1"
-	err = m.AddPattern(wantP1, p1)
+	err = m.addPattern(wantP1, p1)
 	if err != nil {
 		t.Error("Ouch p1")
 	}
 	var wantP2 X = "p2"
-	err = m.AddPattern(wantP2, p2)
+	err = m.addPattern(wantP2, p2)
 	if err != nil {
 		t.Error("Ouch p2")
 	}
 	var wantP3 X = "p3"
-	err = m.AddPattern(wantP3, p3)
+	err = m.addPattern(wantP3, p3)
 	if err != nil {
 		t.Error("Ouch p3")
 	}
@@ -174,7 +174,7 @@ func TestOverlappingValues(t *testing.T) {
 
 func TestFuzzValueMatcher(t *testing.T) {
 	rand.Seed(98543)
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	var pNames []X
 	bytes := "abcdefghijklmnopqrstuvwxyz"
 	lb := len(bytes)
@@ -195,7 +195,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 	// add a pattern for each string
 	pBase := `{"a": [ "999" ]}`
 	for _, pName := range pNames {
-		err := m.AddPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
+		err := m.addPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
 		if err != nil {
 			t.Errorf("addPattern %s: %s", pName, err.Error())
 		}
@@ -244,7 +244,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 
 func TestFuzzWithNumbers(t *testing.T) {
 	rand.Seed(98543)
-	m := NewCoreMatcher()
+	m := newCoreMatcher()
 	var pNames []X
 	used := make(map[X]bool)
 
@@ -259,7 +259,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 	// add a pattern for each number
 	pBase := `{"a": [ 999 ]}`
 	for _, pName := range pNames {
-		err := m.AddPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
+		err := m.addPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
 		if err != nil {
 			t.Errorf("addPattern %s: %s", pName, err.Error())
 		}

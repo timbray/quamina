@@ -1,6 +1,6 @@
 package quamina
 
-// CoreMatcher represents an automaton that allows matching sequences of name/value field pairs against
+// coreMatcher represents an automaton that allows matching sequences of name/value field pairs against
 //  patterns, which are combinations of field names and lists of allowed valued field values.
 // The field names are called "Paths" because they encode, in a jsonpath-ish style, the pathSegments from the
 //  root of an incoming object to the leaf field.
@@ -15,14 +15,14 @@ import (
 	"sync/atomic"
 )
 
-// CoreMatcher uses a finite automaton to implement the MatchesForJSONEvent and MatchesForFields functions.
+// coreMatcher uses a finite automaton to implement the MatchesForJSONEvent and MatchesForFields functions.
 // state is the start of the automaton
 // namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
 //  patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
 //  fields that do not appear in patterns when using the automaton for matching
 // the updateable fields are grouped into the coreStart member so they can be updated atomically using atomic.Load()
-//  and atomic.Store(). This is necessary for CoreMatcher to be thread-safe.
-type CoreMatcher struct {
+//  and atomic.Store(). This is necessary for coreMatcher to be thread-safe.
+type coreMatcher struct {
 	updateable atomic.Value // always holds a *coreStart
 	lock       sync.Mutex
 }
@@ -35,8 +35,8 @@ type coreStart struct {
 // X for anything, should eventually be a generic?
 type X any
 
-func NewCoreMatcher() *CoreMatcher {
-	m := CoreMatcher{}
+func newCoreMatcher() *coreMatcher {
+	m := coreMatcher{}
 	m.updateable.Store(&coreStart{
 		state:                     newFieldMatcher(),
 		namesUsed:                 make(map[string]bool),
@@ -44,13 +44,13 @@ func NewCoreMatcher() *CoreMatcher {
 	})
 	return &m
 }
-func (m *CoreMatcher) start() *coreStart {
+func (m *coreMatcher) start() *coreStart {
 	return m.updateable.Load().(*coreStart)
 }
 
 // AddPattern - the patternBytes is a JSON object. The X is what the matcher returns to indicate that the
 //  provided pattern has been matched. In many applications it might be a string which is the pattern's name.
-func (m *CoreMatcher) AddPattern(x X, patternJSON string) error {
+func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	patternFields, patternNamesUsed, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func (m *CoreMatcher) AddPattern(x X, patternJSON string) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	// we build up the new CoreMatcher state in freshStart so we can atomically switch it in once complete
+	// we build up the new coreMatcher state in freshStart so we can atomically switch it in once complete
 	freshStart := &coreStart{}
 	freshStart.namesUsed = make(map[string]bool)
 	current := m.start()
@@ -114,24 +114,24 @@ func (m *CoreMatcher) AddPattern(x X, patternJSON string) error {
 	return err
 }
 
-// DeletePattern not implemented by CoreMatcher
-func (m *CoreMatcher) DeletePattern(_ X) error {
+// DeletePattern not implemented by coreMatcher
+func (m *coreMatcher) deletePattern(_ X) error {
 	return errors.New("operation not supported")
 }
 
 // MatchesForJSONEvent calls the flattener to pull the fields out of the event and
 //  hands over to MatchesForFields
-func (m *CoreMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
-	fields, err := NewFJ().Flatten(event, m)
+func (m *coreMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
+	fields, err := newJSONFlattener().Flatten(event, m)
 	if err != nil {
 		return nil, err
 	}
-	return m.MatchesForFields(fields)
+	return m.matchesForFields(fields)
 }
 
 // MatchesForFields takes a list of Field structures and sorts them by pathname; the fields in a pattern to
 //  matched are similarly sorted; thus running an automaton over them works
-func (m *CoreMatcher) MatchesForFields(fields []Field) ([]X, error) {
+func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	sort.Slice(fields, func(i, j int) bool { return string(fields[i].Path) < string(fields[j].Path) })
 	return m.matchesForSortedFields(fields).matches(), nil
 }
@@ -145,7 +145,7 @@ type proposedTransition struct {
 
 // matchesForSortedFields runs the provided list of name/value pairs against the automaton and returns
 //  a possibly-empty list of the patterns that match
-func (m *CoreMatcher) matchesForSortedFields(fields []Field) *matchSet {
+func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 
 	failedExistsFalseMatches := newMatchSet()
 	matches := newMatchSet()
@@ -222,7 +222,7 @@ func noArrayTrailConflict(from []ArrayPos, to []ArrayPos) bool {
 	return true
 }
 
-func (m *CoreMatcher) IsNameUsed(label []byte) bool {
+func (m *coreMatcher) IsNameUsed(label []byte) bool {
 	_, ok := m.start().namesUsed[string(label)]
 	return ok
 }

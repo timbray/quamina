@@ -1,10 +1,10 @@
 package quamina
 
-// This file contains some experimental rebuild policies that are not
+// This file contains some experimental rebuildWhileLocked policies that are not
 // currently used anywhere.  Here just for examples and possible
 // future use.
 
-// liveRatioTrigger's Rebuild function returns true when there are at
+// liveRatioTrigger's rebuild function returns true when there are at
 // least MinLive live patterns and the ratio of removed to live
 // patterns is greater than 1.
 //
@@ -22,7 +22,7 @@ func newLiveRatioTrigger(ratio float64, min int) *liveRatioTrigger {
 	}
 }
 
-func (t *liveRatioTrigger) Rebuild(added bool, s *Stats) bool {
+func (t *liveRatioTrigger) rebuild(added bool, s *prunerStats) bool {
 	if added {
 		return false
 	}
@@ -38,7 +38,7 @@ func (t *liveRatioTrigger) Rebuild(added bool, s *Stats) bool {
 
 // neverTrigger is a rebuildTrigger that will never trigger a rebuild.
 //
-// Setting PrunerMatcher.rebuildTrigger to nil will have the same effect.
+// Setting prunerMatcher.rebuildTrigger to nil will have the same effect.
 //
 // This type is not used anywhere; just here as an example and maybe
 // for future consideration.
@@ -49,6 +49,6 @@ func newNeverTrigger() *neverTrigger {
 	return &neverTrigger{}
 }
 
-func (t *neverTrigger) Rebuild(added bool, s *Stats) bool {
+func (t *neverTrigger) rebuild(added bool, s *prunerStats) bool {
 	return false
 }

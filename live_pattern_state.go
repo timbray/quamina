@@ -1,7 +1,6 @@
 package quamina
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -50,7 +49,7 @@ func NewMemState() *MemState {
 	}
 }
 
-var ErrExists = fmt.Errorf("pattern already exists for that X")
+// var ErrExists = fmt.Errorf("pattern already exists for that X")
 
 func (s *MemState) Add(x X, pattern string) error {
 	s.lock.Lock()

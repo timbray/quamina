@@ -16,8 +16,8 @@ func logf(format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
-func (m *PrunerMatcher) printStats() {
-	logf("%#v", m.Stats())
+func (m *prunerMatcher) printStats() {
+	logf("%#v", m.getStats())
 }
 
 func TestBasic(t *testing.T) {
@@ -27,15 +27,15 @@ func TestBasic(t *testing.T) {
 		id    = 1
 		event = []byte(`{"likes":"tacos"}`)
 
-		m = NewPrunerMatcher(nil)
+		m = newPrunerMatcher(nil)
 	)
 
-	if err := m.AddPattern(id, pat); err != nil {
+	if err := m.addPattern(id, pat); err != nil {
 		t.Fatal(err)
 	}
 
 	// It's okay to update a pattern.
-	if err := m.AddPattern(id, pat); err != nil {
+	if err := m.addPattern(id, pat); err != nil {
 		t.Fatal(err)
 	}
 
@@ -49,10 +49,10 @@ func TestBasic(t *testing.T) {
 
 	m.printStats()
 
-	if err := m.DeletePattern(id); err != nil {
+	if err := m.deletePattern(id); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.DeletePattern(id); err != nil {
+	if err := m.deletePattern(id); err != nil {
 		t.Fatal(err)
 	}
 
@@ -68,7 +68,7 @@ func TestBasic(t *testing.T) {
 
 	m.printStats()
 
-	if err = m.Rebuild(true); err != nil {
+	if err = m.rebuild(true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -88,13 +88,13 @@ func TestBasic(t *testing.T) {
 func TestRebuildSome(t *testing.T) {
 	var (
 		n = int(2 * defaultRebuildTrigger.MinAction)
-		m = NewPrunerMatcher(nil)
+		m = newPrunerMatcher(nil)
 	)
 
 	populate := func() {
 		for i := 0; i < n; i++ {
 			p := fmt.Sprintf(`{"like":["tacos","queso"],"want":[%d]}`, i)
-			if err := m.AddPattern(i, p); err != nil {
+			if err := m.addPattern(i, p); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -102,7 +102,7 @@ func TestRebuildSome(t *testing.T) {
 
 	depopulate := func() {
 		for i := 0; i < n; i += 2 {
-			if err := m.DeletePattern(i); err != nil {
+			if err := m.deletePattern(i); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -123,14 +123,14 @@ func TestRebuildSome(t *testing.T) {
 	}
 
 	queryFast := func(verify bool) {
-		f := NewFJ()
+		f := newJSONFlattener()
 		for i := 0; i < n; i++ {
 			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
 			fs, err := f.Flatten([]byte(e), m)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, err := m.MatchesForFields(fs); err != nil {
+			if got, err := m.matchesForFields(fs); err != nil {
 				t.Fatal(err)
 			} else if verify && len(got) != 1 {
 				t.Fatal(got)
@@ -138,39 +138,39 @@ func TestRebuildSome(t *testing.T) {
 		}
 	}
 
-	t.Run("rebuild", func(t *testing.T) {
-		// See a rebuild.
+	t.Run("rebuildWhileLocked", func(t *testing.T) {
+		// See a rebuildWhileLocked.
 		populate()
 		query(true)
 		m.printStats()
 		depopulate()
 		query(false)
 		m.printStats()
-		if s := m.Stats(); 0 == s.RebuildDuration {
+		if s := m.getStats(); 0 == s.RebuildDuration {
 			t.Fatal(s)
 		}
 	})
 
 	t.Run("no_rebuild", func(t *testing.T) {
-		// Prevent a rebuild.
-		m = NewPrunerMatcher(nil)
-		m.DisableRebuild()
+		// Prevent a rebuildWhileLocked.
+		m = newPrunerMatcher(nil)
+		m.disableRebuild()
 		populate()
 		query(true)
 		depopulate()
 		query(false)
-		if s := m.Stats(); 0 != s.RebuildDuration {
+		if s := m.getStats(); 0 != s.RebuildDuration {
 			t.Fatal(s)
 		}
 	})
 
 	t.Run("rebuild_after_fj", func(t *testing.T) {
-		m = NewPrunerMatcher(nil)
+		m = newPrunerMatcher(nil)
 		populate()
 		queryFast(false)
 		depopulate()
 		queryFast(false)
-		if s := m.Stats(); 0 == s.RebuildDuration {
+		if s := m.getStats(); 0 == s.RebuildDuration {
 			t.Fatal(s)
 		}
 	})
@@ -179,14 +179,14 @@ func TestRebuildSome(t *testing.T) {
 
 func TestTriggerTooManyFilteredDenom(t *testing.T) {
 	// Verify that a zero denominator doesn't cause problems.
-	m := NewPrunerMatcher(nil)
+	m := newPrunerMatcher(nil)
 	trigger := m.rebuildTrigger.(*tooMuchFiltering)
 	trigger.MinAction = 0
 
-	if err := m.AddPattern(1, `{"likes":["tacos"]}`); err != nil {
+	if err := m.addPattern(1, `{"likes":["tacos"]}`); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.DeletePattern(1); err != nil {
+	if err := m.deletePattern(1); err != nil {
 		t.Fatal(err)
 	}
 	_, err := m.MatchesForJSONEvent([]byte(`{"likes":"tacos"}`))
@@ -198,11 +198,11 @@ func TestTriggerTooManyFilteredDenom(t *testing.T) {
 
 func TestTriggerRebuild(t *testing.T) {
 
-	// This test just checks that a rebuild was actually triggered.
+	// This test just checks that a rebuildWhileLocked was actually triggered.
 
 	var (
 		then    = time.Now()
-		m       = NewPrunerMatcher(nil)
+		m       = newPrunerMatcher(nil)
 		trigger = m.rebuildTrigger.(*tooMuchFiltering)
 		n       = 10
 		doomed  = func(id int) bool {
@@ -221,12 +221,12 @@ func TestTriggerRebuild(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		pat := fmt.Sprintf(`{"n":[%d]}`, i)
-		if err := m.AddPattern(i, pat); err != nil {
+		if err := m.addPattern(i, pat); err != nil {
 			t.Fatal(err)
 		}
 
 		if doomed(i) {
-			if err := m.DeletePattern(i); err != nil {
+			if err := m.deletePattern(i); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -255,7 +255,7 @@ func TestTriggerRebuild(t *testing.T) {
 	// printState()
 	m.printStats()
 
-	s := m.Stats()
+	s := m.getStats()
 	if n <= s.Live {
 		t.Fatal(s.Live)
 	}
@@ -300,20 +300,20 @@ func TestBadState(t *testing.T) {
 	bad := &badState{
 		err: badStateErr,
 	}
-	m := NewPrunerMatcher(bad)
+	m := newPrunerMatcher(bad)
 
-	if err := m.AddPattern(1, `{"likes":["queso"]}`); err == nil {
+	if err := m.addPattern(1, `{"likes":["queso"]}`); err == nil {
 		t.Fatal("expected error")
 	}
-	if err := m.DeletePattern(1); err == nil {
+	if err := m.deletePattern(1); err == nil {
 		t.Fatal("expected error")
 	}
-	if err := m.Rebuild(false); err == nil {
+	if err := m.rebuild(false); err == nil {
 		t.Fatal("expected error")
 	}
 
 	bad.err = nil
-	if err := m.AddPattern(1, `{"likes":["queso"]}`); err != nil {
+	if err := m.addPattern(1, `{"likes":["queso"]}`); err != nil {
 		t.Fatal(err)
 	}
 	bad.err = badStateErr
@@ -324,15 +324,15 @@ func TestBadState(t *testing.T) {
 }
 
 func TestBadPattern(t *testing.T) {
-	m := NewPrunerMatcher(&badState{})
+	m := newPrunerMatcher(&badState{})
 
-	if err := m.AddPattern(1, `Dream baby dream`); err == nil {
+	if err := m.addPattern(1, `Dream baby dream`); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestBadEvent(t *testing.T) {
-	m := NewPrunerMatcher(&badState{})
+	m := newPrunerMatcher(&badState{})
 
 	event := `My heart's not in it`
 	if _, err := m.MatchesForJSONEvent([]byte(event)); err == nil {
@@ -341,7 +341,7 @@ func TestBadEvent(t *testing.T) {
 }
 
 func TestUnsetRebuildTrigger(t *testing.T) {
-	m := NewPrunerMatcher(&badState{})
+	m := newPrunerMatcher(&badState{})
 	m.rebuildTrigger = nil
 	if err := m.maybeRebuild(false); err != nil {
 		t.Fatal(err)
@@ -350,11 +350,11 @@ func TestUnsetRebuildTrigger(t *testing.T) {
 
 func TestFlattener(t *testing.T) {
 	var (
-		m = NewPrunerMatcher(nil)
-		f = NewFJ() // Variation for test coverage.
+		m = newPrunerMatcher(nil)
+		f = newJSONFlattener() // Variation for test coverage.
 	)
 
-	if err := m.AddPattern(1, `{"wants":["queso"]}`); err != nil {
+	if err := m.addPattern(1, `{"wants":["queso"]}`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -362,7 +362,7 @@ func TestFlattener(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := m.MatchesForFields(fs)
+	got, err := m.matchesForFields(fs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,19 +377,19 @@ func TestFlattener(t *testing.T) {
 
 func TestMultiplePatternsWithSameId(t *testing.T) {
 	var (
-		m              = NewPrunerMatcher(nil)
+		m              = newPrunerMatcher(nil)
 		id interface{} = 1
 	)
 
-	if err := m.AddPattern(id, `{"enjoys":["queso"]}`); err != nil {
+	if err := m.addPattern(id, `{"enjoys":["queso"]}`); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := m.AddPattern(id, `{"needs":["chips"]}`); err != nil {
+	if err := m.addPattern(id, `{"needs":["chips"]}`); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := m.Rebuild(false); err != nil {
+	if err := m.rebuild(false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -418,17 +418,17 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 
 	check()
 
-	s := m.Stats()
+	s := m.getStats()
 
 	if s.Live != 2 {
 		t.Fatal(s.Live)
 	}
 
-	if err := m.DeletePattern(id); err != nil {
+	if err := m.deletePattern(id); err != nil {
 		t.Fatal(err)
 	}
 
-	s = m.Stats()
+	s = m.getStats()
 
 	if s.Live != 0 {
 		t.Fatal(s.Live)
@@ -440,17 +440,17 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 
 }
 
-/* TODO: Figure out which FJ to use post refactor
+/* TODO: Figure out which flattenJSON to use post refactor
 func BenchmarkCityLotsCore(b *testing.B) {
-	benchmarkCityLots(b, NewCoreMatcher())
+	benchmarkCityLots(b, newCoreMatcher())
 }
 
 func BenchmarkCityLotsPruner(b *testing.B) {
-	benchmarkCityLots(b, NewPrunerMatcher(nil))
+	benchmarkCityLots(b, newPrunerMatcher(nil))
 }
 
 // benchmarkCityLots is distilled from TestCityLots.
-func benchmarkCityLots(b *testing.B, m Matcher) {
+func benchmarkCityLots(b *testing.B, m matcher) {
 
 	lines := getCityLotsLinesB(b)
 
@@ -469,19 +469,19 @@ func benchmarkCityLots(b *testing.B, m Matcher) {
 
 	var fj Flattener
 	switch vv := m.(type) {
-	case *PrunerMatcher:
-		fj = NewFJ(vv.Matcher)
-		vv.DisableRebuild()
-	case *CoreMatcher:
-		fj = NewFJ(vv)
+	case *prunerMatcher:
+		fj = newJSONFlattener(vv.matcher)
+		vv.disableRebuild()
+	case *coreMatcher:
+		fj = newJSONFlattener(vv)
 	default:
 		b.Fatalf("%T", vv)
 	}
 
 	for i := range names {
-		err := m.AddPattern(names[i], patterns[i])
+		err := m.addPattern(names[i], patterns[i])
 		if err != nil {
-			b.Errorf("AddPattern error %s", err)
+			b.Errorf("addPattern error %s", err)
 		}
 	}
 	results := make(map[X]int)

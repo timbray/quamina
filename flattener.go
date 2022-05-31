@@ -34,4 +34,5 @@ type Field struct {
 // "f", "\"x\""
 type Flattener interface {
 	Flatten(event []byte, tracker NameTracker) ([]Field, error)
+	Copy() Flattener
 }
