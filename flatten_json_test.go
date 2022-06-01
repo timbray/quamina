@@ -17,8 +17,8 @@ func bequal(a []byte, b []byte) bool {
 	return true
 }
 func TestFJBasic(t *testing.T) {
-	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33, "x"]}`
-	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f")
+	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33e2, "x", true, false, null], "g": false}`
+	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f", "g")
 
 	f := newJSONFlattener()
 	list, err := f.Flatten([]byte(j), allYes)
@@ -26,8 +26,8 @@ func TestFJBasic(t *testing.T) {
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
-	wantedPaths := []string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f"}
-	wantedVals := []string{"1", "\"two\"", "true", "null", "2", "3.02e-5", "33", "\"x\""}
+	wantedPaths := []string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f", "f", "f", "f", "g"}
+	wantedVals := []string{"1", "\"two\"", "true", "null", "2", "3.02e-5", "33e2", "\"x\"", "true", "false", "null", "false"}
 	if len(list) != len(wantedVals) {
 		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
 	}
@@ -43,8 +43,8 @@ func TestFJBasic(t *testing.T) {
 	justAF := fakeMatcher("a", "f")
 	f = newJSONFlattener()
 	list, _ = f.Flatten([]byte(j), justAF)
-	wantedPaths = []string{"a", "f", "f"}
-	wantedVals = []string{"1", "33", "\"x\""}
+	wantedPaths = []string{"a", "f", "f", "f", "f", "f"}
+	wantedVals = []string{"1", "33e2", "\"x\"", "true", "false", "null"}
 	for i, field := range list {
 		if !bequal([]byte(wantedPaths[i]), field.Path) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
@@ -138,6 +138,74 @@ func testTrackerSelection(fj Flattener, tracker NameTracker, label string, filen
 		}
 		if wantedVals[i] != string(field.Val) {
 			t.Errorf("pos %d wanted Val %s got %s", i, wantedVals[i], field.Val)
+		}
+	}
+}
+
+func TestErrorCases(t *testing.T) {
+	tracker := fakeMatcher("a", "b", "c", "d", "e", "f")
+	fj := newJSONFlattener().(*flattenJSON)
+
+	e := ` { "a" : [1]}`
+	fields, err := fj.Flatten([]byte(e), tracker)
+	if err != nil {
+		t.Error("reset test: " + err.Error())
+	}
+	if len(fields) != 1 {
+		t.Error("")
+	}
+	fj.reset()
+	if fj.eventIndex != 0 || len(fj.fields) != 0 || fj.skipping != 0 || len(fj.arrayTrail) != 0 {
+		t.Error("reset didn't work")
+	}
+	badUtf := "a" + string([]byte{0, 1, 2}) + "z"
+	shouldFails := []string{
+		`{"a`,
+		`{"a"` + badUtf + `": 3}`,
+		`{"a": "a\zb"}`,
+		`{"a\zb": 2}`,
+		`{"a": 23z}`,
+		"",
+		`"xx"`,
+		`{"a": xx}`,
+		`{"a": 1} x`,
+		`{`,
+		`{ "a` + string([]byte{0, 1, 2}) + `": 1}`,
+		`{ r "a": 1}`,
+		`{ "a" r: 1}`,
+		`{ "a" :`,
+		`{ "a" : `,
+		`{"a" : [ foo ]}`,
+		`{"a": { x }}`,
+		`{"a": 2`,
+		`{"a": 4 4}"`,
+		`{"a": [`,
+		`{"a": [  `,
+		`{"a" : [ {"a": xx ]}`,
+		`{"a" : [ z ]}`,
+		`{"a" : [ 34r ]}`,
+		`{"a" : [ 34 r ]}`,
+		`{"a" : 3.3z}`,
+		`{"a" : 3.3e3z}`,
+		`{"a" : tru}`,
+		`{"a" : tru`,
+		`{"a" : truse}`,
+		`{"a" : "`,
+		`{"a" : "` + badUtf + `"}"`,
+		`{"a" : "t`,
+		`{"a": "\n` + badUtf + `"}"`,
+		`{"a": "\nab`,
+		`{"`,
+		`{"a`,
+		`{"` + badUtf + `": 1}`,
+		`{"a": "\`,
+		`{"a": -z}`,
+		`{"a": 23ez}`,
+	}
+	for i, shouldFail := range shouldFails {
+		_, err := fj.Flatten([]byte(shouldFail), tracker)
+		if err == nil {
+			t.Errorf("Accepted bad JSON at %d: %s", i, shouldFail)
 		}
 	}
 }
