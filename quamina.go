@@ -74,6 +74,9 @@ func (q *Quamina) Copy() *Quamina {
 func (q *Quamina) AddPattern(x X, patternJSON string) error {
 	return q.matcher.addPattern(x, patternJSON)
 }
+func (q *Quamina) DeletePatterns(x X) error {
+	return q.matcher.deletePatterns(x)
+}
 func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	fields, err := q.flattener.Flatten(event, q.matcher)
 	if err != nil {

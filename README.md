@@ -212,15 +212,23 @@ structure, which could be bad UTF-8 or malformed JSON
 or leaf values which are not provided as arrays.
 
 As many Patterns as desired can be added to a Quamina
-instance. 
+instance. More than one pattern can be added with the
+same `X` identifier.
 
 The `AddPattern` call is single-threaded; if multiple
 threads call it, they will block and execute sequentially.
+```go
+func (q *Quamina) DeletePatterns(x X) error 
+```
+After calling this API, no list of matches from
+`AddPattern` will include the `X` value specified
+in the argument.
 
+The `error` return value is nil unless there was an
+internal failure of Quamina’s storage system.
 ```go
 func (q *Quamina) MatchesForEvent(event []byte) ([]X, error)
 ```
-
 The `error` return value is nil unless there was an
 error in the encoding of the Event.
 
@@ -231,9 +239,10 @@ A single Quamina instance is not thread-safe. But
 instances can share the underlying data structures
 in a safe way.
 
-```json
+```go
 func (q *Quamina) Copy() *Quamina
 ```
+
 This generates a copy of of the target instance 
 which may be used in parallel on another thread, 
 while sharing the underlying data structure. Many

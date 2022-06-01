@@ -12,12 +12,13 @@ func TestMatcherInterface(t *testing.T) {
 	if err != nil {
 		t.Error("addPattern? " + err.Error())
 	}
-	err = m.deletePattern("x")
+	err = m.deletePatterns("x")
 	if err == nil {
 		t.Error("coreMatcher allowed Delete!?")
 	}
 	event := `{"x": [3, 1]}`
-	matches, _ := m.MatchesForJSONEvent([]byte(event))
+	fields, _ := newJSONFlattener().Flatten([]byte(event), m)
+	matches, _ := m.matchesForFields(fields)
 	if len(matches) != 1 || matches[0] != x {
 		t.Error("missed match")
 	}

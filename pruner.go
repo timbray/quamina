@@ -152,14 +152,14 @@ func (m *prunerMatcher) disableRebuild() {
 // rebuildTrigger provides a way to control when rebuilds are
 // automatically triggered during standard operations.
 //
-// Currently an addPattern, deletePattern, or matchesForFields can
+// Currently an addPattern, deletePatterns, or matchesForFields can
 // trigger a rebuild.  When a rebuild is triggered, it's executed
 // synchronously: the the Add/Delete/Match method doesn't return until
 // the rebuild is complete.
 type rebuildTrigger interface {
 	// rebuild should return true to trigger a rebuild.
 	//
-	// This method is called by AddPatter,deletePattern, and
+	// This method is called by AddPatter,deletePatterns, and
 	// matchesForFields.  added is true when called by addPattern;
 	// false otherwise. These methods currently do not return
 	// until the rebuild is complete, so beware.
@@ -267,7 +267,7 @@ func (m *prunerMatcher) matchesForFields(fields []Field) ([]X, error) {
 
 // DeletePattern removes the pattern from the index and maybe rebuilds
 // the index.
-func (m *prunerMatcher) deletePattern(x X) error {
+func (m *prunerMatcher) deletePatterns(x X) error {
 	n, err := m.live.Delete(x)
 	if err == nil {
 		if 0 < n {

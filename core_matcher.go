@@ -115,7 +115,7 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 }
 
 // DeletePattern not implemented by coreMatcher
-func (m *coreMatcher) deletePattern(_ X) error {
+func (m *coreMatcher) deletePatterns(_ X) error {
 	return errors.New("operation not supported")
 }
 
