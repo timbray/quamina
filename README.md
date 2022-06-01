@@ -13,8 +13,8 @@
 **Quamina** implements a data type that has APIs to 
 create an instance and add multiple **Patterns** to it, 
 and then query data objects called **Events** to
-discover  which of the patterns match 
-the fields in the event.
+discover which of the Patterns match 
+the fields in the Event.
 
 Quamina [welcomes contributions](CONTRIBUTING.md).
 
@@ -127,7 +127,7 @@ support for a larger subset of regular expressions,
 eventually.
 
 Number matching is weak - the number has to appear 
-exactly the same in the pattern and the event. I.e.,
+exactly the same in the Pattern and the Event. I.e.,
 Quamina doesn't know that 35, 35.000, and 3.5e1 are the
 same number. There's a fix for this in the code which 
 is not yet activated because it causes a 
@@ -142,10 +142,7 @@ into a list of pathname/value pairs called Fields. Quamina
 defines a `Flattener` interface type and has a built-in
 `Flattener` for JSON.
 
-`Flattener` implementations in general will have
-internal state and thus not be thread-safe.
-
-Note that should you wish to process events 
+Note that should you wish to process Events 
 in a format other than JSON, you can implement 
 the `Flattener` interface yourself.
 
@@ -157,7 +154,7 @@ greater than 0XF4 (can't occur in correctly composed UTF-8)
 are rejected by the APIs.
 ### Control APIs
 ```go
-func New(...Option) (*Quamina, error)
+func New(opts ...Option) (*Quamina, error)
 
 func WithMediaType(mediaType string) Option
 func WithFlattener(f Flattener) Option
@@ -177,7 +174,7 @@ Avro, Protobufs, and so on. This option will make sure
 to invoke the correct Flattener. At the moment, the only
 supported value is `application/json`, the default.
 
-`WithFlattener`: Requests that Quamina flatten events with
+`WithFlattener`: Requests that Quamina flatten Events with
 the provided (presumably user-written) Flattener.
 
 `WithPatternDeletion`: If true, arranges that Quamina
@@ -189,7 +186,7 @@ to improve this.)
 `WithPatternStorage`: If you provide an argument that
 supports the `LivePatternStorage` API, Quamina will
 use it to 
-maintain a list of which patterns have currently been
+maintain a list of which Patterns have currently been
 added but not deleted.  This could be useful if you
 wanted to rebuild Quamina instances for sharded 
 processing or after a system failure. ***Note: Not
@@ -202,17 +199,17 @@ func (q *Quamina) AddPattern(x X, patternJSON string) error
 ```
 The first argument identifies the Pattern and will be
 returned by Quamina when asked to match against Events.
-X is defined as `any`.
+X is defined as `any`. 
 
-The Pattern must be provided as a string which is a 
-JSON object as exemplified above in this document.
+The Pattern is provided in the second argument string which 
+must be a JSON object as exemplified above in this document.
 
 The `error` return is used to signal invalid Pattern
 structure, which could be bad UTF-8 or malformed JSON 
 or leaf values which are not provided as arrays.
 
 As many Patterns as desired can be added to a Quamina
-instance. More than one pattern can be added with the
+instance. More than one Pattern can be added with the
 same `X` identifier.
 
 The `AddPattern` call is single-threaded; if multiple
@@ -251,9 +248,8 @@ copies may safely run in parallel in different
 goroutines executing any combination of
 `MatchesForEvent()`, `AddPattern()`, and
 `DeletePattern()` calls.  There is a significant
-performance penalty if there is a high rate of
-`AddPattern()` invocations in parallel with
-`MatchesForEvent()`.
+performance penalty if a high proportion of these
+calls are `AddPattern()`.
 
 Note that the `Copy()` API is somewhat expensive, and
 that a Quamina instance exhibits “warm-up” behavior,
@@ -262,7 +258,7 @@ slightly upon repeated calls, especially over the
 first few calls.  The conclusion is that, for maximum efficiency, once
 you’ve created a Quamina instance, whether through
 `New()` or `Copy()`, keep it around and run as many
-events through it as is practical.
+Events through it as is practical.
 
 
 ### Performance
@@ -272,23 +268,23 @@ I used to say that the performance of
 Patterns. While that’s probably the right way to think
 about it, it’s not *quite* true,
 as it varies somewhat as a function of the number of
-unique fields that appear in all the patterns that have
+unique fields that appear in all the Patterns that have
 been added to Quamina, but still remains sublinear
 in that number.
 
 A word of explanation: Quamina compiles the
-patterns into a somewhat-decorated automaton and uses
-that to find matches in events; the matching process is
-O(1) in the number of patterns.
+Patterns into a somewhat-decorated automaton and uses
+that to find matches in Events; the matching process is
+`O(1)` in the number of Patterns.
 
-However, for this to work, the incoming event must be
+However, for this to work, the incoming Event must be
 flattened into a list of pathname/value pairs and
 sorted.  This process exceeds 50% of execution time,
 and is optimized by discarding any fields that
-do not appear in one or more of the patterns added
-to Quamina. Thus, adding a new pattern that only
-mentions fields mentioned in previous patterns is
-effectively free i.e. `O(1)` in terms of run-time
+do not appear in one or more of the Patterns added
+to Quamina. Thus, adding a new Pattern that only
+mentions fields which are already mentioned in previous 
+Patterns is effectively free i.e. `O(1)` in terms of run-time
 performance.
 
 ### Name

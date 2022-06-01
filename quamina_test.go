@@ -65,18 +65,34 @@ func TestNewQOptions(t *testing.T) {
 	if !ok {
 		t.Error("should be core")
 	}
-	q, err = New(WithPatternDeletion(true), WithPatternDeletion(false), WithFlattener(newJSONFlattener()),
-		WithMediaType("application/json"), WithPatternDeletion(true))
+
+	_, err = New(WithPatternDeletion(true), WithPatternDeletion(true))
+	if err == nil {
+		t.Error("allowed 2 patternDel" + err.Error())
+	}
+	_, err = New(WithFlattener(newJSONFlattener()), WithFlattener(newJSONFlattener()))
+	if err == nil {
+		t.Error("allowed 2 flatteners" + err.Error())
+	}
+	_, err = New(WithMediaType("application/json"), WithMediaType("application/json"))
+	if err == nil {
+		t.Error("allowed 2 mediatypes" + err.Error())
+	}
+	_, err = New(WithMediaType("application/json"), WithFlattener(newJSONFlattener()))
+	if err == nil {
+		t.Error("allowed flattener and media type" + err.Error())
+	}
+	q, err = New(WithPatternDeletion(true))
 	if err != nil {
-		t.Error("bad multi: " + err.Error())
+		t.Error("WithPatternDeletion failed: " + err.Error())
 	}
 	_, ok = q.matcher.(*prunerMatcher)
 	if !ok {
-		t.Error("multi should be pruner")
+		t.Error("not a pruner matcher")
 	}
 	_, ok = q.flattener.(*flattenJSON)
 	if !ok {
-		t.Error("multi should be flattenJSON")
+		t.Error("flattener not for JSON")
 	}
 }
 

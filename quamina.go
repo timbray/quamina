@@ -11,42 +11,77 @@ import (
 // matcher is the root of the two-level automaton structure containing fieldMatcher and valueMatcher nodes.  Multiple
 //  Quamina instances may have the same matcher value, since it is designed for concurrent operation.
 type Quamina struct {
-	flattener Flattener
-	matcher   matcher
+	flattener          Flattener
+	matcher            matcher
+	flattenerSpecified bool
+	mediaTypeSpecified bool
+	deletionSpecified  bool
 }
 
 type Option func(q *Quamina) error
 
+// WithMediaType provides a media-type to support the selection of an appropriate Flattener.
+//  This option call may not be provided more than once, nor can it be combined on the same
+//  invocation of quamina.New() with the WithFlattener() option.
 func WithMediaType(mediaType string) Option {
 	return func(q *Quamina) error {
+		if q.flattenerSpecified {
+			return errors.New("flattener already specified")
+		}
+		if q.mediaTypeSpecified {
+			return errors.New("media-type specified more than once")
+		}
 		switch mediaType {
 		case "application/json":
 			q.flattener = newJSONFlattener()
 		default:
 			return fmt.Errorf(`media type "%s" is not supported by Quamina`, mediaType)
 		}
+		q.mediaTypeSpecified = true
 		return nil
 	}
 }
+
+// WithFlattener allows the specification of a caller-provided Flattener instance to use on incoming Events.
+//  This option call may not be provided more than once, nor can it be combined on the same
+//  invocation of quamina.New() with the WithMediaType() option.
 func WithFlattener(f Flattener) Option {
 	return func(q *Quamina) error {
+		if q.mediaTypeSpecified {
+			return errors.New("media-type already specified")
+		}
+		if q.flattenerSpecified {
+			return errors.New("flattener specified more than once")
+		}
 		if f == nil {
 			return errors.New("nil Flattener")
 		}
 		q.flattener = f
+		q.flattenerSpecified = true
 		return nil
 	}
 }
+
+// WithPatternDeletion arranges, if the argument is true, that this Quamina instance will support
+//  the DeletePatterns() method. This option call may not be provided more than once.
 func WithPatternDeletion(b bool) Option {
 	return func(q *Quamina) error {
+		if q.deletionSpecified {
+			return errors.New("pattern deletion already specified")
+		}
 		if b {
 			q.matcher = newPrunerMatcher(nil)
 		} else {
 			q.matcher = newCoreMatcher()
 		}
+		q.deletionSpecified = true
 		return nil
 	}
 }
+
+// WithPatternDeletion supplies the Quamina instance with a LivePatternState instance to be used to store
+//  the active patterns, i.e. those that have been added with AddPattern but not deleted with
+//  DeletePattern. This option call may not be provided more than once.
 func WithPatternStorage(ps LivePatternsState) Option {
 	return func(q *Quamina) error {
 		if ps == nil {
@@ -58,16 +93,16 @@ func WithPatternStorage(ps LivePatternsState) Option {
 
 func New(opts ...Option) (*Quamina, error) {
 	var q Quamina
-	defaultOps := []Option{WithPatternDeletion(false), WithFlattener(newJSONFlattener())}
-	for _, option := range defaultOps {
-		if err := option(&q); err != nil {
-			return nil, err
-		}
-	}
 	for _, option := range opts {
 		if err := option(&q); err != nil {
 			return nil, err
 		}
+	}
+	if !(q.mediaTypeSpecified || q.flattenerSpecified) {
+		q.flattener = newJSONFlattener()
+	}
+	if !q.deletionSpecified {
+		q.matcher = newCoreMatcher()
 	}
 	return &q, nil
 }
