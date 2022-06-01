@@ -16,9 +16,9 @@ func (f *fakeFlattener) Copy() quamina.Flattener {
 	return &fakeFlattener{r: f.r}
 }
 
-// TestNew provies we can actually call New() using With options
+// TestNew proves we can actually call New() using With options
 func TestNew(t *testing.T) {
-	_, err := quamina.New(quamina.WithFlattener(&fakeFlattener{}), quamina.WithMediaType("application/json"))
+	_, err := quamina.New(quamina.WithFlattener(&fakeFlattener{}))
 	if err != nil {
 		t.Error("qNew: " + err.Error())
 	}
