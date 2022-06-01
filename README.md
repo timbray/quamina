@@ -167,7 +167,7 @@ func WithPatternStorage(ps LivePatternsState) Option
 For example:
 
 ```go
-q, err := quamina.New(quamina.New(quamina.WithMediaType("application/json")))
+q, err := quamina.New(quamina.WithMediaType("application/json"))
 ```
 The meanings of the `Option` functions are:
 
