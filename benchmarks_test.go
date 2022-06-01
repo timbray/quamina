@@ -62,6 +62,8 @@ func TestCRANLEIGH(t *testing.T) {
 	if err != nil {
 		t.Error("!? " + err.Error())
 	}
+	fmt.Println(matcherStats(m))
+
 	var matches []X
 	lines := [][]byte{[]byte(jCranleigh), []byte(j108492)}
 

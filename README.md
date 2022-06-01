@@ -233,58 +233,71 @@ The `error` return value is nil unless there was an
 error in the encoding of the Event.
 
 The `[]X` return slice may be empty if none of the Patterns
-match the provided Event. 
+match the provided Event.
 
-A single Quamina instance is not thread-safe. But 
-instances can share the underlying data structures
-in a safe way.
+### Concurrency
+
+A single Quamina instance can not safely be used by
+multiple goroutines at the same time.  However, the
+underlying data structure is designed for concurrent
+access and the `Copy` API is provided to support this.
 
 ```go
 func (q *Quamina) Copy() *Quamina
 ```
 
-This generates a copy of of the target instance 
-which may be used in parallel on another thread, 
-while sharing the underlying data structure. Many
-instances can execute `MatchesForEvent()` calls 
-concurrently, even while one or more of them are 
-also executing `AddPattern()`.  There is a 
-significant performance penalty if there is a high 
-rate of `AddPattern` in parallel with matching.
+This generates a copy of the target instance. Such
+copies may safely run in parallel in different
+goroutines executing any combination of
+`MatchesForEvent()`, `AddPattern()`, and
+`DeletePattern()` calls.  There is a significant
+performance penalty if there is a high rate of
+`AddPattern()` invocations in parallel with
+`MatchesForEvent()`.
+
+Note that the `Copy()` API is somewhat expensive, and
+that a Quamina instance exhibits “warm-up” behavior,
+i.e. the performance of `MatchesForEvent()` improves
+slightly upon repeated calls, especially over the
+first few calls.  The conclusion is that, for maximum efficiency, once
+you’ve created a Quamina instance, whether through
+`New()` or `Copy()`, keep it around and run as many
+events through it as is practical.
+
 
 ### Performance
 
-I used to say that the performance of 
-`MatchesForEvent` was `O(1)` in the number of 
+I used to say that the performance of
+`MatchesForEvent` was `O(1)` in the number of
 Patterns. While that’s probably the right way to think
 about it, it’s not *quite* true,
-as it varies somewhat as a function of the number of 
-unique fields that appear in all the patterns that have 
-been added to Quamina, but still remains sublinear 
-in that number. 
+as it varies somewhat as a function of the number of
+unique fields that appear in all the patterns that have
+been added to Quamina, but still remains sublinear
+in that number.
 
 A word of explanation: Quamina compiles the
-patterns into a somewhat-decorated automaton and uses 
-that to find matches in events; the matching process is 
+patterns into a somewhat-decorated automaton and uses
+that to find matches in events; the matching process is
 O(1) in the number of patterns.
 
 However, for this to work, the incoming event must be
-flattened into a list of pathname/value pairs and 
-sorted.  This process exceeds 50% of execution time, 
+flattened into a list of pathname/value pairs and
+sorted.  This process exceeds 50% of execution time,
 and is optimized by discarding any fields that
 do not appear in one or more of the patterns added
 to Quamina. Thus, adding a new pattern that only
 mentions fields mentioned in previous patterns is
-effectively free i.e. `O(1)` in terms of run-time 
+effectively free i.e. `O(1)` in terms of run-time
 performance.
 
 ### Name
 
-From Wikipedia: Quamina Gladstone (1778 – 16 September 
-1823), most often referred to simply as Quamina, was a 
-Guyanese slave from Africa and father of Jack Gladstone. 
-He and his son were involved in the Demerara rebellion 
-of 1823, one of the largest slave revolts in the British 
+From Wikipedia: Quamina Gladstone (1778 – 16 September
+1823), most often referred to simply as Quamina, was a
+Guyanese slave from Africa and father of Jack Gladstone.
+He and his son were involved in the Demerara rebellion
+of 1823, one of the largest slave revolts in the British
 colonies before slavery was abolished.
 
 ### Credits
