@@ -206,7 +206,7 @@ func TestTriggerRebuild(t *testing.T) {
 		}
 		// printState = func() {
 		// 	logf("state:")
-		// 	for id, p := range m.live.(*MemState).m {
+		// 	for id, p := range m.live.(*memState).m {
 		// 		logf("  %v -> %s", id, p)
 		// 	}
 		// }

@@ -7,9 +7,10 @@ import (
 
 // Quamina instances provide the public APIs of this pattern-matching library.
 // flattener is responsible for turning the bytes of incoming events into a list of name/value pairs. Each
-//  Quamina instance has its own flattener, because flatteners are stateful and not designed for concurrent use.
+// Quamina instance has its own flattener, because flatteners are stateful and not designed for concurrent use.
 // matcher is the root of the two-level automaton structure containing fieldMatcher and valueMatcher nodes.  Multiple
-//  Quamina instances may have the same matcher value, since it is designed for concurrent operation.
+// Quamina instances may have the same matcher value, since it is designed for concurrent operation.
+// TODO: Investigate whether making Quamina a generic type would be beneficial.
 type Quamina struct {
 	flattener          Flattener
 	matcher            matcher
