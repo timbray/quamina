@@ -8,6 +8,21 @@ import (
 	"testing"
 )
 
+func TestBadNumbers(t *testing.T) {
+	var err error
+	_, err = canonicalize([]byte("9999999999999999999"))
+	if err == nil {
+		t.Error("took 20 9's")
+	}
+	_, err = canonicalize([]byte("2z3z"))
+	if err == nil {
+		t.Error("took 2z3z")
+	}
+	_, err = canonicalize([]byte("9000000000000"))
+	if err == nil {
+		t.Error("took huge number")
+	}
+}
 func TestVariants(t *testing.T) {
 	f := []string{
 		"350",

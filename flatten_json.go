@@ -54,6 +54,7 @@ const (
 	numberStartState
 	numberIntegralPartState
 	numberFracState
+	numberAfterEState
 	numberExpState
 	trailerState
 	startEscapeState
@@ -116,11 +117,7 @@ func (fj *flattenJSON) Flatten(event []byte, tracker NameTracker) ([]Field, erro
 		// optimization to avoid calling step() and expensively construct an error object at the end of each event
 		fj.eventIndex++
 		if fj.eventIndex == len(fj.event) {
-			if state == trailerState {
-				return fj.fields, nil
-			} else {
-				return nil, fj.error("not a JSON object")
-			}
+			return fj.fields, nil
 		}
 	}
 }
@@ -147,6 +144,7 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 	// memberName contains the field-name we're processing
 	var memberName []byte
 	var memberIsUsed bool
+	isLeaf := false
 	for {
 		ch := fj.ch()
 		switch state {
@@ -188,14 +186,19 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 			switch ch {
 			case '"':
 				val, err = fj.readStringValue()
+				isLeaf = true
 			case 't':
 				val, err = fj.readLiteral(trueBytes)
+				isLeaf = true
 			case 'f':
 				val, err = fj.readLiteral(falseBytes)
+				isLeaf = true
 			case 'n':
 				val, err = fj.readLiteral(nullBytes)
+				isLeaf = true
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				val, alt, err = fj.readNumber()
+				isLeaf = true
 			case '[':
 				if !fj.tracker.IsNameUsed(memberName) {
 					fj.skipping++
@@ -229,11 +232,12 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c after field name", ch))
 			}
-			// val is set if we processed a leaf value
-			if val != nil {
+			if isLeaf {
 				if err != nil {
 					return err
 				}
+			}
+			if val != nil {
 				if memberIsUsed {
 					fj.storeObjectMemberField(pathForChild(pathName, memberName), arrayTrail, val)
 				}
@@ -275,6 +279,7 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 	}
 
 	state := inArrayState
+	isLeaf := false
 	for {
 		ch := fj.ch()
 		var val []byte // resets on each loop
@@ -292,14 +297,19 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 			switch ch {
 			case '"':
 				val, err = fj.readStringValue()
+				isLeaf = true
 			case 't':
 				val, err = fj.readLiteral(trueBytes)
+				isLeaf = true
 			case 'f':
 				val, err = fj.readLiteral(falseBytes)
+				isLeaf = true
 			case 'n':
 				val, err = fj.readLiteral(nullBytes)
+				isLeaf = true
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				val, alt, err = fj.readNumber()
+				isLeaf = true
 			case '{':
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
@@ -319,11 +329,12 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in array", ch))
 			}
-			// val is set if we processed a leaf element
-			if val != nil {
+			if isLeaf {
 				if err != nil {
 					return err
 				}
+			}
+			if val != nil {
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
 					fj.storeArrayElementField(pathName, val)
@@ -359,6 +370,7 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
  */
 
 func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
+	// points at the first character in the number
 	numStart := fj.eventIndex
 	state := numberStartState
 	for {
@@ -370,8 +382,6 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				state = numberIntegralPartState
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				state = numberIntegralPartState
-			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case numberIntegralPartState:
 			switch ch {
@@ -379,8 +389,8 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				// no-op
 			case '.':
 				state = numberFracState
-			case 'e':
-				state = numberExpState
+			case 'e', 'E':
+				state = numberAfterEState
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
 				// TODO: Too expensive; make it possible for people to ask for this
@@ -408,11 +418,20 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				//	alt = []byte(c)
 				//}
 				return bytes, alt, nil
-			case 'e':
-				state = numberExpState
+			case 'e', 'E':
+				state = numberAfterEState
 			default:
 				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
+		case numberAfterEState:
+			switch ch {
+			case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				// no-op
+			default:
+				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
+			}
+			state = numberExpState
+
 		case numberExpState:
 			switch ch {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
@@ -427,9 +446,9 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				//	alt = []byte(c)
 				// }
 				return fj.event[numStart : fj.eventIndex+1], alt, nil
+			default:
+				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in exponent", ch))
 			}
-		default:
-			return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 		}
 		if fj.step() != nil {
 			return nil, nil, fj.error("event truncated in number")
@@ -481,9 +500,6 @@ func (fj *flattenJSON) readStringValWithEscapes(nameStart int) ([]byte, error) {
 	val := []byte{'"'}
 	var err error
 	from := nameStart + 1
-	if from == len(fj.event) {
-		return nil, fj.error("event truncated in mid-string")
-	}
 	for {
 		ch := fj.event[from]
 		if ch == '"' {
