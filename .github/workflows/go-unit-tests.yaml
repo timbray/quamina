@@ -25,8 +25,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
-        with:
-          lfs: true
 
       - name: Set up Go ${{ matrix.go-version }}
         uses: actions/setup-go@b22fbbc2921299758641fab08929b4ac52b32923
@@ -40,14 +38,10 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-            .git/lfs
 
           key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum', 'testdata/**') }}
           restore-keys: |
             ${{ runner.os }}-go-${{ matrix.go-version }}-
-
-      - name: Checkout LFS objects
-        run: git lfs checkout
 
       - name: Install tparse
         run: go install github.com/mfridman/tparse@latest
@@ -82,8 +76,6 @@ jobs:
       steps:
         - name: Checkout repository
           uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
-          with:
-            lfs: true
 
         - name: Set up Go ${{ matrix.go-version }}
           uses: actions/setup-go@b22fbbc2921299758641fab08929b4ac52b32923
@@ -97,14 +89,10 @@ jobs:
             path: |
               ~/.cache/go-build
               ~/go/pkg/mod
-              .git/lfs
 
             key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum', 'testdata/**') }}
             restore-keys: |
               ${{ runner.os }}-go-${{ matrix.go-version }}-
-
-        - name: Checkout LFS objects
-          run: git lfs checkout
 
         - name: Install tparse
           run: go install github.com/mfridman/tparse@latest

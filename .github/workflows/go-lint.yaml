@@ -35,7 +35,6 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-          .git/lfs
         key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum', 'testdata/**') }}
         restore-keys: |
           ${{ runner.os }}-go-${{ matrix.go-version }}-
