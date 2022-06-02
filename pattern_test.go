@@ -60,27 +60,35 @@ func TestPatternFromJSON(t *testing.T) {
 		}},
 	}
 	w4 := []*patternField{
-		{path: "x", vals: []typedVal{
-			{vType: existsTrueType, val: ""},
+		{
+			path: "x", vals: []typedVal{
+				{vType: existsTrueType, val: ""},
+			},
 		},
-		}}
+	}
 	w5 := []*patternField{
-		{path: "x\ny", vals: []typedVal{
-			{vType: existsFalseType, val: ""},
+		{
+			path: "x\ny", vals: []typedVal{
+				{vType: existsFalseType, val: ""},
+			},
 		},
-		}}
+	}
 	w6 := []*patternField{
-		{path: "abc", vals: []typedVal{
-			{vType: stringType, val: "3"},
-			{vType: shellStyleType, val: `"a*b"`},
+		{
+			path: "abc", vals: []typedVal{
+				{vType: stringType, val: "3"},
+				{vType: shellStyleType, val: `"a*b"`},
+			},
 		},
-		}}
+	}
 	w7 := []*patternField{
-		{path: "abc", vals: []typedVal{
-			{vType: shellStyleType, val: `"a*b"`},
-			{vType: stringType, val: `"foo"`},
+		{
+			path: "abc", vals: []typedVal{
+				{vType: shellStyleType, val: `"a*b"`},
+				{vType: stringType, val: `"foo"`},
+			},
 		},
-		}}
+	}
 	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7}
 
 	for i, good := range goods {

@@ -5,15 +5,17 @@ import (
 	"sync/atomic"
 )
 
-// valueMatcher represents a byte-driven automaton.  The table needs to be the equivalent of
-//  a map[byte]nextState and is represented by smallTable. Some patterns can be represented by a deterministic
-//  finite automaton (DFA) but others, particularly with a regex failure, need to be represented by a
-//  nondeterministic finite automaton (NFA). NFAs trump DFAs so if a valueMatcher has one, it must be
-//  used in preference to other alternatives.
-// In some cases there is only one byte sequence forward from a state, i.e. a string-valued field with
-//  only one string match. In this case, the DFA and NFA will b null and the value being matched has
-//  to exactly equal the singletonMatch field; if so, the singletonTransition is the return value. This is
-//  to avoid having a long chain of smallTables each with only one entry.
+// valueMatcher represents a byte-driven automaton.  The table needs to be the
+// equivalent of a map[byte]nextState and is represented by smallTable. Some
+// patterns can be represented by a deterministic finite automaton (DFA) but
+// others, particularly with a regex failure, need to be represented by a
+// nondeterministic finite automaton (NFA). NFAs trump DFAs so if a valueMatcher
+// has one, it must be used in preference to other alternatives. In some cases
+// there is only one byte sequence forward from a state, i.e. a string-valued
+// field with only one string match. In this case, the DFA and NFA will b null
+// and the value being matched has to exactly equal the singletonMatch field; if
+// so, the singletonTransition is the return value. This is to avoid having a
+// long chain of smallTables each with only one entry.
 type valueMatcher struct {
 	updateable atomic.Value
 }
@@ -28,11 +30,13 @@ type vmFields struct {
 func (m *valueMatcher) getFields() *vmFields {
 	return m.updateable.Load().(*vmFields)
 }
+
 func (m *valueMatcher) getFieldsForUpdate() *vmFields {
 	current := m.updateable.Load().(*vmFields)
 	freshState := *current
 	return &freshState
 }
+
 func (m *valueMatcher) update(state *vmFields) {
 	m.updateable.Store(state)
 }
@@ -46,7 +50,8 @@ func newValueMatcher() *valueMatcher {
 func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	var transitions []*fieldMatcher
 
-	// exists transitions are basically a * on the value, so if we got the matcher, add 'em to the output
+	// exists transitions are basically a * on the value, so if we got the
+	// matcher, add 'em to the output
 	fields := m.getFields()
 	transitions = append(transitions, fields.existsTransitions...)
 
@@ -56,10 +61,10 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		return m.transitionNfa(val, transitions)
 
 	case fields.singletonMatch != nil:
-		// if there's a singleton entry here, we either match the val or we're done
-		// Note: We have to check this first because addTransition might be busy
-		//  constructing an automaton, but it's not ready for use yet.  When it's done
-		//  it'll zero out the singletonMatch
+		// if there's a singleton entry here, we either match the val or we're
+		// done Note: We have to check this first because addTransition might be
+		// busy constructing an automaton, but it's not ready for use yet.  When
+		// it's done it'll zero out the singletonMatch
 		if bytes.Equal(fields.singletonMatch, val) {
 			transitions = append(transitions, fields.singletonTransition)
 		}
@@ -73,13 +78,15 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	}
 }
 
-// transitionNfa traverses a nondeterministic automaton - unlike a dfa, an input byte can transition
-//  to multiple other nfa steps.  We could do like the top-level fieldMatcher does and add the
-//  candidate next steps to a list, and then keep operating as long as there's something on the list,
-//  but this is way deep into the lowest level and we'd like to avoid doing a lot of appending and
-//  chopping on a slice, profiler says we're already spending almost all our time in GC and malloc.
-//  So instead, we'll recurse like hell and and just follow all the links in order as we come to them,
-//  on the theory that stack hammering is cheaper than slice bashing.
+// transitionNfa traverses a nondeterministic automaton - unlike a dfa, an input
+// byte can transition to multiple other nfa steps.  We could do like the
+// top-level fieldMatcher does and add the candidate next steps to a list, and
+// then keep operating as long as there's something on the list, but this is way
+// deep into the lowest level and we'd like to avoid doing a lot of appending
+// and chopping on a slice, profiler says we're already spending almost all our
+// time in GC and malloc. So instead, we'll recurse like hell and and just
+// follow all the links in order as we come to them, on the theory that stack
+// hammering is cheaper than slice bashing.
 func (m *valueMatcher) transitionNfa(val []byte, transitions []*fieldMatcher) []*fieldMatcher {
 	return oneNfaStep(m.getFields().startNfa, 0, val, transitions)
 }
@@ -109,7 +116,6 @@ func oneNfaStep(table *smallTable[*nfaStepList], index int, val []byte, transiti
 }
 
 func (m *valueMatcher) transitionDfa(val []byte, transitions []*fieldMatcher) []*fieldMatcher {
-
 	// step through the smallTables, byte by byte
 	table := m.getFields().startDfa
 	for _, utf8Byte := range val {
@@ -126,7 +132,8 @@ func (m *valueMatcher) transitionDfa(val []byte, transitions []*fieldMatcher) []
 	// look for terminator after exhausting bytes of val
 	lastStep := table.step(valueTerminator)
 
-	// we only do a field-level transition if there's one in the table that the last character in val arrives at
+	// we only do a field-level transition if there's one in the table that the
+	// last character in val arrives at
 	if lastStep != nil {
 		transitions = append(transitions, lastStep.fieldTransitions...)
 	}
@@ -148,7 +155,6 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 
 	// there's already a table, thus an out-degree > 1
 	if fields.startDfa != nil || fields.startNfa != nil {
-
 		if val.vType == shellStyleType {
 			newNfa, nextField := makeShellStyleAutomaton(valBytes, nil)
 			if fields.startNfa != nil {
@@ -173,7 +179,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 
 	// no start table, we have to work with singletons …
 
-	// … unless this is completely virgin, in which case put in the singleton, assuming it's just a string match
+	// … unless this is completely virgin, in which case put in the singleton,
+	// assuming it's just a string match
 	if fields.singletonMatch == nil {
 		if val.vType == shellStyleType {
 			newAutomaton, nextField := makeShellStyleAutomaton(valBytes, nil)
@@ -181,7 +188,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			m.update(fields)
 			return nextField
 		} else {
-			// at the moment this works for everything that's not a shellStyle, but this may not always be true in future
+			// at the moment this works for everything that's not a shellStyle,
+			// but this may not always be true in future
 			fields.singletonMatch = valBytes
 			fields.singletonTransition = newFieldMatcher()
 			m.update(fields)
@@ -194,8 +202,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 		return fields.singletonTransition
 	}
 
-	// singleton is here, we don't match, so our outdegree becomes 2, so we have to build an automaton with
-	//  two values in it
+	// singleton is here, we don't match, so our outdegree becomes 2, so we have
+	// to build an automaton with two values in it
 	singletonAutomaton, _ := makeStringAutomaton(fields.singletonMatch, fields.singletonTransition)
 	var nextField *fieldMatcher
 	if val.vType == shellStyleType {
@@ -215,10 +223,11 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	return nextField
 }
 
-// makeStringAutomaton creates a utf8-based automaton from a literal string using smallTables. Note
-//  the addition of a valueTerminator. The implementation is recursive because this allows the use of the
-//  makeSmallDfaTable call, which reduces memory churn. Converting from a straightforward implementation to this
-//  approximately doubled the fields/second rate in addPattern
+// makeStringAutomaton creates a utf8-based automaton from a literal string
+// using smallTables. Note the addition of a valueTerminator. The implementation
+// is recursive because this allows the use of the makeSmallDfaTable call, which
+// reduces memory churn. Converting from a straightforward implementation to
+// this approximately doubled the fields/second rate in addPattern
 func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
 	var nextField *fieldMatcher
 	if useThisTransition != nil {

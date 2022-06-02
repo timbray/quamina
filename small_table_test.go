@@ -35,8 +35,8 @@ func tMST(t *testing.T, b []byte) {
 func newDfaTransition(f *fieldMatcher) *dfaStep {
 	return &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{f}}
 }
-func TestCombiner(t *testing.T) {
 
+func TestCombiner(t *testing.T) {
 	// "jab"
 	A0 := &dfaStep{table: newSmallTable[*dfaStep]()}
 	A1 := &dfaStep{table: newSmallTable[*dfaStep]()}
@@ -111,7 +111,6 @@ func TestCombiner(t *testing.T) {
 }
 
 func TestUnpack(t *testing.T) {
-
 	st1 := &dfaStep{table: newSmallTable[*dfaStep]()}
 
 	st := smallTable[*dfaStep]{

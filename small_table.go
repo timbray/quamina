@@ -1,8 +1,8 @@
 package quamina
 
 // dfaStep and nfaStep are used by the valueMatcher automaton - every step through the
-//  automaton requires a smallTable and for some of them, taking the step means you've matched a value and can
-//  transition to a new fieldMatcher, in which case the fieldTransitions slice will be non-nil
+// automaton requires a smallTable and for some of them, taking the step means you've matched a value and can
+// transition to a new fieldMatcher, in which case the fieldTransitions slice will be non-nil
 type dfaStep struct {
 	table            *smallTable[*dfaStep]
 	fieldTransitions []*fieldMatcher
@@ -38,23 +38,23 @@ const valueTerminator byte = 0xf5
 //  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 //  byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
 //  ceilings: 3,   5,    0x34, 0x35, byteCeiling
-//     steps: nil, &ss1, nil,  &ss2, nil
+//  steps: nil, &ss1, nil,  &ss2, nil
 //  invariant: The last element of ceilings is always byteCeiling
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
-//  ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
-//  or a map[byte]S, but both would be size-inefficient, particularly in the case where you're implementing
-//  ranges.  Now, the step function is O(N) in the number of entries, but empirically, the number of entries is
-//  small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
-//  or array construct. One could imagine making step() smarter and do a binary search in the case where there are
-//  more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
-//  number of those has a good chance of minimizing memory fetches
+// ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
+// or a map[byte]S, but both would be size-inefficient, particularly in the case where you're implementing
+// ranges.  Now, the step function is O(N) in the number of entries, but empirically, the number of entries is
+// small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
+// or array construct. One could imagine making step() smarter and do a binary search in the case where there are
+// more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
+// number of those has a good chance of minimizing memory fetches
 type smallTable[S comparable] struct {
 	ceilings []byte
 	steps    []S
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
-//  the end, which smallTable.step totally depends on.
+// the end, which smallTable.step totally depends on.
 func newSmallTable[S comparable]() *smallTable[S] {
 	var sNil S // declared but not assigned, thus serves as nil
 	return &smallTable[S]{
@@ -74,12 +74,12 @@ func (t *smallTable[S]) step(utf8Byte byte) S {
 }
 
 // mergeDfas and mergeNfas compute the union of two valueMatch automata.  If you look up the textbook theory about this,
-//  they say to compute the set product for automata A and B and build A0B0, A0B1 … A1BN, A1B0 … but if you look
-//  at that you realize that many of the product states aren't reachable. So you compute A0B0 and then keep
-//  recursing on the transitions coming out, I'm pretty sure you get a correct result. I don't know if it's
-//  minimal or even avoids being wasteful.
-//  INVARIANT: neither argument is nil
-//  INVARIANT: To be thread-safe, no existing table can be updated except when we're building it
+// they say to compute the set product for automata A and B and build A0B0, A0B1 … A1BN, A1B0 … but if you look
+// at that you realize that many of the product states aren't reachable. So you compute A0B0 and then keep
+// recursing on the transitions coming out, I'm pretty sure you get a correct result. I don't know if it's
+// minimal or even avoids being wasteful.
+// INVARIANT: neither argument is nil
+// INVARIANT: To be thread-safe, no existing table can be updated except when we're building it
 func mergeDfas(existing, newStep *smallTable[*dfaStep]) *smallTable[*dfaStep] {
 	step1 := &dfaStep{table: existing}
 	step2 := &dfaStep{table: newStep}
@@ -104,7 +104,7 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 	}
 
 	// TODO: this works, all the tests pass, but I'm not satisfied with it. My intuition is that you ought
-	//  to be able to come out of this with just one *fieldMatcher
+	// to be able to come out of this with just one *fieldMatcher
 	newTable := newSmallTable[*dfaStep]()
 	switch {
 	case step1.fieldTransitions == nil && step2.fieldTransitions == nil:

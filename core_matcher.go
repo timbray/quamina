@@ -1,10 +1,13 @@
 package quamina
 
-// coreMatcher represents an automaton that allows matching sequences of name/value field pairs against
+// coreMatcher represents an automaton that allows matching sequences of
+// name/value field pairs against
 //  patterns, which are combinations of field names and lists of allowed valued field values.
-// The field names are called "Paths" because they encode, in a jsonpath-ish style, the pathSegments from the
+// The field names are called "Paths" because they encode, in a jsonpath-ish
+// style, the pathSegments from the
 //  root of an incoming object to the leaf field.
-// Since the order of fields is generally not significant in encoded data objects, the fields are sorted
+// Since the order of fields is generally not significant in encoded data
+// objects, the fields are sorted
 //  by name before constructing the automaton, and so are the incoming field lists to be matched, allowing
 //  the automaton to work.
 
@@ -32,9 +35,6 @@ type coreStart struct {
 	presumedExistFalseMatches *matchSet
 }
 
-// X for anything, should eventually be a generic?
-type X any
-
 func newCoreMatcher() *coreMatcher {
 	m := coreMatcher{}
 	m.updateable.Store(&coreStart{
@@ -44,6 +44,7 @@ func newCoreMatcher() *coreMatcher {
 	})
 	return &m
 }
+
 func (m *coreMatcher) start() *coreStart {
 	return m.updateable.Load().(*coreStart)
 }
@@ -146,7 +147,6 @@ type proposedTransition struct {
 // matchesForSortedFields runs the provided list of name/value pairs against the automaton and returns
 //  a possibly-empty list of the patterns that match
 func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
-
 	failedExistsFalseMatches := newMatchSet()
 	matches := newMatchSet()
 
@@ -203,14 +203,16 @@ func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 
 // Arrays are invisible in the automaton.  That is to say, if an event has
 //  { "a": [ 1, 2, 3 ] }
-//  Then the fields will be a/1, a/2, and a/3
-//  Same for  {"a": [[1, 2], 3]} or any other permutation
-//  So if you have {"a": [ { "b": 1, "c": 2}, {"b": 3, "c": 4}] }
-//  then a pattern like { "a": { "b": 1, "c": 4 } } would match.
-// To prevent that from happening, each ArrayPos contains two numbers; the first identifies the array in
-//  the event that this name/val occurred in, the second the position in the array. We don't allow
-//  transitioning between field values that occur in different positions in the same array.
-//  See the arrays_test unit test for more examples.
+// Then the fields will be a/1, a/2, and a/3 Same for  {"a": [[1, 2], 3]} or any
+// other permutation So if you have
+//  {"a": [ { "b": 1, "c": 2}, {"b": 3, "c": 4}] }
+// then a pattern like
+//  { "a": { "b": 1, "c": 4 } }
+// would match. To prevent that from happening, each ArrayPos contains two
+// numbers; the first identifies the array in
+// the event that this name/val occurred in, the second the position in the array. We don't allow
+// transitioning between field values that occur in different positions in the same array.
+// See the arrays_test unit test for more examples.
 func noArrayTrailConflict(from []ArrayPos, to []ArrayPos) bool {
 	for _, fromAPos := range from {
 		for _, toAPos := range to {

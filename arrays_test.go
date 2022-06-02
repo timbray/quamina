@@ -70,7 +70,6 @@ const bands = `{
 }`
 
 func TestArrayCorrectness(t *testing.T) {
-
 	// only pattern3 should match
 	pattern1 := `{"bands": { "members": { "given": [ "Mick" ], "surname": [ "Strummer" ] } } }`
 	pattern2 := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "drums" ] } } }`

@@ -48,5 +48,4 @@ func TestListMaker(t *testing.T) {
 	if len(lists) != wanted {
 		t.Errorf("Got %d STILL wanted %d", len(lists), wanted)
 	}
-
 }

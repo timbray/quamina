@@ -110,7 +110,6 @@ func newTooMuchFiltering(ratio float64, min int64) *tooMuchFiltering {
 
 // TODO: Figure out how to expose this through the Quamina type
 func (t *tooMuchFiltering) rebuild(added bool, s *prunerStats) bool {
-
 	if added {
 		// No need to think when we're adding a pattern since
 		// that operation cannot result in an increase of
@@ -232,7 +231,6 @@ func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
 // quamina.coreMatcher.matchesForFields and then maybe rebuilds the
 // index.
 func (m *prunerMatcher) matchesForFields(fields []Field) ([]X, error) {
-
 	xs, err := m.Matcher.matchesForFields(fields)
 	if err != nil {
 		return nil, err
