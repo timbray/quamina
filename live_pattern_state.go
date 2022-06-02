@@ -30,25 +30,25 @@ type (
 
 var na = nothing{}
 
-// MemState is a LivePatternsState that is just a map (with a RWMutex).
+// memState is a LivePatternsState that is just a map (with a RWMutex).
 //
 // Since the LivePatternsState implementation can be provided to the
 // application, we're keeping things simple here initially.
-type MemState struct {
+type memState struct {
 	lock sync.RWMutex
 	m    map[X]stringSet
 }
 
-func NewMemState() *MemState {
+func newMemState() *memState {
 	// Accept initial size as a parameter?
-	return &MemState{
+	return &memState{
 		m: make(map[X]stringSet),
 	}
 }
 
 // var ErrExists = fmt.Errorf("pattern already exists for that X")
 
-func (s *MemState) Add(x X, pattern string) error {
+func (s *memState) Add(x X, pattern string) error {
 	s.lock.Lock()
 	ps, have := s.m[x]
 	if !have {
@@ -60,14 +60,14 @@ func (s *MemState) Add(x X, pattern string) error {
 	return nil
 }
 
-func (s *MemState) Contains(x X) (bool, error) {
+func (s *memState) Contains(x X) (bool, error) {
 	s.lock.RLock()
 	_, have := s.m[x]
 	s.lock.RUnlock()
 	return have, nil
 }
 
-func (s *MemState) Delete(x X) (int, error) {
+func (s *memState) Delete(x X) (int, error) {
 	s.lock.Lock()
 	cardinality := 0
 	if xs, have := s.m[x]; have {
@@ -79,7 +79,7 @@ func (s *MemState) Delete(x X) (int, error) {
 	return cardinality, nil
 }
 
-func (s *MemState) Iterate(f func(x X, pattern string) error) error {
+func (s *memState) Iterate(f func(x X, pattern string) error) error {
 	s.lock.RLock()
 	var err error
 	for x, ps := range s.m {

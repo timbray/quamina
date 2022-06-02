@@ -6,7 +6,7 @@ import (
 )
 
 func TestMemIterateFerr(t *testing.T) {
-	s := NewMemState()
+	s := newMemState()
 	f := func(x X, pattern string) error {
 		return fmt.Errorf("broken")
 	}
@@ -19,7 +19,7 @@ func TestMemIterateFerr(t *testing.T) {
 }
 
 func TestStateDelete(t *testing.T) {
-	s := NewMemState()
+	s := newMemState()
 
 	if err := s.Add(1, `{"likes":"queso"}`); err != nil {
 		t.Fatal(err)

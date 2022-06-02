@@ -167,10 +167,10 @@ type rebuildTrigger interface {
 
 // newPrunerMatcher does what you'd expect.
 //
-// The LivePatternsState defaults to MemState.
+// The LivePatternsState defaults to memState.
 func newPrunerMatcher(s LivePatternsState) *prunerMatcher {
 	if s == nil {
-		s = NewMemState()
+		s = newMemState()
 	}
 	trigger := *defaultRebuildTrigger // Copy
 	return &prunerMatcher{
