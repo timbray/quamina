@@ -20,11 +20,13 @@ Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
 
-As of late May 2022, Quamina has a lot of unit tests and
-they're all passing.  It has a reasonable basis of
-GitHub-based CI/CD working. We intend to press the
-“release” button any day now, but for the moment 
-we reserve the right to change APIs.
+This is Quamina's first release, v0.1.0. While in 
+principle we reserve the right to change APIs, we 
+have no intention of doing so and will try hard to
+avoid it.
+
+Note that we have documented more APIs than are actually
+fully implemented, with the intent of showing direction.
 
 ### Patterns
 
