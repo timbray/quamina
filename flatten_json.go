@@ -37,8 +37,11 @@ func (fj *flattenJSON) reset() {
 
 // JSON literals
 var trueBytes = []byte("true")
-var falseBytes = []byte("false")
-var nullBytes = []byte("null")
+
+var (
+	falseBytes = []byte("false")
+	nullBytes  = []byte("null")
+)
 
 // fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
 //  states are used in only one function, others in multiple places
@@ -394,8 +397,8 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
 				// TODO: Too expensive; make it possible for people to ask for this
-				//bytes := fj.event[numStart : fj.eventIndex+1]
-				//c, err := canonicalize(bytes)
+				// bytes := fj.event[numStart : fj.eventIndex+1]
+				// c, err := canonicalize(bytes)
 				var alt []byte
 				//if err == nil {
 				//	alt = []byte(c)
@@ -457,7 +460,6 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 }
 
 func (fj *flattenJSON) readLiteral(literal []byte) ([]byte, error) {
-
 	for _, literalCh := range literal {
 		if literalCh != fj.ch() {
 			return nil, fj.error("unknown literal")
@@ -496,7 +498,7 @@ func (fj *flattenJSON) readStringValue() ([]byte, error) {
 }
 
 func (fj *flattenJSON) readStringValWithEscapes(nameStart int) ([]byte, error) {
-	//pointing at '"'
+	// pointing at '"'
 	val := []byte{'"'}
 	var err error
 	from := nameStart + 1
@@ -625,7 +627,6 @@ func (fj *flattenJSON) readTextWithEscapes(from int) ([]byte, int, error) {
 // the from is the offset in fj.event. We return the UTF-8 byte slice, the new setting for fj.eventIndex after
 //  reading the escapes, and an error if the escape syntax is busted.
 func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
-
 	// in the case that there are multiple \uXXXX in a row, we need to read all of them because some of them
 	//  might be surrogate pairs. So, back up to point at the first \
 	var codepoints []uint16
@@ -701,6 +702,7 @@ func (fj *flattenJSON) storeArrayElementField(path []byte, val []byte) {
 	copy(f.ArrayTrail, fj.arrayTrail)
 	fj.fields = append(fj.fields, f)
 }
+
 func (fj *flattenJSON) storeObjectMemberField(path []byte, arrayTrail []ArrayPos, val []byte) {
 	fj.fields = append(fj.fields, Field{Path: path, ArrayTrail: arrayTrail, Val: val})
 }
@@ -709,9 +711,11 @@ func (fj *flattenJSON) enterArray() {
 	fj.arrayCount++
 	fj.arrayTrail = append(fj.arrayTrail, ArrayPos{fj.arrayCount, 0})
 }
+
 func (fj *flattenJSON) leaveArray() {
 	fj.arrayTrail = fj.arrayTrail[:len(fj.arrayTrail)-1]
 }
+
 func (fj *flattenJSON) stepOneArrayElement() {
 	fj.arrayTrail[len(fj.arrayTrail)-1].Pos++
 }

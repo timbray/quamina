@@ -29,7 +29,6 @@ func TestLiveRatioTrigger(t *testing.T) {
 	if r.rebuild(false, s) {
 		t.Fatal("shouldn't have fired")
 	}
-
 }
 
 func TestNeverTrigger(t *testing.T) {
@@ -47,7 +46,6 @@ func TestNeverTrigger(t *testing.T) {
 //
 // The types in question aren't uint(64) but maybe they should be.
 func (s prunerStats) sane() error {
-
 	if s.Live < 0 {
 		return fmt.Errorf("prunerStats.Live is negative")
 	}
@@ -65,7 +63,6 @@ func (s prunerStats) sane() error {
 	}
 
 	return nil
-
 }
 
 func (m *prunerMatcher) checkStats() error {

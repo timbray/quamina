@@ -25,6 +25,7 @@ type fmFields struct {
 func (m *fieldMatcher) fields() *fmFields {
 	return m.updateable.Load().(*fmFields)
 }
+
 func (m *fieldMatcher) update(fields *fmFields) {
 	m.updateable.Store(fields)
 }
@@ -58,7 +59,6 @@ func newFieldMatcher() *fieldMatcher {
 }
 
 func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
-
 	// we build the new updateable state in freshStart so we can blsat it in atomically once computed
 	current := m.fields()
 	freshStart := &fmFields{}
@@ -107,7 +107,6 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 //  would be if you had the pattern { "a": [ "foo" ] } and another pattern that matched any value with
 //  a prefix of "f".
 func (m *fieldMatcher) transitionOn(field *Field) []*fieldMatcher {
-
 	// are there transitions on this field name?
 	valMatcher, ok := m.fields().transitions[string(field.Path)]
 	if !ok {

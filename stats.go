@@ -84,6 +84,7 @@ func dfaStats(t *smallTable[*dfaStep], s *stats) {
 		}
 	}
 }
+
 func nfaStats(t *smallTable[*nfaStepList], s *stats) {
 	if s.stVisited[t] {
 		return

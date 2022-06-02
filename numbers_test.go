@@ -23,6 +23,7 @@ func TestBadNumbers(t *testing.T) {
 		t.Error("took huge number")
 	}
 }
+
 func TestVariants(t *testing.T) {
 	f := []string{
 		"350",

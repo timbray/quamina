@@ -21,7 +21,6 @@ func (m *prunerMatcher) printStats() {
 }
 
 func TestBasic(t *testing.T) {
-
 	var (
 		pat   = `{"likes":["tacos"]}`
 		id    = 1
@@ -174,7 +173,6 @@ func TestRebuildSome(t *testing.T) {
 			t.Fatal(s)
 		}
 	})
-
 }
 
 func TestTriggerTooManyFilteredDenom(t *testing.T) {
@@ -193,11 +191,9 @@ func TestTriggerTooManyFilteredDenom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 }
 
 func TestTriggerRebuild(t *testing.T) {
-
 	// This test just checks that a rebuildWhileLocked was actually triggered.
 
 	var (
@@ -271,7 +267,6 @@ func TestTriggerRebuild(t *testing.T) {
 	if 0 == s.RebuildDuration {
 		t.Fatal(s.RebuildDuration)
 	}
-
 }
 
 type badState struct {
@@ -372,7 +367,6 @@ func TestFlattener(t *testing.T) {
 	if got[0] != 1 {
 		t.Fatal(got)
 	}
-
 }
 
 func TestMultiplePatternsWithSameId(t *testing.T) {
@@ -437,7 +431,6 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 	if s.Deleted != 2 {
 		t.Fatal(s.Deleted)
 	}
-
 }
 
 /* TODO: Figure out which flattenJSON to use post refactor

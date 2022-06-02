@@ -29,12 +29,14 @@ func TestLongCase(t *testing.T) {
 		}
 	}
 }
+
 func newNfaWithStart(start *smallTable[*nfaStepList]) *valueMatcher {
 	vm := newValueMatcher()
 	state := &vmFields{startNfa: start}
 	vm.update(state)
 	return vm
 }
+
 func TestNfaMerging(t *testing.T) {
 	aMatches := []string{
 		`"Afoo"`,
@@ -44,8 +46,8 @@ func TestNfaMerging(t *testing.T) {
 		`"BAB"`,
 		`"Bbar"`,
 	}
-	var f1 = &fieldMatcher{}
-	var f2 = &fieldMatcher{}
+	f1 := &fieldMatcher{}
+	f2 := &fieldMatcher{}
 	nfa1, _ := makeShellStyleAutomaton([]byte(`"A*"`), f1)
 	nfa2, _ := makeShellStyleAutomaton([]byte(`"B*"`), f2)
 
@@ -74,7 +76,6 @@ func TestNfaMerging(t *testing.T) {
 			t.Error("Fail on " + match)
 		}
 	}
-
 }
 
 func TestMakeShellStyleAutomaton(t *testing.T) {

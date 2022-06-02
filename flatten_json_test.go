@@ -16,13 +16,13 @@ func bequal(a []byte, b []byte) bool {
 	}
 	return true
 }
+
 func TestFJBasic(t *testing.T) {
 	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33e2, "x", true, false, null], "g": false}`
 	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f", "g")
 
 	f := newJSONFlattener()
 	list, err := f.Flatten([]byte(j), allYes)
-
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
@@ -56,7 +56,6 @@ func TestFJBasic(t *testing.T) {
 }
 
 func TestFJ10Lines(t *testing.T) {
-
 	geo := fakeMatcher("type", "geometry")
 	testTrackerSelection(newJSONFlattener(), geo, "L0", "testdata/cl-sample-0",
 		[]string{"type", "geometry\ntype"},
@@ -122,6 +121,7 @@ func TestMinimal(t *testing.T) {
 		t.Error("Name/Val wrong")
 	}
 }
+
 func testTrackerSelection(fj Flattener, tracker NameTracker, label string, filename string, wantedPaths []string, wantedVals []string, t *testing.T) {
 	event, err := ioutil.ReadFile(filename)
 	if err != nil {

@@ -4,24 +4,22 @@ import (
 	"sync"
 )
 
-// LivePatternsState represents the required capabilities for
-// maintaining the set of live patterns.
+// LivePatternsState represents the required capabilities for maintaining the
+// set of live patterns.
 type LivePatternsState interface {
 	// Add adds a new pattern or updates an old pattern.
 	//
-	// Note that multiple patterns can be associated with the same
-	// X.
+	// Note that multiple patterns can be associated with the same X.
 	Add(x X, pattern string) error
 
-	// Delete removes all patterns associated with the given X and
-	// returns the number of removed patterns.
+	// Delete removes all patterns associated with the given X and returns the
+	// number of removed patterns.
 	Delete(x X) (int, error)
 
 	// Iterate calls the given function for every stored pattern.
 	Iterate(func(x X, pattern string) error) error
 
-	// Contains returns true if x is in the live set; false
-	// otherwise.
+	// Contains returns true if x is in the live set; false otherwise.
 	Contains(x X) (bool, error)
 }
 
@@ -32,8 +30,7 @@ type (
 
 var na = nothing{}
 
-// MemState is a LivePatternsState that is just a map (with a
-// RWMutex).
+// MemState is a LivePatternsState that is just a map (with a RWMutex).
 //
 // Since the LivePatternsState implementation can be provided to the
 // application, we're keeping things simple here initially.

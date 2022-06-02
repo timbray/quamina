@@ -14,9 +14,11 @@ import (
 
 const oneMeg = 1024 * 1024
 
-var cityLotsLock sync.Mutex
-var cityLotsLines [][]byte
-var cityLotsLineCount int
+var (
+	cityLotsLock      sync.Mutex
+	cityLotsLines     [][]byte
+	cityLotsLineCount int
+)
 
 func getCityLotsLines(t *testing.T) [][]byte {
 	cityLotsLock.Lock()
@@ -47,7 +49,6 @@ func getCityLotsLines(t *testing.T) [][]byte {
 }
 
 func TestCRANLEIGH(t *testing.T) {
-
 	jCranleigh := `{ "type": "Feature", "properties": { "MAPBLKLOT": "7222001", "BLKLOT": "7222001", "BLOCK_NUM": "7222", "LOT_NUM": "001", "FROM_ST": "1", "TO_ST": "1", "STREET": "CRANLEIGH", "ST_TYPE": "DR", "ODD_EVEN": "O" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.472773074480756, 37.73439178240811, 0.0 ], [ -122.47278111723567, 37.73451247621523, 0.0 ], [ -122.47242608711845, 37.73452184591072, 0.0 ], [ -122.472418368113281, 37.734401143064396, 0.0 ], [ -122.472773074480756, 37.73439178240811, 0.0 ] ] ] } }`
 	j108492 := `{ "type": "Feature", "properties": { "MAPBLKLOT": "0011008", "BLKLOT": "0011008", "BLOCK_NUM": "0011", "LOT_NUM": "008", "FROM_ST": "500", "TO_ST": "550", "STREET": "BEACH", "ST_TYPE": "ST", "ODD_EVEN": "E" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -122.418114728237924, 37.807058866808987, 0.0 ], [ -122.418261722815416, 37.807807921694092, 0.0 ], [ -122.417544151208375, 37.807900142836701, 0.0 ], [ -122.417397010603693, 37.807150305505004, 0.0 ], [ -122.418114728237924, 37.807058866808987, 0.0 ] ] ] } }`
 	m := newCoreMatcher()

@@ -79,9 +79,10 @@ func WithPatternDeletion(b bool) Option {
 	}
 }
 
-// WithPatternDeletion supplies the Quamina instance with a LivePatternState instance to be used to store
-//  the active patterns, i.e. those that have been added with AddPattern but not deleted with
-//  DeletePattern. This option call may not be provided more than once.
+// WithPatternStorage supplies the Quamina instance with a LivePatternState
+// instance to be used to store the active patterns, i.e. those that have been
+// added with AddPattern but not deleted with DeletePattern. This option call
+// may not be provided more than once.
 func WithPatternStorage(ps LivePatternsState) Option {
 	return func(q *Quamina) error {
 		if ps == nil {
@@ -116,9 +117,11 @@ func (q *Quamina) Copy() *Quamina {
 func (q *Quamina) AddPattern(x X, patternJSON string) error {
 	return q.matcher.addPattern(x, patternJSON)
 }
+
 func (q *Quamina) DeletePatterns(x X) error {
 	return q.matcher.deletePatterns(x)
 }
+
 func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	fields, err := q.flattener.Flatten(event, q.matcher)
 	if err != nil {

@@ -42,8 +42,7 @@ func (t *liveRatioTrigger) rebuild(added bool, s *prunerStats) bool {
 //
 // This type is not used anywhere; just here as an example and maybe
 // for future consideration.
-type neverTrigger struct {
-}
+type neverTrigger struct{}
 
 func newNeverTrigger() *neverTrigger {
 	return &neverTrigger{}

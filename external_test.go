@@ -1,8 +1,9 @@
 package quamina_test
 
 import (
-	"github.com/timbray/quamina"
 	"testing"
+
+	"github.com/timbray/quamina"
 )
 
 type fakeFlattener struct {
@@ -12,6 +13,7 @@ type fakeFlattener struct {
 func (f *fakeFlattener) Flatten(_ []byte, _ quamina.NameTracker) ([]quamina.Field, error) {
 	return f.r, nil
 }
+
 func (f *fakeFlattener) Copy() quamina.Flattener {
 	return &fakeFlattener{r: f.r}
 }
