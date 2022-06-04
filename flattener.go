@@ -1,8 +1,7 @@
 package quamina
 
-// Flattener is provided as an interface in the hope that flatteners for other
-// non-JSON message formats might be implemented. How it needs to work, by JSON
-// example:
+// Flattener is interface which provides methods to turn a data structure into a list of path-names and
+// values. The following example illustrates how it works for a JSON object:
 //  { "a": 1, "b": "two", "c": true", "d": nil, "e": { "e1": 2, "e2":, 3.02e-5} "f": [33, "x"]} }
 // should produce
 //  "a", "1"
@@ -45,9 +44,10 @@ type Flattener interface {
 
 // ArrayPos represents a Field's position in an Event's structure. Each array in the Event
 // should get an integer which identifies it - in flattenJSON this is accomplished by keeping a counter and
-// giving arrays numbers starting from 0.
-// Array uniquely identifies an array in an Event
-// Pos is the Field's index in the Array
+// giving arrays numbers starting from 0.  ArrayPos exists to ensure that Quamina MatchesForEvent will not
+// return a match where two of the matching fields are in separate elements of the same array.
+// Array uniquely identifies an array in an Event.
+// Pos is the Field's index in the Array.
 type ArrayPos struct {
 	Array int32
 	Pos   int32
@@ -55,9 +55,9 @@ type ArrayPos struct {
 
 // Field represents a pathname/value combination, the data item which is matched against Patterns by the
 // MatchesForEvent API.
-// Path is \n-separated path from the event root to this field value
-// Val is the value - note no information as to type
-// ArrayTrail, for each array in the Path, identifies the array and the index in it
+// Path is \n-separated path from the event root to this field value.
+// Val is the value - note no information as to type.
+// ArrayTrail, for each array in the Path, identifies the array and the index in it.
 type Field struct {
 	Path       []byte
 	Val        []byte

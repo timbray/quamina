@@ -5,12 +5,9 @@ import (
 	"fmt"
 )
 
-// Quamina instances provide the public APIs of this pattern-matching library.
-// flattener is responsible for turning the bytes of incoming events into a list of name/value pairs. Each
-// Quamina instance has its own flattener, because flatteners are stateful and not designed for concurrent use.
-// matcher is the root of the two-level automaton structure containing fieldMatcher and valueMatcher nodes.  Multiple
-// Quamina instances may have the same matcher value, since it is designed for concurrent operation.
-// TODO: Investigate whether making Quamina a generic type would be beneficial.
+// Quamina instances provide the public APIs of this pattern-matching library.  A single Quamina instance is
+// not thread-safe in that it cannot safely be used simultaneously in multiple goroutines. To re-use a
+// Quamina instance concurrently in multiple goroutines, create copies using the Copy API.
 type Quamina struct {
 	flattener          Flattener
 	matcher            matcher
@@ -19,11 +16,13 @@ type Quamina struct {
 	deletionSpecified  bool
 }
 
+// Option is an interface type used in Quamina's New API to pass in options. By convention, Option names
+// have a prefix of "With".
 type Option func(q *Quamina) error
 
 // WithMediaType provides a media-type to support the selection of an appropriate Flattener.
-//  This option call may not be provided more than once, nor can it be combined on the same
-//  invocation of quamina.New() with the WithFlattener() option.
+// This option call may not be provided more than once, nor can it be combined on the same
+// invocation of quamina.New() with the WithFlattener() option.
 func WithMediaType(mediaType string) Option {
 	return func(q *Quamina) error {
 		if q.flattenerSpecified {
@@ -44,8 +43,8 @@ func WithMediaType(mediaType string) Option {
 }
 
 // WithFlattener allows the specification of a caller-provided Flattener instance to use on incoming Events.
-//  This option call may not be provided more than once, nor can it be combined on the same
-//  invocation of quamina.New() with the WithMediaType() option.
+// This option call may not be provided more than once, nor can it be combined on the same
+// invocation of quamina.New() with the WithMediaType() option.
 func WithFlattener(f Flattener) Option {
 	return func(q *Quamina) error {
 		if q.mediaTypeSpecified {
@@ -64,7 +63,7 @@ func WithFlattener(f Flattener) Option {
 }
 
 // WithPatternDeletion arranges, if the argument is true, that this Quamina instance will support
-//  the DeletePatterns() method. This option call may not be provided more than once.
+// the DeletePatterns() method. This option call may not be provided more than once.
 func WithPatternDeletion(b bool) Option {
 	return func(q *Quamina) error {
 		if q.deletionSpecified {
@@ -93,6 +92,8 @@ func WithPatternStorage(ps LivePatternsState) Option {
 	}
 }
 
+// New returns a new Quamina instance. Consult the API's beginning with “New” for the options
+// that may be used to configure the new instance.
 func New(opts ...Option) (*Quamina, error) {
 	var q Quamina
 	for _, option := range opts {
@@ -109,20 +110,32 @@ func New(opts ...Option) (*Quamina, error) {
 	return &q, nil
 }
 
-// Copy produces a new Quamina instance which share the matcher of the current, but starts with
-//  a new flattener.
+// Copy produces a new Quamina instance designed to be used safely in parallel with existing instances on different
+// goroutines.  Copy'ed instances share the same underlying data structures, so a pattern added to any instance
+// with AddPattern will be visible in all of them.
 func (q *Quamina) Copy() *Quamina {
 	return &Quamina{matcher: q.matcher, flattener: q.flattener.Copy()}
 }
 
+// AddPattern - adds a pattern, identified by the x argument, to a Quamina instance.
+// patternJSON is a JSON object. error is returned in the case that the PatternJSON is invalid JSON or
+// has a leaf which is not provided as an array. AddPattern is single-threaded; if it is invoked concurrently
+// from multiple goroutines (in instances created using the Copy method) calls will block until any other
+// call in progress succeeds.
 func (q *Quamina) AddPattern(x X, patternJSON string) error {
 	return q.matcher.addPattern(x, patternJSON)
 }
 
+// DeletePattern removes pattnerns identified with the by the x argument from the Quamina insance; the effect
+//  is that return values from future calls to MatchesForEvent will not include this x value.
 func (q *Quamina) DeletePatterns(x X) error {
 	return q.matcher.deletePatterns(x)
 }
 
+// MatchesForEvent returns a slice of X values which identify patterns that have previously been added to this
+// Quamina instance and which “match” thee event in the sense described in README. The matches slice may be empty
+// if no patterns match. error can be returned ine case that the event is not a valid JSON object or contains
+// invalid UTF-8 byte sequences.
 func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	fields, err := q.flattener.Flatten(event, q.matcher)
 	if err != nil {
