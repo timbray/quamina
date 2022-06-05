@@ -7,15 +7,20 @@ type stats struct {
 	fmCount    int
 	fmTblCount int
 	fmEntries  int
+	fmMax      int
 	fmVisited  map[*fieldMatcher]bool
 	vmCount    int
 	vmVisited  map[*valueMatcher]bool
 	stCount    int
+	stTblCount int
 	stEntries  int
+	stMax      int
 	stVisited  map[any]bool
 	siCount    int
 }
 
+// matcherStats gathers statistics about the size of a coreMatcher, including the average and max fanout sizes of
+//  the transition tables, returning this information in string form
 func matcherStats(m *coreMatcher) string {
 	s := stats{
 		fmVisited: make(map[*fieldMatcher]bool),
@@ -25,10 +30,13 @@ func matcherStats(m *coreMatcher) string {
 	fmStats(m.start().state, &s)
 	avgFmSize := fmt.Sprintf("%.3f", float64(s.fmEntries)/float64(s.fmTblCount))
 	avgStSize := "n/a"
-	if s.stCount > 0 {
-		avgStSize = fmt.Sprintf("%.3f", float64(s.stEntries)/float64(s.stCount))
+	if s.stTblCount > 0 {
+		avgStSize = fmt.Sprintf("%.3f", float64(s.stEntries)/float64(s.stTblCount))
 	}
-	return fmt.Sprintf("Field matchers: %d (avg size %s), Value matchers: %d, SmallTables %d (avg size %s), singletons %d", s.fmCount, avgFmSize, s.vmCount, s.stCount, avgStSize, s.siCount)
+	fmPart := fmt.Sprintf("Field matchers: %d (avg size %s, max %d), ", s.fmCount, avgFmSize, s.fmMax)
+	vmPart := fmt.Sprintf("Value matchers: %d, ", s.vmCount)
+	stPart := fmt.Sprintf("SmallTables %d (avg size %s, max %d), singletons %d", s.stCount, avgStSize, s.stMax, s.siCount)
+	return fmPart + vmPart + stPart
 }
 
 func fmStats(m *fieldMatcher, s *stats) {
@@ -39,6 +47,9 @@ func fmStats(m *fieldMatcher, s *stats) {
 	s.fmCount++
 	tSize := len(m.fields().transitions)
 	if tSize > 0 {
+		if tSize > s.fmMax {
+			s.fmMax = tSize
+		}
 		s.fmTblCount++
 		s.fmEntries += tSize
 	}
@@ -72,7 +83,14 @@ func dfaStats(t *smallTable[*dfaStep], s *stats) {
 	}
 	s.stVisited[t] = true
 	s.stCount++
-	s.stEntries += len(t.ceilings)
+	tSize := len(t.ceilings)
+	if tSize > 1 {
+		if tSize > s.stMax {
+			s.stMax = tSize
+		}
+		s.stTblCount++
+		s.stEntries += len(t.ceilings)
+	}
 	for _, step := range t.steps {
 		if step != nil {
 			if step.fieldTransitions != nil {
@@ -91,7 +109,14 @@ func nfaStats(t *smallTable[*nfaStepList], s *stats) {
 	}
 	s.stVisited[t] = true
 	s.stCount++
-	s.stEntries += len(t.ceilings)
+	tSize := len(t.ceilings)
+	if tSize > 1 {
+		if tSize > s.stMax {
+			s.stMax = tSize
+		}
+		s.stTblCount++
+		s.stEntries += len(t.ceilings)
+	}
 	for _, stepList := range t.steps {
 		if stepList == nil {
 			continue
