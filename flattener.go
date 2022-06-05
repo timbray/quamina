@@ -13,8 +13,8 @@ package quamina
 //  "f", "33"
 //  "f", "\"x\""
 //
-// Let's call the first column, eg "d" and "e\ne1", the pathSegments. For each
-// step i the pathSegments, e.g. "d" and "e1", the Flattener should call
+// Let's call the first column, eg "d" and "e\ne1", the path. For each
+// step i the path, e.g. "d" and "e1", the Flattener should call
 // NameTracker.IsNameUsed(step) and if that comes back negative, not include any
 // paths which don't contain that step. So in the example above, if
 // nameTracker.IsNameUsed() only came back true for "a" and "f", then the output
@@ -53,10 +53,10 @@ type ArrayPos struct {
 	Pos   int32
 }
 
-// Field represents a pathname/value combination, the data item which is matched against Patterns by the
-// MatchesForEvent API.
-// Path is \n-separated path from the event root to this field value.
-// Val is the value - note no information as to type.
+// Field represents a pathname/value combination, one of the data items which is matched
+// against Patterns by the MatchesForEvent API.
+// Path is the \n-separated path from the event root to this field value.
+// Val is the value, a []byte forming a textual representation of the type
 // ArrayTrail, for each array in the Path, identifies the array and the index in it.
 type Field struct {
 	Path       []byte

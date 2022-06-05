@@ -92,7 +92,7 @@ func WithPatternStorage(ps LivePatternsState) Option {
 	}
 }
 
-// New returns a new Quamina instance. Consult the API's beginning with “New” for the options
+// New returns a new Quamina instance. Consult the APIs beginning with “With” for the options
 // that may be used to configure the new instance.
 func New(opts ...Option) (*Quamina, error) {
 	var q Quamina
@@ -117,17 +117,22 @@ func (q *Quamina) Copy() *Quamina {
 	return &Quamina{matcher: q.matcher, flattener: q.flattener.Copy()}
 }
 
+// X is used in the AddPattern and MatchesForEvent APIs to identify the patterns that are added to
+// a Quamina instance and are reported by that instance as matching an event. Commonly, X is a string
+// used to name the event.
+type X any
+
 // AddPattern - adds a pattern, identified by the x argument, to a Quamina instance.
 // patternJSON is a JSON object. error is returned in the case that the PatternJSON is invalid JSON or
 // has a leaf which is not provided as an array. AddPattern is single-threaded; if it is invoked concurrently
 // from multiple goroutines (in instances created using the Copy method) calls will block until any other
-// call in progress succeeds.
+// AddPattern call in progress succeeds.
 func (q *Quamina) AddPattern(x X, patternJSON string) error {
 	return q.matcher.addPattern(x, patternJSON)
 }
 
-// DeletePattern removes pattnerns identified with the by the x argument from the Quamina insance; the effect
-//  is that return values from future calls to MatchesForEvent will not include this x value.
+// DeletePattern removes pattnerns identified by the x argument from the Quamina insance; the effect
+// is that return values from future calls to MatchesForEvent will not include this x value.
 func (q *Quamina) DeletePatterns(x X) error {
 	return q.matcher.deletePatterns(x)
 }
