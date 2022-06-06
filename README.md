@@ -136,6 +136,9 @@ is not yet activated because it causes a
 significant performance penalty, so the API needs to
 be enhanced to only ask for it when you need it.
 
+The syntax and semantics of Patterns is described 
+more fully in [Patterns in Quamina](PATTERNS.md).
+
 ## Flattening and Matching
 
 The first step in finding matches for an Event is 
