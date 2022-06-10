@@ -91,7 +91,7 @@ The following Patterns would match it:
   }
 }
 ```
-        
+
 ```json
 {
   "Image": {
@@ -100,7 +100,6 @@ The following Patterns would match it:
   }
 }
 ```
-
 ```json
 {
   "Image": {
@@ -108,7 +107,13 @@ The following Patterns would match it:
       [ { "shellstyle": "http://www.example.com/*9943" } ] }
   }
 }
-
+```
+```json
+{
+  "Image": {
+    "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ]
+  }
+}
 ```
 The structure of a Pattern, in terms of field names
 and nesting, must be the same as the structure of the Event 

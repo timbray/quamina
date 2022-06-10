@@ -60,13 +60,21 @@ value **MUST** be `true` or `false`.  Here
 are two Exists Patterns that would match the Events above:
 ```json
 {"alpha": {"beta": [ {"exists": true} ]}}
-```
-```json
 {"alpha": {"gamma": [ {"exists": false} ]}}
 ```
 
 If a Field in a Pattern contains an Exists Pattern, it
 **MUST NOT** contain any other values.
+
+### Anything-But Pattern
+
+The Pattern Type of an Anything-But Pattern is
+`anything-but` and its value **MUST** be an array
+of strings.  It will match a string value which
+is not equal to any of the strings in the array.
+
+If a Field in a Pattern contains an Anything-But Pattern, 
+it **MUST NOT** contain any other values.
 
 ### Shellstyle Pattern
 
@@ -84,25 +92,20 @@ Consider the following Event:
 The following Shellstyle Patterns would match it:
 ```json
 {"img": [ {"shellstyle": "*.jpg"} ]}
-```
-```json
 {"img": [ {"shellstyle": "https://example.com/*"} ]}
-```
-```json
 {"img": [ {"shellstyle": "https://example.com/*.jpg"} ]}
 ```
-
 ## EventBridge Patterns
 
 Quamina’s Patterns are inspired by those offered by 
 the AWS EventBridge service, as documented in
 [Amazon EventBridge event patterns](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
 
-As of release 0.1.1, Quamina supports Exists patterns
-but does not yet support AWS’s `numeric`, `prefix`, or 
-`anything-but` patterns.  Note that a Shellstyle 
-Pattern with a trailing `*` is equivalent to an AWS `prefix`
-pattern.
+As of release 0.1.1, Quamina supports Exists and
+Anything-But patterns but does not yet support AWS’s 
+`numeric` or `prefix` patterns.  Note that a 
+Shellstyle Pattern with a trailing `*` is equivalent
+to a `prefix` pattern.
 
 
 

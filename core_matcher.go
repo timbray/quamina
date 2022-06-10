@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 )
 
-// coreMatcher uses a finite automaton to implement the MatchesForJSONEvent and MatchesForFields functions.
+// coreMatcher uses a finite automaton to implement the matchesForJSONEvent and MatchesForFields functions.
 // state is the start of the automaton
 // namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
 //  patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
@@ -115,14 +115,16 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	return err
 }
 
-// DeletePattern not implemented by coreMatcher
+// deletePattern not implemented by coreMatcher
 func (m *coreMatcher) deletePatterns(_ X) error {
 	return errors.New("operation not supported")
 }
 
-// MatchesForJSONEvent calls the flattener to pull the fields out of the event and
-//  hands over to MatchesForFields
-func (m *coreMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
+// matchesForJSONEvent calls the flattener to pull the fields out of the event and
+// hands over to MatchesForFields
+// This is a leftover from previous times, is only used by tests, but it's used by a *lot*
+// so removing it would require a lot of tedious work
+func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 	fields, err := newJSONFlattener().Flatten(event, m)
 	if err != nil {
 		return nil, err

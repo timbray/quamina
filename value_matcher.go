@@ -155,7 +155,26 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 
 	// there's already a table, thus an out-degree > 1
 	if fields.startDfa != nil || fields.startNfa != nil {
-		if val.vType == shellStyleType {
+		switch val.vType {
+		case stringType, numberType, literalType:
+			newDfa, nextField := makeStringAutomaton(valBytes, nil)
+			if fields.startNfa != nil {
+				fields.startNfa = mergeNfas(fields.startNfa, dfa2Nfa(newDfa))
+			} else {
+				fields.startDfa = mergeDfas(fields.startDfa, newDfa)
+			}
+			m.update(fields)
+			return nextField
+		case anythingButType:
+			newDfa, nextField := makeMultiAnythingButAutomaton(val.list, nil)
+			if fields.startNfa != nil {
+				fields.startNfa = mergeNfas(fields.startNfa, dfa2Nfa(newDfa))
+			} else {
+				fields.startDfa = mergeDfas(fields.startDfa, newDfa)
+			}
+			m.update(fields)
+			return nextField
+		case shellStyleType:
 			newNfa, nextField := makeShellStyleAutomaton(valBytes, nil)
 			if fields.startNfa != nil {
 				fields.startNfa = mergeNfas(newNfa, fields.startNfa)
@@ -165,15 +184,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			}
 			m.update(fields)
 			return nextField
-		} else {
-			newDfa, nextField := makeStringAutomaton(valBytes, nil)
-			if fields.startNfa != nil {
-				fields.startNfa = mergeNfas(fields.startNfa, dfa2Nfa(newDfa))
-			} else {
-				fields.startDfa = mergeDfas(fields.startDfa, newDfa)
-			}
-			m.update(fields)
-			return nextField
+		default:
+			panic("unknown value type")
 		}
 	}
 
@@ -182,38 +194,53 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	// … unless this is completely virgin, in which case put in the singleton,
 	// assuming it's just a string match
 	if fields.singletonMatch == nil {
-		if val.vType == shellStyleType {
-			newAutomaton, nextField := makeShellStyleAutomaton(valBytes, nil)
-			fields.startNfa = newAutomaton
-			m.update(fields)
-			return nextField
-		} else {
-			// at the moment this works for everything that's not a shellStyle,
-			// but this may not always be true in future
+		switch val.vType {
+		case stringType, numberType, literalType:
 			fields.singletonMatch = valBytes
 			fields.singletonTransition = newFieldMatcher()
 			m.update(fields)
 			return fields.singletonTransition
+		case anythingButType:
+			newAutomaton, nextField := makeMultiAnythingButAutomaton(val.list, nil)
+			fields.startDfa = newAutomaton
+			m.update(fields)
+			return nextField
+		case shellStyleType:
+			newAutomaton, nextField := makeShellStyleAutomaton(valBytes, nil)
+			fields.startNfa = newAutomaton
+			m.update(fields)
+			return nextField
+		default:
+			panic("unknown value type")
 		}
 	}
 
 	// singleton match is here and this value matches it
-	if (val.vType != shellStyleType) && bytes.Equal(fields.singletonMatch, valBytes) {
-		return fields.singletonTransition
+	if val.vType == stringType || val.vType == numberType || val.vType == literalType {
+		if bytes.Equal(fields.singletonMatch, valBytes) {
+			return fields.singletonTransition
+		}
 	}
 
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have
 	// to build an automaton with two values in it
 	singletonAutomaton, _ := makeStringAutomaton(fields.singletonMatch, fields.singletonTransition)
 	var nextField *fieldMatcher
-	if val.vType == shellStyleType {
-		var newNfa *smallTable[*nfaStepList]
-		newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
-		fields.startNfa = mergeNfas(newNfa, dfa2Nfa(singletonAutomaton))
-	} else {
+	switch val.vType {
+	case stringType, numberType, literalType:
 		var newDfa *smallTable[*dfaStep]
 		newDfa, nextField = makeStringAutomaton(valBytes, nil)
 		fields.startDfa = mergeDfas(singletonAutomaton, newDfa)
+	case anythingButType:
+		var newDfa *smallTable[*dfaStep]
+		newDfa, nextField = makeMultiAnythingButAutomaton(val.list, nil)
+		fields.startDfa = mergeDfas(singletonAutomaton, newDfa)
+	case shellStyleType:
+		var newNfa *smallTable[*nfaStepList]
+		newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
+		fields.startNfa = mergeNfas(newNfa, dfa2Nfa(singletonAutomaton))
+	default:
+		panic("unknown val type")
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it

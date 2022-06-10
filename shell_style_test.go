@@ -20,7 +20,7 @@ func TestLongCase(t *testing.T) {
 	}
 	for _, should := range shoulds {
 		event := fmt.Sprintf(`{"x": "%s"}`, should)
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		matches, err := m.matchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Error("m4j " + err.Error())
 		}
@@ -164,7 +164,7 @@ func TestMixedPatterns(t *testing.T) {
 	got := make(map[X]int)
 	lines := getCityLotsLines(t)
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		matches, err := m.matchesForJSONEvent(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
