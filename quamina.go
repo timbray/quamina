@@ -131,7 +131,7 @@ func (q *Quamina) AddPattern(x X, patternJSON string) error {
 	return q.matcher.addPattern(x, patternJSON)
 }
 
-// DeletePattern removes pattnerns identified by the x argument from the Quamina insance; the effect
+// DeletePatterns removes pattnerns identified by the x argument from the Quamina insance; the effect
 // is that return values from future calls to MatchesForEvent will not include this x value.
 func (q *Quamina) DeletePatterns(x X) error {
 	return q.matcher.deletePatterns(x)

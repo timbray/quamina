@@ -69,7 +69,7 @@ func TestCRANLEIGH(t *testing.T) {
 	lines := [][]byte{[]byte(jCranleigh), []byte(j108492)}
 
 	for _, line := range lines {
-		mm, err := m.MatchesForJSONEvent(line)
+		mm, err := m.matchesForJSONEvent(line)
 		if err != nil {
 			t.Error("OOPS " + err.Error())
 		}

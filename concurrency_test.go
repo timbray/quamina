@@ -77,7 +77,7 @@ func TestConcurrency(t *testing.T) {
 	ch := make(chan string, 1000)
 	sent := 0
 	for _, line := range lines {
-		matches, err := m.MatchesForJSONEvent(line)
+		matches, err := m.matchesForJSONEvent(line)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -119,7 +119,7 @@ func TestConcurrency(t *testing.T) {
 			event = fmt.Sprintf(`{"geometry": { "coordinates": [ %s ] } }`, val)
 		}
 		var matches []X
-		matches, err = m.MatchesForJSONEvent([]byte(event))
+		matches, err = m.matchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Error("after concur: " + err.Error())
 		}

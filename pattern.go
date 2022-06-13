@@ -18,11 +18,13 @@ const (
 	existsTrueType
 	existsFalseType
 	shellStyleType
+	anythingButType
 )
 
 type typedVal struct {
 	vType valType
 	val   string
+	list  [][]byte
 }
 type patternField struct {
 	path string
@@ -158,17 +160,17 @@ func readPatternArray(pb *patternBuild) error {
 				return fmt.Errorf("pattern malformed, illegal %v", tt)
 			}
 		case string:
-			pathVals = append(pathVals, typedVal{stringType, `"` + tt + `"`})
+			pathVals = append(pathVals, typedVal{vType: stringType, val: `"` + tt + `"`})
 		case json.Number:
-			pathVals = append(pathVals, typedVal{numberType, tt.String()})
+			pathVals = append(pathVals, typedVal{vType: numberType, val: tt.String()})
 		case bool:
 			if tt {
-				pathVals = append(pathVals, typedVal{literalType, "true"})
+				pathVals = append(pathVals, typedVal{vType: literalType, val: "true"})
 			} else {
-				pathVals = append(pathVals, typedVal{literalType, "false"})
+				pathVals = append(pathVals, typedVal{vType: literalType, val: "false"})
 			}
 		case nil:
-			pathVals = append(pathVals, typedVal{literalType, "null"})
+			pathVals = append(pathVals, typedVal{vType: literalType, val: "null"})
 		}
 		elementCount++
 	}
@@ -184,6 +186,9 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 	switch tt := t.(type) {
 	case string:
 		switch tt {
+		case "anything-but":
+			containsExclusive = tt
+			pathVals, err = readAnythingButSpecial(pb, pathVals)
 		case "exists":
 			containsExclusive = tt
 			pathVals, err = readExistsSpecial(pb, pathVals)

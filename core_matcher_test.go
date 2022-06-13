@@ -24,7 +24,7 @@ func TestBasicMatching(t *testing.T) {
 	}
 	for _, should := range shouldMatch {
 		var matches []X
-		matches, err = m.MatchesForJSONEvent([]byte(should))
+		matches, err = m.matchesForJSONEvent([]byte(should))
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -34,7 +34,7 @@ func TestBasicMatching(t *testing.T) {
 	}
 	for _, shouldNot := range shouldNotMatch {
 		var matches []X
-		matches, _ = m.MatchesForJSONEvent([]byte(shouldNot))
+		matches, _ = m.matchesForJSONEvent([]byte(shouldNot))
 		if len(matches) != 0 {
 			t.Error("Matched: " + shouldNot)
 		}
@@ -56,27 +56,27 @@ func TestExerciseMatching(t *testing.T) {
             "IDs": [116, 943, 234, 38793]
           }
       }`
-	shouldMatches := []string{
+	patternsFromReadme := []string{
 		`{"Foo": [ { "exists": false } ] }"`,
 		`{"Image": {"Width": [800]}}`,
 		`{"Image": { "Animated": [ false], "Thumbnail": { "Height": [ 125 ] } } }}, "IDs": [943]}`,
 		`{"Image": { "Title": [ { "exists": true } ] } }`,
 		`{"Image": { "Width": [800], "Title": [ { "exists": true } ], "Animated": [ false ] } }`,
 		`{"Image": { "Width": [800], "IDs": [ { "exists": true } ] } }`,
-		//`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://*.example.com/*" } ] } } }`,
 		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "*9943" } ] } } }`,
 		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*" } ] } } }`,
 		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*9943" } ] } } }`,
+		`{"Image": { "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ]  } }`,
 	}
 
 	var err error
-	for i, should := range shouldMatches {
+	for i, should := range patternsFromReadme {
 		m := newCoreMatcher()
 		err = m.addPattern(fmt.Sprintf("should %d", i), should)
 		if err != nil {
 			t.Error("addPattern " + should + ": " + err.Error())
 		}
-		matches, err := m.MatchesForJSONEvent([]byte(j))
+		matches, err := m.matchesForJSONEvent([]byte(j))
 		if err != nil {
 			t.Error("M4J: " + err.Error())
 		}
@@ -96,7 +96,7 @@ func TestExerciseMatching(t *testing.T) {
 		if err != nil {
 			t.Error("addPattern: " + shouldNot + ": " + err.Error())
 		}
-		matches, err := m.MatchesForJSONEvent([]byte(j))
+		matches, err := m.matchesForJSONEvent([]byte(j))
 		if err != nil {
 			t.Error("ShouldNot " + shouldNot + ": " + err.Error())
 		}
@@ -104,6 +104,22 @@ func TestExerciseMatching(t *testing.T) {
 			t.Error(shouldNot + " matched but shouldn't have")
 		}
 	}
+	// now add them all
+	m := newCoreMatcher()
+	for _, should := range patternsFromReadme {
+		err = m.addPattern(should, should)
+		if err != nil {
+			t.Error("add one of many: " + err.Error())
+		}
+	}
+	matches, err := m.matchesForJSONEvent([]byte(j))
+	if err != nil {
+		t.Error("m4J on all: " + err.Error())
+	}
+	if len(matches) != len(patternsFromReadme) {
+		t.Errorf("on mix wanted %d got %d", len(patternsFromReadme), len(matches))
+	}
+	fmt.Println(matcherStats(m))
 }
 
 func TestSimpleaddPattern(t *testing.T) {

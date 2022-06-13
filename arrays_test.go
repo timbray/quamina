@@ -88,7 +88,7 @@ func TestArrayCorrectness(t *testing.T) {
 		t.Error(err.Error())
 	}
 
-	matches, err := m.MatchesForJSONEvent([]byte(bands))
+	matches, err := m.matchesForJSONEvent([]byte(bands))
 	if err != nil {
 		t.Error(err.Error())
 	}

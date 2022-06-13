@@ -145,7 +145,7 @@ func TestOverlappingValues(t *testing.T) {
 	e1 := `{"x": 3, "a": "foo"}`
 	e2 := `{"x": 3, "a": "football"}`
 	e3 := `{"x": 3, "a": "footballer"}`
-	matches, err := m.MatchesForJSONEvent([]byte(e1))
+	matches, err := m.matchesForJSONEvent([]byte(e1))
 	if err != nil {
 		t.Error("Error on e1: " + err.Error())
 	}
@@ -155,7 +155,7 @@ func TestOverlappingValues(t *testing.T) {
 		t.Errorf("Failure on e1 - want %v got %v", wantP1, matches[0])
 	}
 
-	matches, err = m.MatchesForJSONEvent([]byte(e2))
+	matches, err = m.matchesForJSONEvent([]byte(e2))
 	if err != nil {
 		t.Error("Error on e2: " + err.Error())
 	}
@@ -163,7 +163,7 @@ func TestOverlappingValues(t *testing.T) {
 		t.Error("Failure on e2")
 	}
 
-	matches, err = m.MatchesForJSONEvent([]byte(e3))
+	matches, err = m.matchesForJSONEvent([]byte(e3))
 	if err != nil {
 		t.Error("Error on e3: " + err.Error())
 	}
@@ -205,7 +205,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 	eBase := `{"a": "999"}`
 	for _, pName := range pNames {
 		event := strings.ReplaceAll(eBase, "999", pName.(string))
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		matches, err := m.matchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Errorf("m4J botch on %s: %s", event, err.Error())
 		}
@@ -232,7 +232,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 		}
 		shouldNot++
 		event := strings.ReplaceAll(eBase, "999", str)
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		matches, err := m.matchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Errorf("shouldNot botch on %s: %s", event, err.Error())
 		}
@@ -269,7 +269,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 	eBase := `{"a": 999}`
 	for _, pName := range pNames {
 		event := strings.ReplaceAll(eBase, "999", pName.(string))
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		matches, err := m.matchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Errorf("m4J botch on %s: %s", event, err.Error())
 		}
@@ -295,7 +295,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 		event := strings.ReplaceAll(eBase, "999", ns)
 		// breaks on 98463
 		// fmt.Println("Event: " + event)
-		matches, err := m.MatchesForJSONEvent([]byte(event))
+		matches, err := m.matchesForJSONEvent([]byte(event))
 		if err != nil {
 			t.Errorf("shouldNot botch on %s: %s", event, err.Error())
 		}
