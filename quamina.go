@@ -131,15 +131,15 @@ func (q *Quamina) AddPattern(x X, patternJSON string) error {
 	return q.matcher.addPattern(x, patternJSON)
 }
 
-// DeletePatterns removes pattnerns identified by the x argument from the Quamina insance; the effect
+// DeletePatterns removes patterns identified by the x argument from the Quamina instance; the effect
 // is that return values from future calls to MatchesForEvent will not include this x value.
 func (q *Quamina) DeletePatterns(x X) error {
 	return q.matcher.deletePatterns(x)
 }
 
 // MatchesForEvent returns a slice of X values which identify patterns that have previously been added to this
-// Quamina instance and which “match” thee event in the sense described in README. The matches slice may be empty
-// if no patterns match. error can be returned ine case that the event is not a valid JSON object or contains
+// Quamina instance and which “match” the event in the sense described in README. The matches slice may be empty
+// if no patterns match. error can be returned in case that the event is not a valid JSON object or contains
 // invalid UTF-8 byte sequences.
 func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	fields, err := q.flattener.Flatten(event, q.matcher)
