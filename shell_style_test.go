@@ -30,54 +30,6 @@ func TestLongCase(t *testing.T) {
 	}
 }
 
-func newNfaWithStart(start *smallTable[*nfaStepList]) *valueMatcher {
-	vm := newValueMatcher()
-	state := &vmFields{startNfa: start}
-	vm.update(state)
-	return vm
-}
-
-func TestNfaMerging(t *testing.T) {
-	aMatches := []string{
-		`"Afoo"`,
-		`"ABA"`,
-	}
-	bMatches := []string{
-		`"BAB"`,
-		`"Bbar"`,
-	}
-	f1 := &fieldMatcher{}
-	f2 := &fieldMatcher{}
-	nfa1, _ := makeShellStyleAutomaton([]byte(`"A*"`), f1)
-	nfa2, _ := makeShellStyleAutomaton([]byte(`"B*"`), f2)
-
-	v1 := newNfaWithStart(nfa1)
-	v2 := newNfaWithStart(nfa2)
-
-	for _, aMatch := range aMatches {
-		t1 := v1.transitionOn([]byte(aMatch))
-		if len(t1) != 1 || t1[0] != f1 {
-			t.Error("mismatch on " + aMatch)
-		}
-	}
-	for _, bMatch := range bMatches {
-		t1 := v2.transitionOn([]byte(bMatch))
-		if len(t1) != 1 || t1[0] != f2 {
-			t.Error("mismatch on " + bMatch)
-		}
-	}
-
-	combo := mergeNfas(nfa1, nfa2)
-	v3 := newNfaWithStart(combo)
-	ab := append(aMatches, bMatches...)
-	for _, match := range ab {
-		t3 := v3.transitionOn([]byte(match))
-		if len(t3) != 1 {
-			t.Error("Fail on " + match)
-		}
-	}
-}
-
 func TestMakeShellStyleAutomaton(t *testing.T) {
 	patterns := []string{
 		`"*ST"`,
@@ -104,28 +56,58 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 		{`"ayybyyzxx"`},
 	}
 
+	// NOTE also testing nfa2Dfa
 	for i, pattern := range patterns {
 		myNext := newFieldMatcher()
 		a, wanted := makeShellStyleAutomaton([]byte(pattern), myNext)
 		if wanted != myNext {
 			t.Error("bad next on: " + pattern)
 		}
+		d := nfa2Dfa(a)
+		vm := newValueMatcher()
+		vmf := vmFields{startDfa: d}
+		vm.update(&vmf)
 		for _, should := range shouldsForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := oneNfaStep(a, 0, []byte(should), transitions)
+			gotTrans := transitionDfa(d, []byte(should), transitions)
 			if len(gotTrans) != 1 || gotTrans[0] != wanted {
 				t.Errorf("Failure for %s on %s", pattern, should)
 			}
 		}
 		for _, shouldNot := range shouldNotForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := oneNfaStep(a, 0, []byte(shouldNot), transitions)
+			gotTrans := transitionDfa(d, []byte(shouldNot), transitions)
 			if gotTrans != nil {
-				t.Errorf("bogus match for %s on %s", pattern, shouldNot)
+				t.Errorf("bogus DFA match for %s on %s", pattern, shouldNot)
 			}
 		}
 	}
 }
+
+/* To be used in profiling AddPattern for patterns which need NFAs
+func xTestShellStyleBuildTime(t *testing.T) {
+	words := readWWords(t)
+	starWords := make([]string, 0, len(words))
+	patterns := make([]string, 0, len(words))
+	for _, word := range words {
+		starAt := rand.Int31n(6)
+		starWord := string(word[:starAt]) + "*" + string(word[starAt:])
+		starWords = append(starWords, starWord)
+		pattern := fmt.Sprintf(`{"x": [ {"shellstyle": "%s" } ] }`, starWord)
+		patterns = append(patterns, pattern)
+	}
+	q, _ := New()
+	for i := 0; i < 32; i++ {
+		// fmt.Printf("i=%d w=%s: %s\n", i, starWords[i], matcherStats(q.matcher.(*coreMatcher)))
+		// fmt.Println(patterns[i])
+		err := q.AddPattern(starWords[i], patterns[i])
+		if err != nil {
+			t.Error("AddP: " + err.Error())
+		}
+	}
+	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
+}
+*/
 
 func TestMixedPatterns(t *testing.T) {
 	// let's mix up some prefix, infix, suffix, and exact-match searches

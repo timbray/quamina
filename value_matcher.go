@@ -21,7 +21,6 @@ type valueMatcher struct {
 }
 type vmFields struct {
 	startDfa            *smallTable[*dfaStep]
-	startNfa            *smallTable[*nfaStepList]
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
 	existsTransitions   []*fieldMatcher
@@ -43,7 +42,7 @@ func (m *valueMatcher) update(state *vmFields) {
 
 func newValueMatcher() *valueMatcher {
 	var vm valueMatcher
-	vm.update(&vmFields{startNfa: nil})
+	vm.update(&vmFields{})
 	return &vm
 }
 
@@ -56,10 +55,6 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	transitions = append(transitions, fields.existsTransitions...)
 
 	switch {
-	case fields.startNfa != nil:
-		// if an NFA is provided, just use it
-		return m.transitionNfa(val, transitions)
-
 	case fields.singletonMatch != nil:
 		// if there's a singleton entry here, we either match the val or we're
 		// done Note: We have to check this first because addTransition might be
@@ -71,53 +66,16 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		return transitions
 
 	case fields.startDfa != nil:
-		return m.transitionDfa(val, transitions)
+		return transitionDfa(fields.startDfa, val, transitions)
 
 	default:
+		// no dfa, no singleton, nothing to do
 		return transitions
 	}
 }
 
-// transitionNfa traverses a nondeterministic automaton - unlike a dfa, an input
-// byte can transition to multiple other nfa steps.  We could do like the
-// top-level fieldMatcher does and add the candidate next steps to a list, and
-// then keep operating as long as there's something on the list, but this is way
-// deep into the lowest level and we'd like to avoid doing a lot of appending
-// and chopping on a slice, profiler says we're already spending almost all our
-// time in GC and malloc. So instead, we'll recurse like hell and and just
-// follow all the links in order as we come to them, on the theory that stack
-// hammering is cheaper than slice bashing.
-func (m *valueMatcher) transitionNfa(val []byte, transitions []*fieldMatcher) []*fieldMatcher {
-	return oneNfaStep(m.getFields().startNfa, 0, val, transitions)
-}
-
-func oneNfaStep(table *smallTable[*nfaStepList], index int, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
-	var utf8Byte byte
-
-	// fake valueTerminator at the end of every val
-	switch {
-	case index == len(val):
-		utf8Byte = valueTerminator
-	case index < len(val):
-		utf8Byte = val[index]
-	default:
-		return transitions
-	}
-	nextSteps := table.step(utf8Byte)
-	if nextSteps == nil {
-		return transitions
-	}
-	index++
-	for _, nextStep := range nextSteps.steps {
-		transitions = append(transitions, nextStep.fieldTransitions...)
-		transitions = oneNfaStep(nextStep.table, index, val, transitions)
-	}
-	return transitions
-}
-
-func (m *valueMatcher) transitionDfa(val []byte, transitions []*fieldMatcher) []*fieldMatcher {
+func transitionDfa(table *smallTable[*dfaStep], val []byte, transitions []*fieldMatcher) []*fieldMatcher {
 	// step through the smallTables, byte by byte
-	table := m.getFields().startDfa
 	for _, utf8Byte := range val {
 		step := table.step(utf8Byte)
 		if step == nil {
@@ -154,39 +112,24 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	}
 
 	// there's already a table, thus an out-degree > 1
-	if fields.startDfa != nil || fields.startNfa != nil {
+	if fields.startDfa != nil {
+		var newDfa *smallTable[*dfaStep]
+		var nextField *fieldMatcher
 		switch val.vType {
 		case stringType, numberType, literalType:
-			newDfa, nextField := makeStringAutomaton(valBytes, nil)
-			if fields.startNfa != nil {
-				fields.startNfa = mergeNfas(fields.startNfa, dfa2Nfa(newDfa))
-			} else {
-				fields.startDfa = mergeDfas(fields.startDfa, newDfa)
-			}
-			m.update(fields)
-			return nextField
+			newDfa, nextField = makeStringAutomaton(valBytes, nil)
 		case anythingButType:
-			newDfa, nextField := makeMultiAnythingButAutomaton(val.list, nil)
-			if fields.startNfa != nil {
-				fields.startNfa = mergeNfas(fields.startNfa, dfa2Nfa(newDfa))
-			} else {
-				fields.startDfa = mergeDfas(fields.startDfa, newDfa)
-			}
-			m.update(fields)
-			return nextField
+			newDfa, nextField = makeMultiAnythingButAutomaton(val.list, nil)
 		case shellStyleType:
-			newNfa, nextField := makeShellStyleAutomaton(valBytes, nil)
-			if fields.startNfa != nil {
-				fields.startNfa = mergeNfas(newNfa, fields.startNfa)
-			} else {
-				fields.startNfa = mergeNfas(newNfa, dfa2Nfa(fields.startDfa))
-				fields.startDfa = nil
-			}
-			m.update(fields)
-			return nextField
+			var newNfa *smallTable[*nfaStepList]
+			newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
+			newDfa = nfa2Dfa(newNfa)
 		default:
 			panic("unknown value type")
 		}
+		fields.startDfa = mergeDfas(fields.startDfa, newDfa)
+		m.update(fields)
+		return nextField
 	}
 
 	// no start table, we have to work with singletons …
@@ -207,7 +150,7 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			return nextField
 		case shellStyleType:
 			newAutomaton, nextField := makeShellStyleAutomaton(valBytes, nil)
-			fields.startNfa = newAutomaton
+			fields.startDfa = nfa2Dfa(newAutomaton)
 			m.update(fields)
 			return nextField
 		default:
@@ -226,24 +169,22 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	// to build an automaton with two values in it
 	singletonAutomaton, _ := makeStringAutomaton(fields.singletonMatch, fields.singletonTransition)
 	var nextField *fieldMatcher
+	var newDfa *smallTable[*dfaStep]
 	switch val.vType {
 	case stringType, numberType, literalType:
-		var newDfa *smallTable[*dfaStep]
 		newDfa, nextField = makeStringAutomaton(valBytes, nil)
-		fields.startDfa = mergeDfas(singletonAutomaton, newDfa)
 	case anythingButType:
-		var newDfa *smallTable[*dfaStep]
 		newDfa, nextField = makeMultiAnythingButAutomaton(val.list, nil)
-		fields.startDfa = mergeDfas(singletonAutomaton, newDfa)
 	case shellStyleType:
 		var newNfa *smallTable[*nfaStepList]
 		newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
-		fields.startNfa = mergeNfas(newNfa, dfa2Nfa(singletonAutomaton))
+		newDfa = nfa2Dfa(newNfa)
 	default:
 		panic("unknown val type")
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it
+	fields.startDfa = mergeDfas(singletonAutomaton, newDfa)
 	fields.singletonMatch = nil
 	fields.singletonTransition = nil
 	m.update(fields)

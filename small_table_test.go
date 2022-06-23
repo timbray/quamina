@@ -1,8 +1,10 @@
 package quamina
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestMakeSmallTable(t *testing.T) {
@@ -34,6 +36,38 @@ func tMST(t *testing.T, b []byte) {
 
 func newDfaTransition(f *fieldMatcher) *dfaStep {
 	return &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{f}}
+}
+
+func TestDFAMergePerf(t *testing.T) {
+	words := readWWords(t)
+	patterns := make([]string, 0, len(words))
+	for _, word := range words {
+		pattern := fmt.Sprintf(`{"x": [ "%s" ] }`, string(word))
+		patterns = append(patterns, pattern)
+	}
+	before := time.Now()
+	q, _ := New()
+	for _, pattern := range patterns {
+		err := q.AddPattern(pattern, pattern)
+		if err != nil {
+			t.Error("ap: " + err.Error())
+		}
+	}
+	elapsed := float64(time.Since(before).Milliseconds())
+
+	for _, word := range words {
+		event := fmt.Sprintf(`{"x": "%s"}`, string(word))
+		matches, err := q.MatchesForEvent([]byte(event))
+		if err != nil {
+			t.Error("M4: " + err.Error())
+		}
+		if len(matches) != 1 {
+			t.Errorf("wanted 1 got %d", len(matches))
+		}
+
+	}
+	perSecond := float64(len(patterns)) / (elapsed / 1000.0)
+	fmt.Printf("%.2f addPatterns/second with letter patterns\n\n", perSecond)
 }
 
 func TestCombiner(t *testing.T) {

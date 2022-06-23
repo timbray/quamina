@@ -37,8 +37,8 @@ const valueTerminator byte = 0xf5
 //  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, S}
 //  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 //  byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
-//  ceilings: 3,   5,    0x34, 0x35, byteCeiling
-//  steps: nil, &ss1, nil,  &ss2, nil
+//  ceilings:--|3|----|5|-|0x34|--|x35|-|byteCeiling|
+//  steps:---|nil|-|&ss1|--|ni|--|&ss2|---------|nil|
 //  invariant: The last element of ceilings is always byteCeiling
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
 // ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
@@ -132,29 +132,80 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 		case stepExisting == nil && stepNew != nil:
 			uComb[i] = stepNew
 		case stepExisting != nil && stepNew != nil:
-			uComb[i] = mergeOneDfaStep(stepExisting, stepNew, memoize)
+			// there are considerable runs of the same value
+			if i > 1 && stepExisting == uExisting[i-1] && stepNew == uNew[i-1] {
+				uComb[i] = uComb[i-1]
+			} else {
+				uComb[i] = mergeOneDfaStep(stepExisting, stepNew, memoize)
+			}
 		}
 	}
 	combined.table.pack(&uComb)
 	return combined
 }
 
-func dfa2Nfa(table *smallTable[*dfaStep]) *smallTable[*nfaStepList] {
-	lister := newListMaker()
-	return dfaStep2NfaStep(&dfaStep{table: table}, lister).table
+// nfa2Dfa does what the name says. As of now it does not consider epsilon
+// transitions in the NFA because, as of the time of writing, none of the
+// pattern-matching required those transitions.  It is based on the algorithm
+// taught in the TU München course “Automata and Formal Languages”, lecturer
+// Prof. Dr.Ernst W. Mayr in 2014-15, in particular the examples appearing in
+// http://wwwmayr.informatik.tu-muenchen.de/lehre/2014WS/afs/2014-10-14.pdf
+// especially the slide in Example 11.
+//
+func nfa2Dfa(table *smallTable[*nfaStepList]) *smallTable[*dfaStep] {
+	firstStep := &nfaStepList{steps: []*nfaStep{{table: table}}}
+	return nfaStep2DfaStep(firstStep, newDfaMemory()).table
 }
 
-func dfaStep2NfaStep(dStep *dfaStep, lister *listMaker) *nfaStep {
-	nStep := &nfaStep{table: newSmallTable[*nfaStepList](), fieldTransitions: dStep.fieldTransitions}
-	dUnpacked := unpackTable(dStep.table)
-	var nUnpacked unpackedTable[*nfaStepList]
-	for i, nextDStep := range dUnpacked {
-		if nextDStep != nil {
-			nUnpacked[i] = lister.getList(dfaStep2NfaStep(nextDStep, lister))
-		}
+func nfaStep2DfaStep(stepList *nfaStepList, memoize *dfaMemory) *dfaStep {
+	var dStep *dfaStep
+	dStep, ok := memoize.dfaForNfas(stepList.steps...)
+	if ok {
+		return dStep
 	}
-	nStep.table.pack(&nUnpacked)
-	return nStep
+	dStep = &dfaStep{
+		table: &smallTable[*dfaStep]{},
+	}
+	memoize.rememberDfaForList(dStep, stepList.steps...)
+	if len(stepList.steps) == 1 {
+		// there's only stepList.steps[0]
+		nStep := stepList.steps[0]
+		dStep.fieldTransitions = nStep.fieldTransitions
+		dStep.table.ceilings = make([]byte, len(nStep.table.ceilings))
+		dStep.table.steps = make([]*dfaStep, len(nStep.table.ceilings)) // defaults will be nil, which is OK
+		for i, nfaList := range nStep.table.steps {
+			dStep.table.ceilings[i] = nStep.table.ceilings[i]
+			if nfaList != nil {
+				dStep.table.steps[i] = nfaStep2DfaStep(nfaList, memoize)
+			}
+		}
+	} else {
+		// coalesce - first, unpack each of the steps
+		unpackedNfaSteps := make([]*unpackedTable[*nfaStepList], len(stepList.steps))
+		var unpackedDfa unpackedTable[*dfaStep]
+		for i, list := range stepList.steps {
+			unpackedNfaSteps[i] = unpackTable(list.table)
+			dStep.fieldTransitions = append(dStep.fieldTransitions, list.fieldTransitions...)
+		}
+		for utf8Byte := 0; utf8Byte < byteCeiling; utf8Byte++ {
+			steps := make(map[*nfaStep]bool)
+			for _, table := range unpackedNfaSteps {
+				if table[utf8Byte] != nil {
+					for _, step := range table[utf8Byte].steps {
+						steps[step] = true
+					}
+				}
+			}
+			var synthStep nfaStepList
+			for step := range steps {
+				synthStep.steps = append(synthStep.steps, step)
+			}
+			unpackedDfa[utf8Byte] = nfaStep2DfaStep(&synthStep, memoize)
+		}
+		dStep.table.pack(&unpackedDfa)
+	}
+
+	return dStep
 }
 
 type nfaStepKey struct {
@@ -266,8 +317,8 @@ func unpackTable[S comparable](t *smallTable[S]) *unpackedTable[S] {
 }
 
 func (t *smallTable[S]) pack(u *unpackedTable[S]) {
-	var ceilings []byte
-	var steps []S
+	ceilings := make([]byte, 0, 16)
+	steps := make([]S, 0, 16)
 	lastStep := u[0]
 	for unpackedIndex, ss := range u {
 		if ss != lastStep {
