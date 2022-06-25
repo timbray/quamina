@@ -70,9 +70,7 @@ func vmStats(m *valueMatcher, s *stats) {
 		s.siCount++
 		fmStats(state.singletonTransition, s)
 	}
-	if state.startNfa != nil {
-		nfaStats(state.startNfa, s)
-	} else if state.startDfa != nil {
+	if state.startDfa != nil {
 		dfaStats(state.startDfa, s)
 	}
 }
@@ -99,37 +97,6 @@ func dfaStats(t *smallTable[*dfaStep], s *stats) {
 				}
 			}
 			dfaStats(step.table, s)
-		}
-	}
-}
-
-func nfaStats(t *smallTable[*nfaStepList], s *stats) {
-	if s.stVisited[t] {
-		return
-	}
-	s.stVisited[t] = true
-	s.stCount++
-	tSize := len(t.ceilings)
-	if tSize > 1 {
-		if tSize > s.stMax {
-			s.stMax = tSize
-		}
-		s.stTblCount++
-		s.stEntries += len(t.ceilings)
-	}
-	for _, stepList := range t.steps {
-		if stepList == nil {
-			continue
-		}
-		for _, step := range stepList.steps {
-			if step != nil {
-				if step.fieldTransitions != nil {
-					for _, m := range step.fieldTransitions {
-						fmStats(m, s)
-					}
-				}
-				nfaStats(step.table, s)
-			}
 		}
 	}
 }

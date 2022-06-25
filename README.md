@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/timbray/quamina/actions/workflows/go-unit-tests.yaml/badge.svg)](https://github.com/timbray/quamina/actions/workflows/go-unit-tests.yaml)
 [![Latest Release](https://img.shields.io/github/release/timbray/quamina.svg?logo=github&style=flat-square)](https://github.com/timbray/quamina/releases/latest)
-[![codecov](https://codecov.io/gh/timbray/quamina/branch/main/graph/badge.svg?token=TC7MW723JO)](https://codecov.io/gh/timbray/quamina) 
+[![codecov](https://codecov.io/gh/timbray/quamina/branch/main/graph/badge.svg?token=TC7MW723JO)](https://codecov.io/gh/timbray/quamina)
 [![Go Report Card](https://goreportcard.com/badge/github.com/timbray/quamina)](https://goreportcard.com/report/github.com/timbray/quamina)
 [![timbray/quamina](https://img.shields.io/github/go-mod/go-version/timbray/quamina)](https://github.com/timbray/quamina)
 [![Go Reference](https://pkg.go.dev/badge/github.com/timbray/quamina.svg)](https://pkg.go.dev/github.com/timbray/quamina)
@@ -51,7 +51,6 @@ in RFC 8259:
 ```
 
 The following Patterns would match it:
-
 ```json
 {"Image": {"Width": [800]}}
 ```
@@ -91,7 +90,6 @@ The following Patterns would match it:
   }
 }
 ```
-
 ```json
 {
   "Image": {
@@ -275,25 +273,48 @@ Events through it as is practical.
 
 I used to say that the performance of
 `MatchesForEvent` was `O(1)` in the number of
-Patterns. While that’s probably the right way to think
-about it, it’s not *quite* true,
-as it varies somewhat as a function of the number of
-unique fields that appear in all the Patterns that have
-been added to Quamina, but still remains sublinear
-in that number.
+Patterns. That’s probably a reasonable way to think
+about it, because it’s *almost* right. 
 
-A word of explanation: Quamina compiles the
-Patterns into a somewhat-decorated automaton and uses
-that to find matches in Events; the matching process is
-`O(1)` in the number of Patterns.
+To be correct, the performance is `O(N)` where `N` is 
+the number of unique fields that appear in all the Patterns 
+that have been added to Quamina.  
 
-However, for this to work, the incoming Event must be
-flattened into a list of pathname/value pairs and
-sorted.  This process exceeds 50% of execution time,
-and is optimized by discarding any fields that
-do not appear in one or more of the Patterns added
-to Quamina. Thus, adding a new Pattern that only
-mentions fields which are already mentioned in previous 
+For example, suppose you have a list of 50,000 words, and
+you add a Pattern for each, of the form:
+```json
+{"word": ["one of the words"]}
+```
+The performance in matching events should be about the same 
+for one word or 50,000, with some marginal loss following on 
+growth in the size of the necessary data structures.
+
+However, adding another pattern that looks like the
+following would
+roughly speaking decrease the performance by a factor of 
+roughly 2:
+```json
+{"number": [11, 22, 33]}
+```
+Then adding a few thousand more `"number"` patterns shouldn’t
+decrease the performance observably.
+
+As always, it’s a little more complex than that, with a weak
+dependency on the size of the incoming Events; Quamina has
+to plow through them end-to-end to pull out the interesting
+fields.
+
+A word of explanation: Quamina compiles the Patterns into a
+somewhat-decorated automaton and uses that to find matches in
+Events. For Quamina to work, the incoming Events must be flattened
+into a list of pathname/value pairs and sorted.  This process
+exceeds 50% of execution time, and is optimized by discarding
+any fields that do not appear in one or more of the Patterns
+added to Quamina.  Then, the cost of traversing the automaton
+is at most N, the number of fields left after discarding.
+
+Thus, adding a new Pattern that only
+mentions fields which are already mentioned in previous
 Patterns is effectively free i.e. `O(1)` in terms of run-time
 performance.
 
