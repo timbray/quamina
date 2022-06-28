@@ -268,15 +268,37 @@ you’ve created a Quamina instance, whether through
 `New()` or `Copy()`, keep it around and run as many
 Events through it as is practical.
 
+### `AddPattern()` Performance
 
-### Performance
+In **most** cases, tens of thousands of Patterns per second can 
+be added to a Quamina instance; the in-memory data structure will
+become larger, but not unreasonably so. The amount of of
+available memory is the only significant limit to the 
+number of patterns an instance can carry.
+
+The exception is `shellstyle` Patterns. Adding many of these
+can rapidly lead to degradation in elapsed time and memory
+consumption, at a rate which is uneven but at worst 
+O(2<sup>N</sup>) in the number of patterns. A fuzz test
+which adds random 5-letter words with a `*` at a random
+location slows to a crawl after 30 or so `AddPattern()`
+calls, with the Quamina instance having many millions of
+states. Note that such instances, once built, can still
+match Events at high speeds.
+
+This is after some optimization. It is possible there is a
+bug such that automaton-building is unduly wasteful but it
+may remain the case that adding this flavor of Pattern is
+simply not something that can be done at large scale.
+
+### `MatchesForEvent()` Performance
 
 I used to say that the performance of
-`MatchesForEvent` was `O(1)` in the number of
+`MatchesForEvent` was O(1) in the number of
 Patterns. That’s probably a reasonable way to think
 about it, because it’s *almost* right. 
 
-To be correct, the performance is `O(N)` where `N` is 
+To be correct, the performance is O(N) where N is 
 the number of unique fields that appear in all the Patterns 
 that have been added to Quamina.  
 
@@ -315,8 +337,15 @@ is at most N, the number of fields left after discarding.
 
 Thus, adding a new Pattern that only
 mentions fields which are already mentioned in previous
-Patterns is effectively free i.e. `O(1)` in terms of run-time
+Patterns is effectively free i.e. O(1) in terms of run-time
 performance.
+
+### Further documentation
+
+There is a series of blog posts entitled
+[Quamina Diary](https://www.tbray.org/ongoing/What/Technology/Quamina%20Diary/)
+that provides a detailed discussion of the design decisions
+at a length unsuitable for in-code comments.
 
 ### Name
 

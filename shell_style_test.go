@@ -2,6 +2,7 @@ package quamina
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
 )
@@ -84,8 +85,7 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 	}
 }
 
-/* To be used in profiling AddPattern for patterns which need NFAs
-func xTestShellStyleBuildTime(t *testing.T) {
+func TestShellStyleBuildTime(t *testing.T) {
 	words := readWWords(t)
 	starWords := make([]string, 0, len(words))
 	patterns := make([]string, 0, len(words))
@@ -107,7 +107,6 @@ func xTestShellStyleBuildTime(t *testing.T) {
 	}
 	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
 }
-*/
 
 func TestMixedPatterns(t *testing.T) {
 	// let's mix up some prefix, infix, suffix, and exact-match searches
@@ -123,9 +122,6 @@ func TestMixedPatterns(t *testing.T) {
 		`"ZOE"`:     19,
 		`"CRYSTAL"`: 6,
 	}
-	x1, _ := makeShellStyleAutomaton([]byte(`"*ST"`), nil)
-	x2, _ := makeShellStyleAutomaton([]byte(`"*TH"`), nil)
-	mergeNfas(x1, x2)
 
 	stringTemplate := `{"properties": { "STREET": [ XX ] } }`
 	shellTemplate := `{"properties": {"STREET":[ {"shellstyle": XX} ] } }`

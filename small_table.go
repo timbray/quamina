@@ -38,7 +38,7 @@ const valueTerminator byte = 0xf5
 //  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 //  byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
 //  ceilings:--|3|----|5|-|0x34|--|x35|-|byteCeiling|
-//  steps:---|nil|-|&ss1|--|ni|--|&ss2|---------|nil|
+//  steps:---|nil|-|&ss1|--|nil|-|&ss2|---------|nil|
 //  invariant: The last element of ceilings is always byteCeiling
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
 // ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
@@ -133,7 +133,7 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 			uComb[i] = stepNew
 		case stepExisting != nil && stepNew != nil:
 			// there are considerable runs of the same value
-			if i > 1 && stepExisting == uExisting[i-1] && stepNew == uNew[i-1] {
+			if i > 0 && stepExisting == uExisting[i-1] && stepNew == uNew[i-1] {
 				uComb[i] = uComb[i-1]
 			} else {
 				uComb[i] = mergeOneDfaStep(stepExisting, stepNew, memoize)
@@ -148,7 +148,7 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 // transitions in the NFA because, as of the time of writing, none of the
 // pattern-matching required those transitions.  It is based on the algorithm
 // taught in the TU München course “Automata and Formal Languages”, lecturer
-// Prof. Dr.Ernst W. Mayr in 2014-15, in particular the examples appearing in
+// Prof. Dr. Ernst W. Mayr in 2014-15, in particular the examples appearing in
 // http://wwwmayr.informatik.tu-muenchen.de/lehre/2014WS/afs/2014-10-14.pdf
 // especially the slide in Example 11.
 //
@@ -207,69 +207,6 @@ func nfaStep2DfaStep(stepList *nfaStepList, memoize *dfaMemory) *dfaStep {
 
 	return dStep
 }
-
-type nfaStepKey struct {
-	step1 *nfaStep
-	step2 *nfaStep
-}
-
-func mergeNfas(nfa1, nfa2 *smallTable[*nfaStepList]) *smallTable[*nfaStepList] {
-	step1 := &nfaStep{table: nfa1}
-	step2 := &nfaStep{table: nfa2}
-	return mergeOneNfaStep(step1, step2, make(map[nfaStepKey]*nfaStep), newListMaker(), 0).table
-}
-
-func mergeOneNfaStep(step1, step2 *nfaStep, memoize map[nfaStepKey]*nfaStep, lister *listMaker, depth int) *nfaStep {
-	var combined *nfaStep
-	mKey := nfaStepKey{step1: step1, step2: step2}
-	combined, ok := memoize[mKey]
-	if ok {
-		return combined
-	}
-
-	newTable := newSmallTable[*nfaStepList]()
-	switch {
-	case step1.fieldTransitions == nil && step2.fieldTransitions == nil:
-		combined = &nfaStep{table: newTable}
-	case step1.fieldTransitions != nil && step2.fieldTransitions != nil:
-		transitions := append(step1.fieldTransitions, step2.fieldTransitions...)
-		combined = &nfaStep{table: newTable, fieldTransitions: transitions}
-	case step1.fieldTransitions != nil && step2.fieldTransitions == nil:
-		combined = &nfaStep{table: newTable, fieldTransitions: step1.fieldTransitions}
-	case step1.fieldTransitions == nil && step2.fieldTransitions != nil:
-		combined = &nfaStep{table: newTable, fieldTransitions: step2.fieldTransitions}
-	}
-	memoize[mKey] = combined
-
-	u1 := unpackTable(step1.table)
-	u2 := unpackTable(step2.table)
-	var uComb unpackedTable[*nfaStepList]
-	for i, list1 := range u1 {
-		list2 := u2[i]
-		switch {
-		case list1 == nil && list2 == nil:
-			uComb[i] = nil
-		case list1 != nil && list2 == nil:
-			uComb[i] = u1[i]
-		case list1 == nil && list2 != nil:
-			uComb[i] = u2[i]
-		case list1 != nil && list2 != nil:
-			var comboList []*nfaStep
-			for _, nextStep1 := range list1.steps {
-				for _, nextStep2 := range list2.steps {
-					merged := mergeOneNfaStep(nextStep1, nextStep2, memoize, lister, depth+1)
-					comboList = append(comboList, merged)
-				}
-			}
-			uComb[i] = lister.getList(comboList...)
-		}
-	}
-	combined.table.pack(&uComb)
-	return combined
-}
-
-// TODO: Clean up from here on down - too many funcs doing about the same thing, and also it seems that
-//  we never want to have more than one "range", which is the whole table.
 
 // makeSmallDfaTable creates a pre-loaded small table, with all bytes not otherwise specified having the defaultStep
 //  value, and then a few other values with their indexes and values specified in the other two arguments. The

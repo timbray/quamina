@@ -1,6 +1,6 @@
 package quamina
 
-// Flattener is interface which provides methods to turn a data structure into a list of path-names and
+// Flattener is an interface which provides methods to turn a data structure into a list of path-names and
 // values. The following example illustrates how it works for a JSON object:
 //  { "a": 1, "b": "two", "c": true", "d": nil, "e": { "e1": 2, "e2":, 3.02e-5} "f": [33, "x"]} }
 // should produce
