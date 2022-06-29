@@ -8,16 +8,21 @@ import (
 // valueMatcher represents a byte-driven automaton.  The table needs to be the
 // equivalent of a map[byte]nextState and is represented by smallTable. Some
 // patterns can be represented by a deterministic finite automaton (DFA) but
-// others, particularly with a regex failure, need to be represented by a
-// nondeterministic finite automaton (NFA). NFAs trump DFAs so if a valueMatcher
-// has one, it must be used in preference to other alternatives. In some cases
-// there is only one byte sequence forward from a state, i.e. a string-valued
-// field with only one string match. In this case, the DFA and NFA will b null
-// and the value being matched has to exactly equal the singletonMatch field; if
-// so, the singletonTransition is the return value. This is to avoid having a
-// long chain of smallTables each with only one entry.
+// others, particularly with a regex flavor, need to be represented by a
+// nondeterministic finite automaton (NFA).  NFAs are converted to DFAs for
+// simplicity and efficiency. The basic algorithm is to compute the automaton
+// for a pattern, convert it to a DFA if necessary, and merge with any
+// existing DFA.
+// In some (common) cases there is only one byte sequence forward from a state,
+// i.e. a string-valued field with only one string match. In this case, the DFA
+// will be null and the value being matched has to exactly equal the singletonMatch
+// field; if so, the singletonTransition is the return value. This is to avoid
+// having a long chain of smallTables each with only one entry.
+// To allow for concurrent access between one thread running AddPattern and many
+// others running MatchesForEvent, the valueMatcher payload is stored in an
+// atomic.Value
 type valueMatcher struct {
-	updateable atomic.Value
+	updateable atomic.Value // always contains *vmFields
 }
 type vmFields struct {
 	startDfa            *smallTable[*dfaStep]
@@ -83,7 +88,6 @@ func transitionDfa(table *smallTable[*dfaStep], val []byte, transitions []*field
 		}
 
 		transitions = append(transitions, step.fieldTransitions...)
-
 		table = step.table
 	}
 

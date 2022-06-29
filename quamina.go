@@ -119,7 +119,7 @@ func (q *Quamina) Copy() *Quamina {
 
 // X is used in the AddPattern and MatchesForEvent APIs to identify the patterns that are added to
 // a Quamina instance and are reported by that instance as matching an event. Commonly, X is a string
-// used to name the event.
+// used to name the pattern.
 type X any
 
 // AddPattern - adds a pattern, identified by the x argument, to a Quamina instance.

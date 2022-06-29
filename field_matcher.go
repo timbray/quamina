@@ -3,14 +3,14 @@ package quamina
 import "sync/atomic"
 
 // fieldMatcher represents a state in the matching automaton, which matches field names and dispatches to
-//  valueMatcher to complete matching of field values.  fieldMatcher has a map which is keyed by the
-//  field pathSegments values that can start transitions from this matcher; for each such field, there is a
-//  valueMatcher which, given the field's value, determines whether the automaton progresses to another fieldMatcher
+// valueMatcher to complete matching of field values.  fieldMatcher has a map which is keyed by the
+// field pathSegments values that can start transitions from this matcher; for each such field, there is a
+// valueMatcher which, given the field's value, determines whether the automaton progresses to another fieldMatcher
 // matches contains the X values that arrival at this state implies have matched
 // existsFalseFailures reports the condition that traversal has occurred by matching a field which is named in an
-//  exists:false pattern, and the named X's should be subtracted from the matches list being built up by a match project
+// exists:false pattern, and the named X's should be subtracted from the matches list being built up by a match project
 // the fields that hold state are segregated in updateable so they can be replaced atomically and make the matcher
-//  thread-safe.
+// thread-safe.
 type fieldMatcher struct {
 	updateable atomic.Value // always holds an *fmFields
 }
@@ -20,8 +20,8 @@ type fmFields struct {
 	existsFalseFailures *matchSet
 }
 
-// fields / update / addExistsFalseFailure / addMatch exist to insuleate callers from dealing with
-//  the atomic Load/Store business
+// fields / update / addExistsFalseFailure / addMatch exist to insulate callers from dealing with
+// the atomic Load/Store business
 func (m *fieldMatcher) fields() *fmFields {
 	return m.updateable.Load().(*fmFields)
 }

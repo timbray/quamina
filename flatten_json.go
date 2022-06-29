@@ -7,14 +7,13 @@ import (
 )
 
 // flattenJSON is a custom non-general-purpose JSON parser whose object is to implement Flattener and produce a []Field
-//  list from a JSON object.  This could be done (and originally was) with the built-in encoding/json, but the
-//  performance was unsatisfactory (99% of time spent parsing events < 1% matching them). The profiler suggests
-//  that the performance issue was mostly due to excessive memory allocation.
+// list from a JSON object.  This could be done (and originally was) with the built-in encoding/json, but the
+// performance was unsatisfactory (99% of time spent parsing events < 1% matching them). The profiler suggests
+// that the performance issue was mostly due to excessive memory allocation.
 // If we assume that the event is immutable while we're working, then all the pieces of it that constitute
-//  the fields & values can be represented as []byte slices using a couple of offsets into the underlying event.
-//  There is an exception, namely strings that contain \-prefixed JSON escapes; since we want to work with the
-//  actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
-// TODO: There are gaps in the unit-test coverage, including nearly all the error conditions
+// the fields & values can be represented as []byte slices using a couple of offsets into the underlying event.
+// There is an exception, namely strings that contain \-prefixed JSON escapes; since we want to work with the
+// actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 type flattenJSON struct {
 	event      []byte      // event being processed, treated as immutable
 	eventIndex int         // current byte index into the event
