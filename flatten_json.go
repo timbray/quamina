@@ -161,6 +161,8 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 				}
 				memberIsUsed = (fj.skipping == 0) && fj.tracker.IsNameUsed(memberName)
 				state = seekingColonState
+			case '}':
+				return nil
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in JSON object", ch))
 			}
@@ -328,6 +330,8 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 				if err != nil {
 					return err
 				}
+			case ']':
+				return nil
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in array", ch))
 			}

@@ -18,15 +18,15 @@ func bequal(a []byte, b []byte) bool {
 }
 
 func TestFJBasic(t *testing.T) {
-	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33e2, "x", true, false, null], "g": false}`
-	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f", "g")
+	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33e2, "x", true, false, null], "g": false, "h": [], "i": {}}`
+	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f", "g", "h", "i")
 
 	f := newJSONFlattener()
 	list, err := f.Flatten([]byte(j), allYes)
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
-	wantedPaths := []string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f", "f", "f", "f", "g"}
+	wantedPaths := []string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f", "f", "f", "f", "g", "h", "i"}
 	wantedVals := []string{"1", "\"two\"", "true", "null", "2", "3.02e-5", "33e2", "\"x\"", "true", "false", "null", "false"}
 	if len(list) != len(wantedVals) {
 		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
