@@ -200,6 +200,9 @@ func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 			matches = matches.addX(presumedExistsFalseMatch)
 		}
 	}
+
+	// prune any invalidated exists:false matches from the set
+	matches = matches.removeX(failedExistsFalseMatches.matches()...)
 	return matches
 }
 

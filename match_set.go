@@ -22,6 +22,18 @@ func (m *matchSet) addX(exes ...X) *matchSet {
 	return &matchSet{set: newSet}
 }
 
+func (m *matchSet) removeX(exes ...X) *matchSet {
+	// for concurrency, can't update in place
+	newSet := make(map[X]bool, len(m.set))
+	for k := range m.set {
+		newSet[k] = true
+	}
+	for _, x := range exes {
+		delete(newSet, x)
+	}
+	return &matchSet{set: newSet}
+}
+
 func (m *matchSet) contains(x X) bool {
 	_, ok := m.set[x]
 	return ok
