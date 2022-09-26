@@ -88,11 +88,11 @@ var defaultRebuildTrigger = newTooMuchFiltering(0.2, 1000)
 // tooMuchFiltering is the standard rebuildTrigger, which will fire
 // when:
 //
-//   MinAction is less than the sum of counts of found and filtered
-//   patterns and
+//	MinAction is less than the sum of counts of found and filtered
+//	patterns and
 //
-//   FilteredToEmitted is greater than the ratio of counts of filtered
-//   and found patterns.
+//	FilteredToEmitted is greater than the ratio of counts of filtered
+//	and found patterns.
 //
 // defaultRebuildTrigger provides the default trigger policy used by
 // newPrunerMatcher.

@@ -21,10 +21,13 @@ import (
 // coreMatcher uses a finite automaton to implement the matchesForJSONEvent and MatchesForFields functions.
 // state is the start of the automaton
 // namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
-//  patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
-//  fields that do not appear in patterns when using the automaton for matching
+//
+//	patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
+//	fields that do not appear in patterns when using the automaton for matching
+//
 // the updateable fields are grouped into the coreStart member so they can be updated atomically using atomic.Load()
-//  and atomic.Store(). This is necessary for coreMatcher to be thread-safe.
+//
+//	and atomic.Store(). This is necessary for coreMatcher to be thread-safe.
 type coreMatcher struct {
 	updateable atomic.Value // always holds a *coreStart
 	lock       sync.Mutex
@@ -50,7 +53,8 @@ func (m *coreMatcher) start() *coreStart {
 }
 
 // AddPattern - the patternBytes is a JSON object. The X is what the matcher returns to indicate that the
-//  provided pattern has been matched. In many applications it might be a string which is the pattern's name.
+//
+//	provided pattern has been matched. In many applications it might be a string which is the pattern's name.
 func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	patternFields, patternNamesUsed, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
@@ -133,21 +137,24 @@ func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 }
 
 // MatchesForFields takes a list of Field structures and sorts them by pathname; the fields in a pattern to
-//  matched are similarly sorted; thus running an automaton over them works
+//
+//	matched are similarly sorted; thus running an automaton over them works
 func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	sort.Slice(fields, func(i, j int) bool { return string(fields[i].Path) < string(fields[j].Path) })
 	return m.matchesForSortedFields(fields).matches(), nil
 }
 
 // proposedTransition represents a suggestion that the name/value pair at fields[fieldIndex] might allow a transition
-//  in the indicated state
+//
+//	in the indicated state
 type proposedTransition struct {
 	matcher    *fieldMatcher
 	fieldIndex int
 }
 
 // matchesForSortedFields runs the provided list of name/value pairs against the automaton and returns
-//  a possibly-empty list of the patterns that match
+//
+//	a possibly-empty list of the patterns that match
 func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 	failedExistsFalseMatches := newMatchSet()
 	matches := newMatchSet()

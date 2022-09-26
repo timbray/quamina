@@ -101,8 +101,9 @@ func TestNewQOptions(t *testing.T) {
 const thresholdPerformance = 1.0
 
 // TestCityLots is the benchmark that was used in most of Quamina's performance tuning.  It's fairly pessimal in
-//  that it uses geometry/co-ordintes, which will force the fj flattener to process the big arrays of numbers in
-//  each line.  A high proportion of typical Quamina workloads should run faster.
+//
+//	that it uses geometry/co-ordintes, which will force the fj flattener to process the big arrays of numbers in
+//	each line.  A high proportion of typical Quamina workloads should run faster.
 func TestCityLots(t *testing.T) {
 	patterns := []string{
 		`{ "properties": { "STREET": [ "CRANLEIGH" ] } }`,

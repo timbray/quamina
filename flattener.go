@@ -2,16 +2,19 @@ package quamina
 
 // Flattener is an interface which provides methods to turn a data structure into a list of path-names and
 // values. The following example illustrates how it works for a JSON object:
-//  { "a": 1, "b": "two", "c": true", "d": nil, "e": { "e1": 2, "e2":, 3.02e-5} "f": [33, "x"]} }
+//
+//	{ "a": 1, "b": "two", "c": true", "d": nil, "e": { "e1": 2, "e2":, 3.02e-5} "f": [33, "x"]} }
+//
 // should produce
-//  "a", "1"
-//  "b", "\"two\"",
-//  "c", "true"
-//  "d", "nil",
-//  "e\ne1", "2"
-//  "e\ne2", "3.02e-5"
-//  "f", "33"
-//  "f", "\"x\""
+//
+//	"a", "1"
+//	"b", "\"two\"",
+//	"c", "true"
+//	"d", "nil",
+//	"e\ne1", "2"
+//	"e\ne2", "3.02e-5"
+//	"f", "33"
+//	"f", "\"x\""
 //
 // Let's call the first column, eg "d" and "e\ne1", the path. For each
 // step i the path, e.g. "d" and "e1", the Flattener should call
@@ -19,9 +22,10 @@ package quamina
 // paths which don't contain that step. So in the example above, if
 // nameTracker.IsNameUsed() only came back true for "a" and "f", then the output
 // would be
-//  "a", "1"
-//  "f", "33"
-//  "f", "\"x\""
+//
+//	"a", "1"
+//	"f", "33"
+//	"f", "\"x\""
 type Flattener interface {
 	Flatten(event []byte, tracker NameTracker) ([]Field, error)
 	Copy() Flattener

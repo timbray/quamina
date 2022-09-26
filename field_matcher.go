@@ -103,9 +103,10 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 }
 
 // transitionOn returns one or more fieldMatchStates you can transition to on a field's name/value combination,
-//  or nil if no transitions are possible.  An example of name/value that could produce multiple next states
-//  would be if you had the pattern { "a": [ "foo" ] } and another pattern that matched any value with
-//  a prefix of "f".
+//
+//	or nil if no transitions are possible.  An example of name/value that could produce multiple next states
+//	would be if you had the pattern { "a": [ "foo" ] } and another pattern that matched any value with
+//	a prefix of "f".
 func (m *fieldMatcher) transitionOn(field *Field) []*fieldMatcher {
 	// are there transitions on this field name?
 	valMatcher, ok := m.fields().transitions[string(field.Path)]

@@ -20,7 +20,8 @@ type stats struct {
 }
 
 // matcherStats gathers statistics about the size of a coreMatcher, including the average and max fanout sizes of
-//  the transition tables, returning this information in string form
+//
+//	the transition tables, returning this information in string form
 func matcherStats(m *coreMatcher) string {
 	s := stats{
 		fmVisited: make(map[*fieldMatcher]bool),

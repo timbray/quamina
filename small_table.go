@@ -22,24 +22,28 @@ type nfaStepList struct {
 //  and make a bunch of code more concise and readable.
 
 // byteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go's byte, which is uint8. The values
-//  0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
-//  can't appear.
+//
+//	0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
+//	can't appear.
 const byteCeiling int = 0xf6
 
 // valueTerminator - whenever we're trying to match a value with a pattern that extends to the end of that
-//  value, we virtually add one of these as the last character, both to the automaton and the value at run-time.
-//  This simplifies things because you don't have to treat absolute-string-match (only works at last char in
-//  value) and prefix match differently.
+//
+//	value, we virtually add one of these as the last character, both to the automaton and the value at run-time.
+//	This simplifies things because you don't have to treat absolute-string-match (only works at last char in
+//	value) and prefix match differently.
 const valueTerminator byte = 0xf5
 
 // smallTable serves as a lookup table that encodes mappings between ranges of byte values and the
-//  transition on any byte in the range.
-//  The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, S}
-//  but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
-//  byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
-//  ceilings:--|3|----|5|-|0x34|--|x35|-|byteCeiling|
-//  steps:---|nil|-|&ss1|--|nil|-|&ss2|---------|nil|
-//  invariant: The last element of ceilings is always byteCeiling
+//
+//	transition on any byte in the range.
+//	The way it works is exposed in the step() function just below.  Logically, it's a slice of {byte, S}
+//	but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
+//	byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
+//	ceilings:--|3|----|5|-|0x34|--|x35|-|byteCeiling|
+//	steps:---|nil|-|&ss1|--|nil|-|&ss2|---------|nil|
+//	invariant: The last element of ceilings is always byteCeiling
+//
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
 // ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
 // or a map[byte]S, but both would be size-inefficient, particularly in the case where you're implementing
@@ -151,7 +155,6 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 // Prof. Dr. Ernst W. Mayr in 2014-15, in particular the examples appearing in
 // http://wwwmayr.informatik.tu-muenchen.de/lehre/2014WS/afs/2014-10-14.pdf
 // especially the slide in Example 11.
-//
 func nfa2Dfa(table *smallTable[*nfaStepList]) *smallTable[*dfaStep] {
 	firstStep := &nfaStepList{steps: []*nfaStep{{table: table}}}
 	return nfaStep2DfaStep(firstStep, newDfaMemory()).table
@@ -209,8 +212,10 @@ func nfaStep2DfaStep(stepList *nfaStepList, memoize *dfaMemory) *dfaStep {
 }
 
 // makeSmallDfaTable creates a pre-loaded small table, with all bytes not otherwise specified having the defaultStep
-//  value, and then a few other values with their indexes and values specified in the other two arguments. The
-//  goal is to reduce memory churn
+//
+//	value, and then a few other values with their indexes and values specified in the other two arguments. The
+//	goal is to reduce memory churn
+//
 // constraint: positions must be provided in order
 func makeSmallDfaTable(defaultStep *dfaStep, indices []byte, steps []*dfaStep) *smallTable[*dfaStep] {
 	t := smallTable[*dfaStep]{
@@ -235,8 +240,10 @@ func makeSmallDfaTable(defaultStep *dfaStep, indices []byte, steps []*dfaStep) *
 }
 
 // unpackedTable replicates the data in the smallTable ceilings and steps arrays.  It's quite hard to
-//  update the list structure in a smallDfaTable, but trivial in an unpackedTable.  The idea is that to update
-//  a smallDfaTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
+//
+//	update the list structure in a smallDfaTable, but trivial in an unpackedTable.  The idea is that to update
+//	a smallDfaTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
+//
 // TODO: Figure out how to update a smallDfaTable in place
 type unpackedTable[S comparable] [byteCeiling]S
 
