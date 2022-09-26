@@ -178,11 +178,11 @@ func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 		for _, nextState := range nextStates {
 
 			// if arriving at this state means we've matched one or more patterns, record that fact
-			matches = matches.addX(nextState.fields().matches...)
+			matches = matches.addXSingleThreaded(nextState.fields().matches...)
 
 			// have we invalidated a presumed exists:false pattern?
 			for existsMatch := range nextState.fields().existsFalseFailures.set {
-				failedExistsFalseMatches = failedExistsFalseMatches.addX(existsMatch)
+				failedExistsFalseMatches = failedExistsFalseMatches.addXSingleThreaded(existsMatch)
 			}
 
 			// for each state we've transitioned to, give each subsequent field a chance to
@@ -197,7 +197,7 @@ func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 	}
 	for presumedExistsFalseMatch := range m.start().presumedExistFalseMatches.set {
 		if !failedExistsFalseMatches.contains(presumedExistsFalseMatch) {
-			matches = matches.addX(presumedExistsFalseMatch)
+			matches = matches.addXSingleThreaded(presumedExistsFalseMatch)
 		}
 	}
 	return matches
