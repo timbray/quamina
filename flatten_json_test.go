@@ -1,7 +1,7 @@
 package quamina
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -123,7 +123,7 @@ func TestMinimal(t *testing.T) {
 }
 
 func testTrackerSelection(fj Flattener, tracker NameTracker, label string, filename string, wantedPaths []string, wantedVals []string, t *testing.T) {
-	event, err := ioutil.ReadFile(filename)
+	event, err := os.ReadFile(filename)
 	if err != nil {
 		t.Error(filename + ": " + err.Error())
 	}
