@@ -11,6 +11,10 @@ func newMatchSet() *matchSet {
 }
 
 func (m *matchSet) addX(exes ...X) *matchSet {
+	if len(exes) == 0 {
+		return m
+	}
+
 	// for concurrency, can't update in place
 	newSet := make(map[X]bool, len(m.set)+1)
 	for k := range m.set {
@@ -20,6 +24,14 @@ func (m *matchSet) addX(exes ...X) *matchSet {
 		newSet[x] = true
 	}
 	return &matchSet{set: newSet}
+}
+
+func (m *matchSet) addXSingleThreaded(exes ...X) *matchSet {
+	for _, x := range exes {
+		m.set[x] = true
+	}
+
+	return m
 }
 
 func (m *matchSet) contains(x X) bool {
