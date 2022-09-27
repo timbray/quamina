@@ -122,7 +122,7 @@ func (q *Quamina) Copy() *Quamina {
 // used to name the pattern.
 type X any
 
-// AddPattern - adds a pattern, identified by the x argument, to a Quamina instance.
+// AddPattern adds a pattern, identified by the x argument, to a Quamina instance.
 // patternJSON is a JSON object. error is returned in the case that the PatternJSON is invalid JSON or
 // has a leaf which is not provided as an array. AddPattern is single-threaded; if it is invoked concurrently
 // from multiple goroutines (in instances created using the Copy method) calls will block until any other

@@ -1,5 +1,6 @@
 package quamina
 
+// nolint:goimports,gofmt
 // NameTracker is an interface representing a wrapper for a set of byte slices. The intended use is by a Flattener
 // which is traversing a data object with the goal of turning it into a list of name/value pairs. The cost of
 // Quamina's MatchesForEvent API is strongly related to the number of fields it has to look at.  Therefore, a

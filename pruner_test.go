@@ -61,7 +61,7 @@ func TestBasic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if 0 != len(got) {
+	if len(got) != 0 {
 		t.Fatal(got)
 	}
 
@@ -77,7 +77,7 @@ func TestBasic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if 0 != len(got) {
+	if len(got) != 0 {
 		t.Fatal(got)
 	}
 
@@ -145,7 +145,7 @@ func TestRebuildSome(t *testing.T) {
 		depopulate()
 		query(false)
 		m.printStats()
-		if s := m.getStats(); 0 == s.RebuildDuration {
+		if s := m.getStats(); s.RebuildDuration == 0 {
 			t.Fatal(s)
 		}
 	})
@@ -158,7 +158,7 @@ func TestRebuildSome(t *testing.T) {
 		query(true)
 		depopulate()
 		query(false)
-		if s := m.getStats(); 0 != s.RebuildDuration {
+		if s := m.getStats(); s.RebuildDuration != 0 {
 			t.Fatal(s)
 		}
 	})
@@ -169,7 +169,7 @@ func TestRebuildSome(t *testing.T) {
 		queryFast(false)
 		depopulate()
 		queryFast(false)
-		if s := m.getStats(); 0 == s.RebuildDuration {
+		if s := m.getStats(); s.RebuildDuration == 0 {
 			t.Fatal(s)
 		}
 	})
@@ -238,11 +238,11 @@ func TestTriggerRebuild(t *testing.T) {
 			t.Fatal(err)
 		}
 		if doomed(i) {
-			if 0 != len(got) {
+			if len(got) != 0 {
 				t.Fatal(got)
 			}
 		} else {
-			if 1 != len(got) {
+			if len(got) != 1 {
 				t.Fatal(got)
 			}
 		}
@@ -260,11 +260,11 @@ func TestTriggerRebuild(t *testing.T) {
 		t.Fatal(s.LastRebuilt)
 	}
 
-	if 0 == s.RebuildPurged {
+	if s.RebuildPurged == 0 {
 		t.Fatal(s.RebuildPurged)
 	}
 
-	if 0 == s.RebuildDuration {
+	if s.RebuildDuration == 0 {
 		t.Fatal(s.RebuildDuration)
 	}
 }
@@ -273,7 +273,7 @@ type badState struct {
 	err error
 }
 
-var badStateErr = fmt.Errorf("BadState can't do anything right")
+var errBadState = fmt.Errorf("BadState can't do anything right")
 
 func (s *badState) Add(x X, pattern string) error {
 	return s.err
@@ -293,7 +293,7 @@ func (s *badState) Iterate(f func(x X, pattern string) error) error {
 
 func TestBadState(t *testing.T) {
 	bad := &badState{
-		err: badStateErr,
+		err: errBadState,
 	}
 	m := newPrunerMatcher(bad)
 
@@ -311,7 +311,7 @@ func TestBadState(t *testing.T) {
 	if err := m.addPattern(1, `{"likes":["queso"]}`); err != nil {
 		t.Fatal(err)
 	}
-	bad.err = badStateErr
+	bad.err = errBadState
 	event := `{"likes":"queso"}`
 	if _, err := m.MatchesForJSONEvent([]byte(event)); err == nil {
 		t.Fatal("expected error")

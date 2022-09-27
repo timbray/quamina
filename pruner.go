@@ -72,7 +72,7 @@ type prunerMatcher struct {
 	// If nil, no automatic rebuild is ever triggered.
 	rebuildTrigger rebuildTrigger
 
-	// lock protectes the pointer the underlying Matcher as well as stats.
+	// lock protects the pointer the underlying Matcher as well as stats.
 	//
 	// The Matcher pointer is updated after a successful rebuild.
 	// Stats are updated by Add, Delete, and rebuild.
@@ -85,6 +85,7 @@ func (m *prunerMatcher) IsNameUsed(label []byte) bool {
 
 var defaultRebuildTrigger = newTooMuchFiltering(0.2, 1000)
 
+// nolint:gofmt,goimports
 // tooMuchFiltering is the standard rebuildTrigger, which will fire
 // when:
 //

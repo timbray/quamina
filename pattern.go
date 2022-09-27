@@ -50,7 +50,7 @@ func patternFromJSON(jsonBytes []byte) (fields []*patternField, namesUsed map[st
 	pb.isNameUsed = make(map[string]bool)
 	pb.jd.UseNumber()
 	t, err := pb.jd.Token()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		err = errors.New("empty patternField")
 		return
 	} else if err != nil {
@@ -77,7 +77,7 @@ func patternFromJSON(jsonBytes []byte) (fields []*patternField, namesUsed map[st
 func readPatternObject(pb *patternBuild) error {
 	for {
 		t, err := pb.jd.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return errors.New("event atEnd mid-object")
 		} else if err != nil {
 			return errors.New("pattern malformed: " + err.Error())
@@ -105,7 +105,7 @@ func readPatternObject(pb *patternBuild) error {
 
 func readPatternMember(pb *patternBuild) error {
 	t, err := pb.jd.Token()
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return errors.New("patternField atEnd mid-field")
 	} else if err != nil {
 		return errors.New("pattern malformed: " + err.Error())
@@ -133,7 +133,7 @@ func readPatternArray(pb *patternBuild) error {
 	var pathVals []typedVal
 	for {
 		t, err := pb.jd.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return errors.New("patternField atEnd mid-field")
 		} else if err != nil {
 			return errors.New("pattern malformed: " + err.Error())

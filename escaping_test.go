@@ -66,7 +66,6 @@ func TestOneEscape(t *testing.T) {
 		if string(unescaped) != wanted {
 			t.Errorf("got %s wanted %s", string(unescaped), wanted)
 		}
-
 	}
 }
 

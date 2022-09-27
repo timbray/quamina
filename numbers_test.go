@@ -49,6 +49,7 @@ func TestVariants(t *testing.T) {
 func TestOrdering(t *testing.T) {
 	var in []float64
 	for i := 0; i < 10000; i++ {
+		// nolint:gosec
 		f := rand.Float64() * math.Pow(10, 9) * 2
 		f -= nineDigits
 		in = append(in, f)

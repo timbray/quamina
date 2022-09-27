@@ -21,10 +21,10 @@ import (
 // coreMatcher uses a finite automaton to implement the matchesForJSONEvent and MatchesForFields functions.
 // state is the start of the automaton
 // namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
-//  patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
-//  fields that do not appear in patterns when using the automaton for matching
+// patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
+// fields that do not appear in patterns when using the automaton for matching
 // the updateable fields are grouped into the coreStart member so they can be updated atomically using atomic.Load()
-//  and atomic.Store(). This is necessary for coreMatcher to be thread-safe.
+// and atomic.Store(). This is necessary for coreMatcher to be thread-safe.
 type coreMatcher struct {
 	updateable atomic.Value // always holds a *coreStart
 	lock       sync.Mutex
@@ -49,8 +49,8 @@ func (m *coreMatcher) start() *coreStart {
 	return m.updateable.Load().(*coreStart)
 }
 
-// AddPattern - the patternBytes is a JSON object. The X is what the matcher returns to indicate that the
-//  provided pattern has been matched. In many applications it might be a string which is the pattern's name.
+// addPattern - the patternBytes is a JSON object. The X is what the matcher returns to indicate that the
+// provided pattern has been matched. In many applications it might be a string which is the pattern's name.
 func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	patternFields, patternNamesUsed, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
@@ -132,31 +132,31 @@ func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 	return m.matchesForFields(fields)
 }
 
-// MatchesForFields takes a list of Field structures and sorts them by pathname; the fields in a pattern to
-//  matched are similarly sorted; thus running an automaton over them works
+// matchesForFields takes a list of Field structures and sorts them by pathname; the fields in a pattern to
+// matched are similarly sorted; thus running an automaton over them works
 func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	sort.Slice(fields, func(i, j int) bool { return string(fields[i].Path) < string(fields[j].Path) })
 	return m.matchesForSortedFields(fields).matches(), nil
 }
 
 // proposedTransition represents a suggestion that the name/value pair at fields[fieldIndex] might allow a transition
-//  in the indicated state
+// in the indicated state
 type proposedTransition struct {
 	matcher    *fieldMatcher
 	fieldIndex int
 }
 
 // matchesForSortedFields runs the provided list of name/value pairs against the automaton and returns
-//  a possibly-empty list of the patterns that match
+// a possibly-empty list of the patterns that match
 func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 	failedExistsFalseMatches := newMatchSet()
 	matches := newMatchSet()
 
 	// The idea is that we add potential field transitions to the proposals list; any time such a transition
-	//  succeeds, i.e. matches a particular field and moves to a new state, we propose transitions from that
-	//  state on all the following fields in the event
+	// succeeds, i.e. matches a particular field and moves to a new state, we propose transitions from that
+	// state on all the following fields in the event
 	// Start by giving each field a chance to match against the start state. Doing it by pre-allocating the
-	//  proposals and filling in their values is observably faster than the more idiomatic append()
+	// proposals and filling in their values is observably faster than the more idiomatic append()
 	proposals := make([]proposedTransition, len(fields))
 	for i := range fields {
 		proposals[i].fieldIndex = i
@@ -165,7 +165,6 @@ func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 
 	// as long as there are still potential transitions
 	for len(proposals) > 0 {
-
 		// go slices could usefully have a "pop" primitive
 		lastIndex := len(proposals) - 1
 		proposal := proposals[lastIndex]
@@ -176,7 +175,6 @@ func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
 
 		// for each state in the set of transitions from the proposed state
 		for _, nextState := range nextStates {
-
 			// if arriving at this state means we've matched one or more patterns, record that fact
 			matches = matches.addXSingleThreaded(nextState.fields().matches...)
 
