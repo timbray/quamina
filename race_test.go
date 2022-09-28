@@ -13,6 +13,8 @@ func TestConcurrencyCore(t *testing.T) {
 }
 
 func testConcurrency(t *testing.T, m matcher) {
+	t.Helper()
+
 	var (
 		goroutines = 4
 		n          = 500

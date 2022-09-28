@@ -185,6 +185,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 	for i := 0; i < 10000; i++ {
 		str := ""
 		for j := 0; j < strLen; j++ {
+			//nolint:gosec
 			ch := bytes[rand.Int()%lb]
 			str += string([]byte{ch})
 		}
@@ -223,6 +224,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 	for shouldNot < len(pNames) {
 		str := ""
 		for j := 0; j < strLen; j++ {
+			//nolint:gosec
 			ch := bytes[rand.Int()%lb]
 			str += string([]byte{ch})
 		}
@@ -250,6 +252,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 
 	// make ten thousand random numbers between 1 and 100K. There are probably dupes?
 	for i := 0; i < 10000; i++ {
+		//nolint:gosec
 		n := rand.Int63n(1000000)
 		ns := fmt.Sprintf("%d", n)
 		pNames = append(pNames, ns)
@@ -285,6 +288,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 	// now let's run 1000 more random numbers that shouldn't match
 	shouldNot := 0
 	for shouldNot < len(pNames) {
+		//nolint:gosec
 		n := rand.Int63n(1000000)
 		ns := fmt.Sprintf("%d", n)
 		_, ok := used[ns]

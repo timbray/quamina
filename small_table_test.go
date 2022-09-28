@@ -15,6 +15,8 @@ func TestMakeSmallTable(t *testing.T) {
 }
 
 func tMST(t *testing.T, b []byte) {
+	t.Helper()
+
 	comp := &dfaStep{table: newSmallTable[*dfaStep]()}
 	sdef := &dfaStep{table: newSmallTable[*dfaStep]()}
 	comp.table.addRangeSteps(0, byteCeiling, sdef)
@@ -64,7 +66,6 @@ func TestDFAMergePerf(t *testing.T) {
 		if len(matches) != 1 {
 			t.Errorf("wanted 1 got %d", len(matches))
 		}
-
 	}
 	perSecond := float64(len(patterns)) / (elapsed / 1000.0)
 	fmt.Printf("%.2f addPatterns/second with letter patterns\n\n", perSecond)
@@ -173,6 +174,8 @@ func TestFuzzPack(t *testing.T) {
 }
 
 func fuzzPack(t *testing.T, seed int64) {
+	t.Helper()
+
 	rand.Seed(seed)
 	var used [byteCeiling]bool
 	var unpacked unpackedTable[*dfaStep]
@@ -183,7 +186,9 @@ func fuzzPack(t *testing.T, seed int64) {
 	for i := 0; i < 30; i++ {
 		var clusterLength, clusterBase int32
 		for {
+			//nolint:gosec
 			clusterLength = rand.Int31n(4) + 1
+			//nolint:gosec
 			clusterBase = rand.Int31n(int32(byteCeiling - 6))
 			var u int32
 			for u = 0; u < clusterLength; u++ {

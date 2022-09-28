@@ -1,0 +1,26 @@
+linters:
+  disable-all: false
+  # https://golangci-lint.run/usage/linters/#enabled-by-default
+  enable:
+    - gofmt
+    - bodyclose
+    - errname
+    - errorlint
+    - exportloopref
+    - gochecknoinits
+    - goimports
+    - goprintffuncname
+    - gosec
+    # - ireturn
+    - misspell
+    - nilerr
+    - nilnil
+    - predeclared
+    - stylecheck
+    - thelper
+    - tparallel
+    - unparam
+    # - wrapcheck
+    - whitespace
+    # wastedassign is disabled because of generics. You can track the evolution of the generics support by following the https://github.com/golangci/golangci-lint/issues/2649
+    # - wastedassign

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func bequal(a []byte, b []byte) bool {
+func equal(a []byte, b []byte) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -32,10 +32,10 @@ func TestFJBasic(t *testing.T) {
 		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
 	}
 	for i, field := range list {
-		if !bequal([]byte(wantedPaths[i]), field.Path) {
+		if !equal([]byte(wantedPaths[i]), field.Path) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
 		}
-		if !bequal([]byte(wantedVals[i]), field.Val) {
+		if !equal([]byte(wantedVals[i]), field.Val) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
 		}
 	}
@@ -46,10 +46,10 @@ func TestFJBasic(t *testing.T) {
 	wantedPaths = []string{"a", "f", "f", "f", "f", "f"}
 	wantedVals = []string{"1", "33e2", "\"x\"", "true", "false", "null"}
 	for i, field := range list {
-		if !bequal([]byte(wantedPaths[i]), field.Path) {
+		if !equal([]byte(wantedPaths[i]), field.Path) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
 		}
-		if !bequal([]byte(wantedVals[i]), field.Val) {
+		if !equal([]byte(wantedVals[i]), field.Val) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
 		}
 	}
@@ -57,10 +57,7 @@ func TestFJBasic(t *testing.T) {
 
 func TestFJ10Lines(t *testing.T) {
 	geo := fakeMatcher("type", "geometry")
-	testTrackerSelection(newJSONFlattener(), geo, "L0", "testdata/cl-sample-0",
-		[]string{"type", "geometry\ntype"},
-		[]string{`"Feature"`, `"Polygon"`},
-		t)
+	testTrackerSelection(t, newJSONFlattener(), geo, "L0", "testdata/cl-sample-0", []string{"type", "geometry\ntype"}, []string{`"Feature"`, `"Polygon"`})
 
 	coordVals := []string{
 		"-122.45409388918634",
@@ -98,14 +95,12 @@ func TestFJ10Lines(t *testing.T) {
 	}
 
 	coords := fakeMatcher("coordinates", "geometry")
-	testTrackerSelection(newJSONFlattener(), coords, "L1", "testdata/cl-sample-1",
-		coordNames, coordVals, t)
+	testTrackerSelection(t, newJSONFlattener(), coords, "L1", "testdata/cl-sample-1", coordNames, coordVals)
 
 	l2names := []string{"properties\nFROM_ST", "properties\nODD_EVEN"}
 	l2vals := []string{`"1917"`, `"O"`}
 	proFoOd := fakeMatcher("properties", "FROM_ST", "ODD_EVEN")
-	testTrackerSelection(newJSONFlattener(), proFoOd, "L2", "testdata/cl-sample-2",
-		l2names, l2vals, t)
+	testTrackerSelection(t, newJSONFlattener(), proFoOd, "L2", "testdata/cl-sample-2", l2names, l2vals)
 }
 
 // left here as a memorial
@@ -117,12 +112,14 @@ func TestMinimal(t *testing.T) {
 	if err != nil {
 		t.Error("Huh? " + err.Error())
 	}
-	if len(fields) != 1 || !bequal(fields[0].Path, []byte("a")) || len(fields[0].Val) != 1 || fields[0].Val[0] != '1' {
+	if len(fields) != 1 || !equal(fields[0].Path, []byte("a")) || len(fields[0].Val) != 1 || fields[0].Val[0] != '1' {
 		t.Error("Name/Val wrong")
 	}
 }
 
-func testTrackerSelection(fj Flattener, tracker NameTracker, label string, filename string, wantedPaths []string, wantedVals []string, t *testing.T) {
+func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label string, filename string, wantedPaths []string, wantedVals []string) {
+	t.Helper()
+
 	event, err := os.ReadFile(filename)
 	if err != nil {
 		t.Error(filename + ": " + err.Error())
@@ -133,7 +130,7 @@ func testTrackerSelection(fj Flattener, tracker NameTracker, label string, filen
 		t.Error(label + ": " + err.Error())
 	}
 	for i, field := range list {
-		if !bequal([]byte(wantedPaths[i]), field.Path) {
+		if !equal([]byte(wantedPaths[i]), field.Path) {
 			t.Errorf("pos %d wanted Path %s got %s", i, wantedPaths[i], field.Path)
 		}
 		if wantedVals[i] != string(field.Val) {

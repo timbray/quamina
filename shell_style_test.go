@@ -90,6 +90,7 @@ func TestShellStyleBuildTime(t *testing.T) {
 	starWords := make([]string, 0, len(words))
 	patterns := make([]string, 0, len(words))
 	for _, word := range words {
+		//nolint:gosec
 		starAt := rand.Int31n(6)
 		starWord := string(word[:starAt]) + "*" + string(word[starAt:])
 		starWords = append(starWords, starWord)
@@ -160,6 +161,5 @@ func TestMixedPatterns(t *testing.T) {
 		if x[sm] != count {
 			t.Errorf("For %s wanted %d got %d", sm, x[sm], count)
 		}
-
 	}
 }

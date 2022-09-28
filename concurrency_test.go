@@ -7,13 +7,17 @@ import (
 	"time"
 )
 
-func updateTree(m *coreMatcher, use37 bool, t *testing.T, ch chan string) {
+func updateTree(t *testing.T, m *coreMatcher, use37 bool, ch chan string) {
+	t.Helper()
+
 	var pattern string
 	var val string
 	if use37 {
+		//nolint:gosec
 		val = fmt.Sprintf("%f", 37.0+rand.Float64())
 		pattern = fmt.Sprintf(`{ "geometry": { "coordinates": [ %s ] } }`, val)
 	} else {
+		//nolint:gosec
 		val = fmt.Sprintf(`"%d"`, rand.Int())
 		pattern = fmt.Sprintf(`{ "properties": { "STREET": [ %s ] } }`, val)
 		/* TODO: alternate literal and shellstyle addition
@@ -85,7 +89,7 @@ func TestConcurrency(t *testing.T) {
 		if lineCount%UpdateLines == 0 {
 			use37 = !use37
 			sent++
-			go updateTree(m, use37, t, ch)
+			go updateTree(t, m, use37, ch)
 		}
 		for _, match := range matches {
 			count, ok := results[match]

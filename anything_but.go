@@ -23,7 +23,7 @@ func readAnythingButSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typ
 	val := typedVal{vType: anythingButType}
 	for !done {
 		t, err = pb.jd.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			err = errors.New("anything-but list truncated")
 			return
 		} else if err != nil {

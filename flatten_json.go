@@ -43,7 +43,7 @@ var (
 )
 
 // fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
-//  states are used in only one function, others in multiple places
+// states are used in only one function, others in multiple places
 type fjState int
 
 const (
@@ -73,7 +73,7 @@ func (fj *flattenJSON) Copy() Flattener {
 }
 
 // Flatten implements the Flattener interface. It assumes that the event is immutable - if you modify the event
-//  bytes while the matcher is running, grave disorder will ensue.
+// bytes while the matcher is running, grave disorder will ensue.
 func (fj *flattenJSON) Flatten(event []byte, tracker NameTracker) ([]Field, error) {
 	if fj.cleanSheet {
 		fj.cleanSheet = false
@@ -476,8 +476,8 @@ func (fj *flattenJSON) readLiteral(literal []byte) ([]byte, error) {
 }
 
 // we're positioned at the " that marks the start of a string value in an array or object.
-//  ideally, we'd like to construct the member name as just a slice of the event buffer,
-//  but will have to find a new home for it if it has JSON \-escapes
+// ideally, we'd like to construct the member name as just a slice of the event buffer,
+// but will have to find a new home for it if it has JSON \-escapes
 func (fj *flattenJSON) readStringValue() ([]byte, error) {
 	// value includes leading and trailng "
 	valStart := fj.eventIndex
@@ -531,8 +531,8 @@ func (fj *flattenJSON) readStringValWithEscapes(nameStart int) ([]byte, error) {
 }
 
 // we're positioned at the " that marks the start of an object member name
-//  ideally, we'd like to construct the member name as just a slice of the event buffer,
-//  but will have to find a new home for it if it has JSON \-escapes
+// ideally, we'd like to construct the member name as just a slice of the event buffer,
+// but will have to find a new home for it if it has JSON \-escapes
 func (fj *flattenJSON) readMemberName() ([]byte, error) {
 	// member name starts after "
 	if fj.step() != nil {
@@ -584,7 +584,7 @@ func (fj *flattenJSON) readMemberNameWithEscapes(nameStart int) ([]byte, error) 
 }
 
 // readTextWithEscapes is invoked when the next-level-up reader sees "\". JSON escape handling is simple and
-//  mechanical except for \u utf-16 escapes, which get their own func.
+// mechanical except for \u utf-16 escapes, which get their own func.
 func (fj *flattenJSON) readTextWithEscapes(from int) ([]byte, int, error) {
 	// pointing at \
 	unescaped := make([]byte, 1)
@@ -623,12 +623,12 @@ func (fj *flattenJSON) readTextWithEscapes(from int) ([]byte, int, error) {
 }
 
 // readHexUTF16 is invoked when the next-level-up reader sees \u. What JSON escapes encode are 16-bit UTF-16
-//  codepoints. For this reason, to turn them into UTF-8 []byte slices, you need to process any adjacent escapes
-//  as a package (not gonna explain why here, go look up "UTF-16 surrogates" if you want to know. So we build up
-//  a []uint16 slice and then use the builtin utf16 libraries to turn that into a []rune which we have to
-//  turn into a string to extract []byte.
+// codepoints. For this reason, to turn them into UTF-8 []byte slices, you need to process any adjacent escapes
+// as a package (not gonna explain why here, go look up "UTF-16 surrogates" if you want to know. So we build up
+// a []uint16 slice and then use the builtin utf16 libraries to turn that into a []rune which we have to
+// turn into a string to extract []byte.
 // the from is the offset in fj.event. We return the UTF-8 byte slice, the new setting for fj.eventIndex after
-//  reading the escapes, and an error if the escape syntax is busted.
+// reading the escapes, and an error if the escape syntax is busted.
 func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 	// in the case that there are multiple \uXXXX in a row, we need to read all of them because some of them
 	//  might be surrogate pairs. So, back up to point at the first \
@@ -681,7 +681,7 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 }
 
 // pathForChild does what the name says.  Since this is likely to be written into the flattened fields,
-//  in many circumstances it needs its own copy of the path info
+// in many circumstances it needs its own copy of the path info
 func pathForChild(pathSoFar []byte, nextSegment []byte) []byte {
 	var mp []byte
 	if len(pathSoFar) == 0 {
@@ -697,9 +697,10 @@ func pathForChild(pathSoFar []byte, nextSegment []byte) []byte {
 }
 
 // storeArrayElementField adds a field to be returned to the Flatten caller, straightforward except for the field needs its
-//  own snapshot of the array-trail data, because it'll be different for each array element
-//  NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
-//   because of the necessity to construct a new arrayTrail for each element.
+//
+//	own snapshot of the array-trail data, because it'll be different for each array element
+//	NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
+//	 because of the necessity to construct a new arrayTrail for each element.
 func (fj *flattenJSON) storeArrayElementField(path []byte, val []byte) {
 	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val}
 	copy(f.ArrayTrail, fj.arrayTrail)
@@ -724,7 +725,7 @@ func (fj *flattenJSON) stepOneArrayElement() {
 }
 
 // ch fetches the next byte from the event. It doesn't check array bounds,
-//  so it's the caller's responsibility to ensure we haven't run off the end of the event.
+// so it's the caller's responsibility to ensure we haven't run off the end of the event.
 func (fj *flattenJSON) ch() byte {
 	return fj.event[fj.eventIndex]
 }
