@@ -1,21 +1,10 @@
 package quamina
 
 import (
+	"bytes"
 	"os"
 	"testing"
 )
-
-func equal(a []byte, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
 
 func TestFJBasic(t *testing.T) {
 	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33e2, "x", true, false, null], "g": false, "h": [], "i": {}}`
@@ -32,10 +21,10 @@ func TestFJBasic(t *testing.T) {
 		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
 	}
 	for i, field := range list {
-		if !equal([]byte(wantedPaths[i]), field.Path) {
+		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
 		}
-		if !equal([]byte(wantedVals[i]), field.Val) {
+		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
 		}
 	}
@@ -46,10 +35,10 @@ func TestFJBasic(t *testing.T) {
 	wantedPaths = []string{"a", "f", "f", "f", "f", "f"}
 	wantedVals = []string{"1", "33e2", "\"x\"", "true", "false", "null"}
 	for i, field := range list {
-		if !equal([]byte(wantedPaths[i]), field.Path) {
+		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
 		}
-		if !equal([]byte(wantedVals[i]), field.Val) {
+		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
 			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
 		}
 	}
@@ -112,7 +101,7 @@ func TestMinimal(t *testing.T) {
 	if err != nil {
 		t.Error("Huh? " + err.Error())
 	}
-	if len(fields) != 1 || !equal(fields[0].Path, []byte("a")) || len(fields[0].Val) != 1 || fields[0].Val[0] != '1' {
+	if len(fields) != 1 || !bytes.Equal(fields[0].Path, []byte("a")) || len(fields[0].Val) != 1 || fields[0].Val[0] != '1' {
 		t.Error("Name/Val wrong")
 	}
 }
@@ -130,7 +119,7 @@ func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label
 		t.Error(label + ": " + err.Error())
 	}
 	for i, field := range list {
-		if !equal([]byte(wantedPaths[i]), field.Path) {
+		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
 			t.Errorf("pos %d wanted Path %s got %s", i, wantedPaths[i], field.Path)
 		}
 		if wantedVals[i] != string(field.Val) {
