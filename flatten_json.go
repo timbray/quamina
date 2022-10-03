@@ -189,7 +189,11 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 			var alt []byte
 			switch ch {
 			case '"':
-				val, err = fj.readStringValue()
+				if fj.skipping > 0 || !memberIsUsed {
+					err = fj.skipStringValue()
+				} else {
+					val, err = fj.readStringValue()
+				}
 				isLeaf = true
 			case 't':
 				val, err = fj.readLiteral(trueBytes)
@@ -211,7 +215,12 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 				if fj.skipping == 0 {
 					arrayPath = pathForChild(pathName, memberName)
 				}
-				err = fj.readArray(arrayPath)
+
+				if fj.skipping > 0 || !memberIsUsed {
+					err = fj.skipBlock('[', ']')
+				} else {
+					err = fj.readArray(arrayPath)
+				}
 				if err != nil {
 					return err
 				}
@@ -226,7 +235,11 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 				if fj.skipping == 0 {
 					objectPath = pathForChild(pathName, memberName)
 				}
-				err = fj.readObject(objectPath)
+				if fj.skipping > 0 || !memberIsUsed {
+					err = fj.skipBlock('{', '}')
+				} else {
+					err = fj.readObject(objectPath)
+				}
 				if err != nil {
 					return err
 				}
@@ -300,7 +313,11 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 
 			switch ch {
 			case '"':
-				val, err = fj.readStringValue()
+				if fj.skipping > 0 {
+					err = fj.skipStringValue()
+				} else {
+					val, err = fj.readStringValue()
+				}
 				isLeaf = true
 			case 't':
 				val, err = fj.readLiteral(trueBytes)
@@ -317,16 +334,20 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 			case '{':
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
+					err = fj.readObject(pathName)
+				} else {
+					err = fj.skipBlock('{', '}')
 				}
-				err = fj.readObject(pathName)
 				if err != nil {
 					return err
 				}
 			case '[':
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
+					err = fj.readArray(pathName)
+				} else {
+					err = fj.skipBlock('[', ']')
 				}
-				err = fj.readArray(pathName)
 				if err != nil {
 					return err
 				}
@@ -473,6 +494,60 @@ func (fj *flattenJSON) readLiteral(literal []byte) ([]byte, error) {
 	}
 	fj.eventIndex--
 	return literal, nil
+}
+
+func (fj *flattenJSON) skipBlock(openSymbol byte, closeSymbol byte) error {
+	level := 0
+
+	for fj.eventIndex < len(fj.event) {
+		ch := fj.event[fj.eventIndex]
+
+		switch ch {
+		case '"':
+			err := fj.skipStringValue()
+			if err != nil {
+				return err
+			}
+		case openSymbol:
+			level++
+		case closeSymbol:
+			level--
+
+			if level == 0 {
+				return nil
+			}
+		}
+
+		fj.eventIndex++
+	}
+
+	return fj.error("truncated block")
+}
+
+func (fj *flattenJSON) skipStringValue() error {
+	if fj.step() != nil {
+		return fj.error("event truncated in mid-string")
+	}
+
+	i := 0
+	data := fj.event[fj.eventIndex:]
+
+	for i < len(data) {
+		c := data[i]
+
+		if c == '\\' && i+1 < len(data) && data[i+1] == '"' {
+			i = i + 2
+			continue
+		}
+		if c == '"' {
+			fj.eventIndex = fj.eventIndex + i
+			return nil
+		}
+
+		i++
+	}
+
+	return fj.error("truncated string")
 }
 
 // we're positioned at the " that marks the start of a string value in an array or object.

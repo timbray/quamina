@@ -15,33 +15,45 @@ func TestFJBasic(t *testing.T) {
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
-	wantedPaths := []string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f", "f", "f", "f", "g", "h", "i"}
-	wantedVals := []string{"1", "\"two\"", "true", "null", "2", "3.02e-5", "33e2", "\"x\"", "true", "false", "null", "false"}
-	if len(list) != len(wantedVals) {
-		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
-	}
-	for i, field := range list {
-		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
-		}
-		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
-		}
-	}
+	expectToHavePaths(t,
+		list,
+		[]string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f", "f", "f", "f", "g", "h", "i"},
+		[]string{"1", "\"two\"", "true", "null", "2", "3.02e-5", "33e2", "\"x\"", "true", "false", "null", "false"},
+	)
 
 	justAF := fakeMatcher("a", "f")
 	f = newJSONFlattener()
 	list, _ = f.Flatten([]byte(j), justAF)
-	wantedPaths = []string{"a", "f", "f", "f", "f", "f"}
-	wantedVals = []string{"1", "33e2", "\"x\"", "true", "false", "null"}
-	for i, field := range list {
-		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
-		}
-		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
-		}
+
+	expectToHavePaths(t,
+		list,
+		[]string{"a", "f", "f", "f", "f", "f"},
+		[]string{"1", "33e2", "\"x\"", "true", "false", "null"},
+	)
+}
+
+func TestFJStrings(t *testing.T) {
+	j := `{
+		"skipped_escaped_string": "\"hello\"",
+		"skipped_escaped_string_in_middle": "\"hello\" world",
+		"skipped_normal_string": "abc",
+		"normal_string": "abc",
+		"escaped_string": "\"hello\"",
+		"unicode_string": "\uD83D\ude04"
+	}`
+	matcher := fakeMatcher("normal_string", "escaped_string", "unicode_string")
+
+	f := newJSONFlattener()
+	list, err := f.Flatten([]byte(j), matcher)
+	if err != nil {
+		t.Error("E: " + err.Error())
 	}
+
+	expectToHavePaths(t,
+		list,
+		[]string{"normal_string", "escaped_string", "unicode_string"},
+		[]string{`"abc"`, `""hello""`, `"😄"`},
+	)
 }
 
 func TestFJ10Lines(t *testing.T) {
@@ -93,7 +105,7 @@ func TestFJ10Lines(t *testing.T) {
 }
 
 // left here as a memorial
-func TestMinimal(t *testing.T) {
+func TestFJMinimal(t *testing.T) {
 	a := `{"a": 1}`
 	nt := fakeMatcher("a")
 	f := newJSONFlattener()
@@ -106,29 +118,22 @@ func TestMinimal(t *testing.T) {
 	}
 }
 
-func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label string, filename string, wantedPaths []string, wantedVals []string) {
+func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label string, filename string, wantedPaths, wantedVals []string) {
 	t.Helper()
 
 	event, err := os.ReadFile(filename)
 	if err != nil {
-		t.Error(filename + ": " + err.Error())
+		t.Fatalf("%s: failed to read file %s", filename, err.Error())
 	}
 
 	list, err := fj.Flatten(event, tracker)
 	if err != nil {
-		t.Error(label + ": " + err.Error())
+		t.Fatalf("%s: failed to flatten: %s", label, err.Error())
 	}
-	for i, field := range list {
-		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
-			t.Errorf("pos %d wanted Path %s got %s", i, wantedPaths[i], field.Path)
-		}
-		if wantedVals[i] != string(field.Val) {
-			t.Errorf("pos %d wanted Val %s got %s", i, wantedVals[i], field.Val)
-		}
-	}
+	expectToHavePaths(t, list, wantedPaths, wantedVals)
 }
 
-func TestErrorCases(t *testing.T) {
+func TestFJErrorCases(t *testing.T) {
 	tracker := fakeMatcher("a", "b", "c", "d", "e", "f")
 	fj := newJSONFlattener().(*flattenJSON)
 
@@ -202,4 +207,22 @@ func fakeMatcher(segs ...string) *coreMatcher {
 		m.start().namesUsed[seg] = true
 	}
 	return m
+}
+
+func expectToHavePaths(t *testing.T, list []Field, wantedPaths, wantedVals []string) {
+	t.Helper()
+
+	if len(list) != len(wantedVals) {
+		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
+	}
+
+	for i, field := range list {
+		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
+			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
+		}
+
+		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
+			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
+		}
+	}
 }
