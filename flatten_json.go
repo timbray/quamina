@@ -535,10 +535,15 @@ func (fj *flattenJSON) skipStringValue() error {
 	for i < len(data) {
 		c := data[i]
 
+		// Since we want to iterate until we found quote (") we need to take care
+		// about escaped quotes (\"), any other escaped characters is not relevant.
 		if c == '\\' && i+1 < len(data) && data[i+1] == '"' {
 			i = i + 2
 			continue
 		}
+
+		// If we found a quote, and it's not escaped (we check it above)
+		// we can finish processing.
 		if c == '"' {
 			fj.eventIndex = fj.eventIndex + i
 			return nil
