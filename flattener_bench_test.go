@@ -40,7 +40,7 @@ func RunBehcmarkWithJSONFlattener(b *testing.B, fields ...string) {
 	b.Helper()
 	var localFields []Field
 
-	event, err := os.ReadFile("./status.json")
+	event, err := os.ReadFile("./testdata/status.json")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func RunBenchmarkEvaluate(b *testing.B, q *Quamina, pattern string) {
 		b.Fatalf("Failed adding pattern: %+v", err)
 	}
 
-	event, err := os.ReadFile("./status.json")
+	event, err := os.ReadFile("./testdata/status.json")
 	if err != nil {
 		b.Fatal(err)
 	}
