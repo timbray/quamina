@@ -95,7 +95,6 @@ func TestFJSkippingBlocks(t *testing.T) {
 	)
 }
 
-
 func TestFJ10Lines(t *testing.T) {
 	geo := fakeMatcher("type", "geometry")
 	testTrackerSelection(t, newJSONFlattener(), geo, "L0", "testdata/cl-sample-0", []string{"type", "geometry\ntype"}, []string{`"Feature"`, `"Polygon"`})
