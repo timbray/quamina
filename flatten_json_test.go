@@ -56,6 +56,46 @@ func TestFJStrings(t *testing.T) {
 	)
 }
 
+func TestFJSkippingBlocks(t *testing.T) {
+	j := `{
+		"skipped_objects_with_objects": {
+			"num": 1,
+			"str": "hello world",
+			"arr": [1, "yo", { "k": "val", "arr": [1, 2, "name"] }],
+			"obj": {
+				"another_obj": {
+					"name": "yo",
+					"patterns": [{ "a": 1 }, { "b": [1, 2, 3] }, "d"]
+				}
+			}
+		},
+		"skipped_array_of_primitives": [1, 324, 534, "string"],
+		"skipped_array_of_arrays": [[0, 1], ["lat", "lng"], [{ "name": "quamina" }, { "description": "patterns matching" }]],
+		"requested_object": {
+			"another_num": 1,
+			"another_str": "hello world",
+			"another_arr": [1, "yo", { "k": "val", "arr": [1, 2, "name"] }],
+			"another_obj": {
+				"key": "value"
+			}
+		},
+	}`
+	matcher := fakeMatcher("requested_object", "another_obj", "key")
+
+	f := newJSONFlattener()
+	list, err := f.Flatten([]byte(j), matcher)
+	if err != nil {
+		t.Error("E: " + err.Error())
+	}
+
+	expectToHavePaths(t,
+		list,
+		[]string{"requested_object\nanother_obj\nkey"},
+		[]string{`"value"`},
+	)
+}
+
+
 func TestFJ10Lines(t *testing.T) {
 	geo := fakeMatcher("type", "geometry")
 	testTrackerSelection(t, newJSONFlattener(), geo, "L0", "testdata/cl-sample-0", []string{"type", "geometry\ntype"}, []string{`"Feature"`, `"Polygon"`})
