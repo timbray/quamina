@@ -56,6 +56,31 @@ func TestFJStrings(t *testing.T) {
 	)
 }
 
+func TestFJSkippingErrors(t *testing.T) {
+	events := []string{
+		// Block with strings that never ends.
+		`{ "a": { "v": "hello`,
+		`{ "a": ["hello`,
+		// String that never ends.
+		`{ "k": "`,
+		// Truncated block
+		`{ "k": { "a":`,
+		`{ "k": {`,
+		`{ "k": [1, `,
+		`{ "k": [`,
+	}
+
+	matcher := fakeMatcher("non_existing_value")
+	f := newJSONFlattener()
+
+	for _, event := range events {
+		fields, err := f.Flatten([]byte(event), matcher)
+		if err == nil {
+			t.Errorf("Expected to fail [%s], but got %d fields", string(event), len(fields))
+		}
+	}
+}
+
 func TestFJSkippingBlocks(t *testing.T) {
 	j := `{
 		"skipped_objects_with_objects": {

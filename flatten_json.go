@@ -313,11 +313,7 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 
 			switch ch {
 			case '"':
-				if fj.skipping > 0 {
-					err = fj.skipStringValue()
-				} else {
-					val, err = fj.readStringValue()
-				}
+				val, err = fj.readStringValue()
 				isLeaf = true
 			case 't':
 				val, err = fj.readLiteral(trueBytes)
