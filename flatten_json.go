@@ -334,20 +334,17 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 			case '{':
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
-					err = fj.readObject(pathName)
-				} else {
-					err = fj.skipBlock('{', '}')
 				}
+				err = fj.readObject(pathName)
+
 				if err != nil {
 					return err
 				}
 			case '[':
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
-					err = fj.readArray(pathName)
-				} else {
-					err = fj.skipBlock('[', ']')
 				}
+				err = fj.readArray(pathName)
 				if err != nil {
 					return err
 				}
