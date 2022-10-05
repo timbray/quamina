@@ -15,33 +15,109 @@ func TestFJBasic(t *testing.T) {
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
-	wantedPaths := []string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f", "f", "f", "f", "g", "h", "i"}
-	wantedVals := []string{"1", "\"two\"", "true", "null", "2", "3.02e-5", "33e2", "\"x\"", "true", "false", "null", "false"}
-	if len(list) != len(wantedVals) {
-		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
-	}
-	for i, field := range list {
-		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
-		}
-		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
-		}
-	}
+	expectToHavePaths(t,
+		list,
+		[]string{"a", "b", "c", "d", "e\ne1", "e\ne2", "f", "f", "f", "f", "f", "g", "h", "i"},
+		[]string{"1", "\"two\"", "true", "null", "2", "3.02e-5", "33e2", "\"x\"", "true", "false", "null", "false"},
+	)
 
 	justAF := fakeMatcher("a", "f")
 	f = newJSONFlattener()
 	list, _ = f.Flatten([]byte(j), justAF)
-	wantedPaths = []string{"a", "f", "f", "f", "f", "f"}
-	wantedVals = []string{"1", "33e2", "\"x\"", "true", "false", "null"}
-	for i, field := range list {
-		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
-		}
-		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
-			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
+
+	expectToHavePaths(t,
+		list,
+		[]string{"a", "f", "f", "f", "f", "f"},
+		[]string{"1", "33e2", "\"x\"", "true", "false", "null"},
+	)
+}
+
+func TestFJStrings(t *testing.T) {
+	j := `{
+		"skipped_escaped_string": "\"hello\"",
+		"skipped_escaped_string_in_middle": "\"hello\" world",
+		"skipped_normal_string": "abc",
+		"normal_string": "abc",
+		"escaped_string": "\"hello\"",
+		"unicode_string": "\uD83D\ude04"
+	}`
+	matcher := fakeMatcher("normal_string", "escaped_string", "unicode_string")
+
+	f := newJSONFlattener()
+	list, err := f.Flatten([]byte(j), matcher)
+	if err != nil {
+		t.Error("E: " + err.Error())
+	}
+
+	expectToHavePaths(t,
+		list,
+		[]string{"normal_string", "escaped_string", "unicode_string"},
+		[]string{`"abc"`, `""hello""`, `"😄"`},
+	)
+}
+
+func TestFJSkippingErrors(t *testing.T) {
+	events := []string{
+		// Block with strings that never ends.
+		`{ "a": { "v": "hello`,
+		`{ "a": ["hello`,
+		// String that never ends.
+		`{ "k": "`,
+		// Truncated block
+		`{ "k": { "a":`,
+		`{ "k": {`,
+		`{ "k": [1, `,
+		`{ "k": [`,
+	}
+
+	matcher := fakeMatcher("non_existing_value")
+	f := newJSONFlattener()
+
+	for _, event := range events {
+		fields, err := f.Flatten([]byte(event), matcher)
+		if err == nil {
+			t.Errorf("Expected to fail [%s], but got %d fields", string(event), len(fields))
 		}
 	}
+}
+
+func TestFJSkippingBlocks(t *testing.T) {
+	j := `{
+		"skipped_objects_with_objects": {
+			"num": 1,
+			"str": "hello world",
+			"arr": [1, "yo", { "k": "val", "arr": [1, 2, "name"] }],
+			"obj": {
+				"another_obj": {
+					"name": "yo",
+					"patterns": [{ "a": 1 }, { "b": [1, 2, 3] }, "d"]
+				}
+			}
+		},
+		"skipped_array_of_primitives": [1, 324, 534, "string"],
+		"skipped_array_of_arrays": [[0, 1], ["lat", "lng"], [{ "name": "quamina" }, { "description": "patterns matching" }]],
+		"requested_object": {
+			"another_num": 1,
+			"another_str": "hello world",
+			"another_arr": [1, "yo", { "k": "val", "arr": [1, 2, "name"] }],
+			"another_obj": {
+				"key": "value"
+			}
+		},
+	}`
+	matcher := fakeMatcher("requested_object", "another_obj", "key")
+
+	f := newJSONFlattener()
+	list, err := f.Flatten([]byte(j), matcher)
+	if err != nil {
+		t.Error("E: " + err.Error())
+	}
+
+	expectToHavePaths(t,
+		list,
+		[]string{"requested_object\nanother_obj\nkey"},
+		[]string{`"value"`},
+	)
 }
 
 func TestFJ10Lines(t *testing.T) {
@@ -93,7 +169,7 @@ func TestFJ10Lines(t *testing.T) {
 }
 
 // left here as a memorial
-func TestMinimal(t *testing.T) {
+func TestFJMinimal(t *testing.T) {
 	a := `{"a": 1}`
 	nt := fakeMatcher("a")
 	f := newJSONFlattener()
@@ -106,29 +182,22 @@ func TestMinimal(t *testing.T) {
 	}
 }
 
-func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label string, filename string, wantedPaths []string, wantedVals []string) {
+func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label string, filename string, wantedPaths, wantedVals []string) {
 	t.Helper()
 
 	event, err := os.ReadFile(filename)
 	if err != nil {
-		t.Error(filename + ": " + err.Error())
+		t.Fatalf("%s: failed to read file %s", filename, err.Error())
 	}
 
 	list, err := fj.Flatten(event, tracker)
 	if err != nil {
-		t.Error(label + ": " + err.Error())
+		t.Fatalf("%s: failed to flatten: %s", label, err.Error())
 	}
-	for i, field := range list {
-		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
-			t.Errorf("pos %d wanted Path %s got %s", i, wantedPaths[i], field.Path)
-		}
-		if wantedVals[i] != string(field.Val) {
-			t.Errorf("pos %d wanted Val %s got %s", i, wantedVals[i], field.Val)
-		}
-	}
+	expectToHavePaths(t, list, wantedPaths, wantedVals)
 }
 
-func TestErrorCases(t *testing.T) {
+func TestFJErrorCases(t *testing.T) {
 	tracker := fakeMatcher("a", "b", "c", "d", "e", "f")
 	fj := newJSONFlattener().(*flattenJSON)
 
@@ -202,4 +271,22 @@ func fakeMatcher(segs ...string) *coreMatcher {
 		m.start().namesUsed[seg] = true
 	}
 	return m
+}
+
+func expectToHavePaths(t *testing.T, list []Field, wantedPaths, wantedVals []string) {
+	t.Helper()
+
+	if len(list) != len(wantedVals) {
+		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
+	}
+
+	for i, field := range list {
+		if !bytes.Equal([]byte(wantedPaths[i]), field.Path) {
+			t.Errorf("pos %d wanted %s got %s", i, wantedPaths[i], field.Path)
+		}
+
+		if !bytes.Equal([]byte(wantedVals[i]), field.Val) {
+			t.Errorf("pos %d wanted %s got %s", i, wantedVals[i], field.Val)
+		}
+	}
 }
