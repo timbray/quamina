@@ -46,7 +46,7 @@ func testConcurrency(t *testing.T, m matcher) {
 
 		for i := 0; i < n; i++ {
 			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
-			fs, err := f.Flatten([]byte(e), m.(*coreMatcher))
+			fs, err := f.Flatten([]byte(e), m.(*coreMatcher).getSegmentsTreeTracker())
 			if err != nil {
 				t.Fatal(err)
 			}

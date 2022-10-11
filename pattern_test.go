@@ -26,7 +26,7 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"abc": [ {"shellstyle":"a**b"}, "foo" ] }`,
 	}
 	for _, b := range bads {
-		_, _, err := patternFromJSON([]byte(b))
+		_, err := patternFromJSON([]byte(b))
 		if err == nil {
 			t.Error("accepted bad pattern: " + b)
 		}
@@ -92,7 +92,7 @@ func TestPatternFromJSON(t *testing.T) {
 	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7}
 
 	for i, good := range goods {
-		fields, _, err := patternFromJSON([]byte(good))
+		fields, err := patternFromJSON([]byte(good))
 		if err != nil {
 			t.Error("pattern:" + good + ": " + err.Error())
 		}

@@ -31,15 +31,12 @@ type coreMatcher struct {
 
 // coreFields groups the updateable fields in coreMatcher.
 // state is the start of the automaton.
-// namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
+// segmentsTree is a tree of segments that are used in any of the patterns that this automaton encodes.Typically,
 // patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
 // fields that do not appear in patterns when using the automaton for matching.
-// fakeField is used when the flattener for an event returns no fields, because it could still match if
-// there were patterns with "exists":false. So in this case we run one fake field through the matcher
-// which will cause it to notice that any "exists":false patterns should match.
 type coreFields struct {
-	state     *fieldMatcher
-	namesUsed map[string]bool
+	state        *fieldMatcher
+	segmentsTree *segmentsTree
 }
 
 func newCoreMatcher() *coreMatcher {
@@ -49,8 +46,8 @@ func newCoreMatcher() *coreMatcher {
 	// user-supplied path-name because it's not valid in UTF-8
 	m := coreMatcher{}
 	m.updateable.Store(&coreFields{
-		state:     newFieldMatcher(),
-		namesUsed: make(map[string]bool),
+		state:        newFieldMatcher(),
+		segmentsTree: newSegmentsIndex(),
 	})
 	return &m
 }
@@ -62,7 +59,7 @@ func (m *coreMatcher) start() *coreFields {
 // addPattern - the patternBytes is a JSON object. The X is what the matcher returns to indicate that the
 // provided pattern has been matched. In many applications it might be a string which is the pattern's name.
 func (m *coreMatcher) addPattern(x X, patternJSON string) error {
-	patternFields, patternNamesUsed, err := patternFromJSON([]byte(patternJSON))
+	patternFields, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
 		return err
 	}
@@ -75,15 +72,13 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 
 	// we build up the new coreMatcher state in freshStart so we can atomically switch it in once complete
 	freshStart := &coreFields{}
-	freshStart.namesUsed = make(map[string]bool)
 	current := m.start()
+	freshStart.segmentsTree = current.segmentsTree.copy()
 	freshStart.state = current.state
 
-	for k := range current.namesUsed {
-		freshStart.namesUsed[k] = true
-	}
-	for used := range patternNamesUsed {
-		freshStart.namesUsed[used] = true
+	// Add paths to the segments tree index.
+	for _, field := range patternFields {
+		freshStart.segmentsTree.add(field.path)
 	}
 
 	// now we add each of the name/value pairs in fields slice to the automaton, starting with the start state -
@@ -132,7 +127,7 @@ func (m *coreMatcher) deletePatterns(_ X) error {
 // This is a leftover from previous times, is only used by tests, but it's used by a *lot*
 // so removing it would require a lot of tedious work
 func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
-	fields, err := newJSONFlattener().Flatten(event, m)
+	fields, err := newJSONFlattener().Flatten(event, m.getSegmentsTreeTracker())
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +246,6 @@ func noArrayTrailConflict(from []ArrayPos, to []ArrayPos) bool {
 	return true
 }
 
-func (m *coreMatcher) IsNameUsed(label []byte) bool {
-	_, ok := m.start().namesUsed[string(label)]
-	return ok
+func (m *coreMatcher) getSegmentsTreeTracker() SegmentsTreeTracker {
+	return m.start().segmentsTree
 }

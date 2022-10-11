@@ -160,7 +160,7 @@ func TestBigShellStyle(t *testing.T) {
 	before := time.Now()
 	fj := newJSONFlattener()
 	for _, line := range lines {
-		fields, err := fj.Flatten(line, m)
+		fields, err := fj.Flatten(line, m.getSegmentsTreeTracker())
 		if err != nil {
 			t.Error("Flatten: " + err.Error())
 		}

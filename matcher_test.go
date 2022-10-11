@@ -17,7 +17,7 @@ func TestMatcherInterface(t *testing.T) {
 		t.Error("coreMatcher allowed Delete!?")
 	}
 	event := `{"x": [3, 1]}`
-	fields, _ := newJSONFlattener().Flatten([]byte(event), m)
+	fields, _ := newJSONFlattener().Flatten([]byte(event), m.getSegmentsTreeTracker())
 	matches, _ := m.matchesForFields(fields)
 	if len(matches) != 1 || matches[0] != x {
 		t.Error("missed match")

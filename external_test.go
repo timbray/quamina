@@ -10,7 +10,7 @@ type fakeFlattener struct {
 	r []quamina.Field
 }
 
-func (f *fakeFlattener) Flatten(_ []byte, _ quamina.NameTracker) ([]quamina.Field, error) {
+func (f *fakeFlattener) Flatten(_ []byte, _ quamina.SegmentsTreeTracker) ([]quamina.Field, error) {
 	return f.r, nil
 }
 

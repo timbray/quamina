@@ -6,12 +6,60 @@ import (
 	"testing"
 )
 
+func TestFJObjects(t *testing.T) {
+	event := `{
+        "Image": {
+            "Width":  800,
+            "Height": 600,
+            "Title":  "View from 15th Floor",
+            "Thumbnail": {
+                "Url":    "https://www.example.com/image/481989943",
+                "Height": 125,
+                "Width":  100
+            },
+            "Animated" : false,
+            "IDs": [116, 943, 234, 38793]
+          }
+      }`
+
+	flattener := newJSONFlattener()
+
+	// Verify the case on object pointers, this can happen if we get a pattern of "exists" on object
+	// currently we don't support this case, and we don't pluck it.
+	matcher := fakeMatcher("Image\nThumbnail")
+
+	list, err := flattener.Flatten([]byte(event), matcher.getSegmentsTreeTracker())
+	if err != nil {
+		t.Errorf("Failed to flatten: %s", err)
+	}
+
+	// Make sure we got empty matches.
+	expectToHavePaths(t,
+		list,
+		[]string{},
+		[]string{},
+	)
+
+	matcher = fakeMatcher("Image\nThumbnail", "Image\nThumbnail\nUrl")
+
+	list, err = flattener.Flatten([]byte(event), matcher.getSegmentsTreeTracker())
+	if err != nil {
+		t.Errorf("Failed to flatten: %s", err)
+	}
+
+	expectToHavePaths(t,
+		list,
+		[]string{"Image\nThumbnail\nUrl"},
+		[]string{`"https://www.example.com/image/481989943"`},
+	)
+}
+
 func TestFJBasic(t *testing.T) {
 	j := `{ "a": 1, "b": "two", "c": true, "d": null, "e": { "e1": 2, "e2": 3.02e-5}, "f": [33e2, "x", true, false, null], "g": false, "h": [], "i": {}}`
-	allYes := fakeMatcher("a", "b", "c", "d", "e", "e1", "e2", "f", "g", "h", "i")
+	allYes := fakeMatcher("a", "b", "c", "d", "e\ne1", "e\ne2", "f", "g", "h")
 
 	f := newJSONFlattener()
-	list, err := f.Flatten([]byte(j), allYes)
+	list, err := f.Flatten([]byte(j), allYes.getSegmentsTreeTracker())
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
@@ -23,7 +71,7 @@ func TestFJBasic(t *testing.T) {
 
 	justAF := fakeMatcher("a", "f")
 	f = newJSONFlattener()
-	list, _ = f.Flatten([]byte(j), justAF)
+	list, _ = f.Flatten([]byte(j), justAF.getSegmentsTreeTracker())
 
 	expectToHavePaths(t,
 		list,
@@ -45,7 +93,7 @@ func TestFJStrings(t *testing.T) {
 	matcher := fakeMatcher("normal_string", "escaped_string", "unicode_string")
 
 	f := newJSONFlattener()
-	list, err := f.Flatten([]byte(j), matcher)
+	list, err := f.Flatten([]byte(j), matcher.getSegmentsTreeTracker())
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
@@ -75,7 +123,7 @@ func TestFJSkippingErrors(t *testing.T) {
 	f := newJSONFlattener()
 
 	for _, event := range events {
-		fields, err := f.Flatten([]byte(event), matcher)
+		fields, err := f.Flatten([]byte(event), matcher.getSegmentsTreeTracker())
 		if err == nil {
 			t.Errorf("Expected to fail [%s], but got %d fields", string(event), len(fields))
 		}
@@ -106,10 +154,10 @@ func TestFJSkippingBlocks(t *testing.T) {
 			}
 		},
 	}`
-	matcher := fakeMatcher("requested_object", "another_obj", "key")
+	matcher := fakeMatcher("requested_object\nanother_obj\nkey")
 
 	f := newJSONFlattener()
-	list, err := f.Flatten([]byte(j), matcher)
+	list, err := f.Flatten([]byte(j), matcher.getSegmentsTreeTracker())
 	if err != nil {
 		t.Error("E: " + err.Error())
 	}
@@ -122,8 +170,8 @@ func TestFJSkippingBlocks(t *testing.T) {
 }
 
 func TestFJ10Lines(t *testing.T) {
-	geo := fakeMatcher("type", "geometry")
-	testTrackerSelection(t, newJSONFlattener(), geo, "L0", "testdata/cl-sample-0", []string{"type", "geometry\ntype"}, []string{`"Feature"`, `"Polygon"`})
+	geo := fakeMatcher("type", "geometry\ntype")
+	testTrackerSelection(t, newJSONFlattener(), geo.getSegmentsTreeTracker(), "L0", "testdata/cl-sample-0", []string{"type", "geometry\ntype"}, []string{`"Feature"`, `"Polygon"`})
 
 	coordVals := []string{
 		"-122.45409388918634",
@@ -160,13 +208,13 @@ func TestFJ10Lines(t *testing.T) {
 		"geometry\ncoordinates",
 	}
 
-	coords := fakeMatcher("coordinates", "geometry")
-	testTrackerSelection(t, newJSONFlattener(), coords, "L1", "testdata/cl-sample-1", coordNames, coordVals)
+	coords := fakeMatcher("geometry\ncoordinates")
+	testTrackerSelection(t, newJSONFlattener(), coords.getSegmentsTreeTracker(), "L1", "testdata/cl-sample-1", coordNames, coordVals)
 
 	l2names := []string{"properties\nFROM_ST", "properties\nODD_EVEN"}
 	l2vals := []string{`"1917"`, `"O"`}
-	proFoOd := fakeMatcher("properties", "FROM_ST", "ODD_EVEN")
-	testTrackerSelection(t, newJSONFlattener(), proFoOd, "L2", "testdata/cl-sample-2", l2names, l2vals)
+	proFoOd := fakeMatcher("properties\nFROM_ST", "properties\nODD_EVEN")
+	testTrackerSelection(t, newJSONFlattener(), proFoOd.getSegmentsTreeTracker(), "L2", "testdata/cl-sample-2", l2names, l2vals)
 }
 
 // left here as a memorial
@@ -174,7 +222,7 @@ func TestFJMinimal(t *testing.T) {
 	a := `{"a": 1}`
 	nt := fakeMatcher("a")
 	f := newJSONFlattener()
-	fields, err := f.Flatten([]byte(a), nt)
+	fields, err := f.Flatten([]byte(a), nt.getSegmentsTreeTracker())
 	if err != nil {
 		t.Error("Huh? " + err.Error())
 	}
@@ -183,7 +231,7 @@ func TestFJMinimal(t *testing.T) {
 	}
 }
 
-func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label string, filename string, wantedPaths, wantedVals []string) {
+func testTrackerSelection(t *testing.T, fj Flattener, tracker SegmentsTreeTracker, label string, filename string, wantedPaths, wantedVals []string) {
 	t.Helper()
 
 	event, err := os.ReadFile(filename)
@@ -199,11 +247,12 @@ func testTrackerSelection(t *testing.T, fj Flattener, tracker NameTracker, label
 }
 
 func TestFJErrorCases(t *testing.T) {
-	tracker := fakeMatcher("a", "b", "c", "d", "e", "f")
+	// adding "a\nx" so we will goes into "a" object, otherwise we will skip it
+	matcher := fakeMatcher("a", "b", "c", "d", "e", "f", "a\nx")
 	fj := newJSONFlattener().(*flattenJSON)
 
 	e := ` { "a" : [1]}`
-	fields, err := fj.Flatten([]byte(e), tracker)
+	fields, err := fj.Flatten([]byte(e), matcher.getSegmentsTreeTracker())
 	if err != nil {
 		t.Error("reset test: " + err.Error())
 	}
@@ -259,17 +308,17 @@ func TestFJErrorCases(t *testing.T) {
 		`{"a": 23ez}`,
 	}
 	for i, shouldFail := range shouldFails {
-		_, err := fj.Flatten([]byte(shouldFail), tracker)
+		_, err := fj.Flatten([]byte(shouldFail), matcher.getSegmentsTreeTracker())
 		if err == nil {
 			t.Errorf("Accepted bad JSON at %d: %s", i, shouldFail)
 		}
 	}
 }
 
-func fakeMatcher(segs ...string) *coreMatcher {
+func fakeMatcher(paths ...string) *coreMatcher {
 	m := newCoreMatcher()
-	for _, seg := range segs {
-		m.start().namesUsed[seg] = true
+	for _, path := range paths {
+		m.start().segmentsTree.add(path)
 	}
 	return m
 }
@@ -278,7 +327,7 @@ func expectToHavePaths(t *testing.T, list []Field, wantedPaths, wantedVals []str
 	t.Helper()
 
 	if len(list) != len(wantedVals) {
-		t.Errorf("list len %d wanted %d", len(list), len(wantedVals))
+		t.Errorf("got %d fields, wanted %d", len(list), len(wantedVals))
 	}
 
 	for i, field := range list {

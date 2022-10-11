@@ -1,6 +1,7 @@
 package quamina
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"unicode/utf16"
@@ -15,14 +16,13 @@ import (
 // There is an exception, namely strings that contain \-prefixed JSON escapes; since we want to work with the
 // actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 type flattenJSON struct {
-	event      []byte      // event being processed, treated as immutable
-	eventIndex int         // current byte index into the event
-	fields     []Field     // the under-construction return value of the Flatten method
-	skipping   int         // track whether we're within the scope of a segment that isn't used
-	arrayTrail []ArrayPos  // current array-position cookie crumbs
-	arrayCount int32       // how many arrays we've seen, used in building arrayTrail
-	tracker    NameTracker // knows if a segment is used; if not, no need to process
-	cleanSheet bool        // initially true, don't have to call Reset()
+	event      []byte              // event being processed, treated as immutable
+	eventIndex int                 // current byte index into the event
+	fields     []Field             // the under-construction return value of the Flatten method
+	skipping   int                 // track whether we're within the scope of a segment that isn't used
+	arrayTrail []ArrayPos          // current array-position cookie crumbs
+	arrayCount int32               // how many arrays we've seen, used in building arrayTrail
+	cleanSheet bool                // initially true, don't have to call Reset()
 }
 
 // Reset an flattenJSON struct so it can be re-used and won't need to be reconstructed for each event to be flattened
@@ -41,6 +41,8 @@ var (
 	falseBytes = []byte("false")
 	nullBytes  = []byte("null")
 )
+
+var errEarlyStop = errors.New("earlyStop")
 
 // fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
 // states are used in only one function, others in multiple places
@@ -74,7 +76,7 @@ func (fj *flattenJSON) Copy() Flattener {
 
 // Flatten implements the Flattener interface. It assumes that the event is immutable - if you modify the event
 // bytes while the matcher is running, grave disorder will ensue.
-func (fj *flattenJSON) Flatten(event []byte, tracker NameTracker) ([]Field, error) {
+func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Field, error) {
 	if fj.cleanSheet {
 		fj.cleanSheet = false
 	} else {
@@ -85,7 +87,6 @@ func (fj *flattenJSON) Flatten(event []byte, tracker NameTracker) ([]Field, erro
 	}
 	var err error
 	fj.event = event
-	fj.tracker = tracker
 	state := startState
 	for {
 		ch := fj.ch()
@@ -94,8 +95,11 @@ func (fj *flattenJSON) Flatten(event []byte, tracker NameTracker) ([]Field, erro
 			switch ch {
 			// single top-level object
 			case '{':
-				err = fj.readObject(nil)
+				err = fj.readObject(tracker)
 				if err != nil {
+					if errors.Is(err, errEarlyStop) {
+						return fj.fields, nil
+					}
 					return nil, err
 				}
 				state = trailerState
@@ -125,7 +129,7 @@ func (fj *flattenJSON) Flatten(event []byte, tracker NameTracker) ([]Field, erro
 }
 
 // readObject - process through a JSON object, recursing if necessary into sub-objects
-func (fj *flattenJSON) readObject(pathName []byte) error {
+func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	var err error
 	state := inObjectState
 
@@ -134,6 +138,9 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 	if err != nil {
 		return err
 	}
+
+	fieldsCount := pathNode.FieldsCount()
+	nodesCount := pathNode.NodesCount()
 
 	// make a snapshot of the current ArrayPos trail for use in any member fields, because it doesn't change in
 	//  the course of reading an object
@@ -148,7 +155,16 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 	var memberIsUsed bool
 	isLeaf := false
 	for {
+		if nodesCount == 0 && fieldsCount == 0 {
+			if pathNode.IsRoot() {
+				return errEarlyStop
+			} else {
+				return fj.skipUntil('}')
+			}
+		}
+
 		ch := fj.ch()
+
 		switch state {
 		case inObjectState:
 			switch ch {
@@ -159,7 +175,7 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 				if err != nil {
 					return err
 				}
-				memberIsUsed = (fj.skipping == 0) && fj.tracker.IsNameUsed(memberName)
+				memberIsUsed = (fj.skipping == 0) && pathNode.IsSegmentUsed(memberName)
 				state = seekingColonState
 			case '}':
 				return nil
@@ -208,42 +224,54 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 				val, alt, err = fj.readNumber()
 				isLeaf = true
 			case '[':
-				if !fj.tracker.IsNameUsed(memberName) {
+				if !pathNode.IsSegmentUsed(memberName) {
 					fj.skipping++
-				}
-				var arrayPath []byte
-				if fj.skipping == 0 {
-					arrayPath = pathForChild(pathName, memberName)
 				}
 
 				if fj.skipping > 0 || !memberIsUsed {
 					err = fj.skipBlock('[', ']')
 				} else {
-					err = fj.readArray(arrayPath)
+					arrayPathNode, ok := pathNode.Get(memberName)
+					if !ok {
+						// Arrays are interesting, they can be field or node.
+						// Given this case:
+						//  { "geo": { "coords": [{"coordinates": [1,2,3]}] } }
+						// "coords" is a node.
+						// "coordinates" is a field.
+						arrayPathNode = pathNode
+					}
+
+					err = fj.readArray(pathNode.PathForSegment(memberName), arrayPathNode)
 				}
 				if err != nil {
 					return err
 				}
-				if !fj.tracker.IsNameUsed(memberName) {
+				if !pathNode.IsSegmentUsed(memberName) {
 					fj.skipping--
 				}
 			case '{':
-				if !fj.tracker.IsNameUsed(memberName) {
+				if !pathNode.IsSegmentUsed(memberName) {
 					fj.skipping++
-				}
-				var objectPath []byte
-				if fj.skipping == 0 {
-					objectPath = pathForChild(pathName, memberName)
 				}
 				if fj.skipping > 0 || !memberIsUsed {
 					err = fj.skipBlock('{', '}')
 				} else {
-					err = fj.readObject(objectPath)
+					objectPathNode, ok := pathNode.Get(memberName)
+					if !ok {
+						// This can happen if we got a pattern which is doing matching on object (for example: exists on object)
+						// Currently, we don't support this case, so we will skip the block.
+						err = fj.skipBlock('{', '}')
+					} else {
+						// Traversing into node, reduce the count.
+						nodesCount--
+
+						err = fj.readObject(objectPathNode)
+					}
 				}
 				if err != nil {
 					return err
 				}
-				if !fj.tracker.IsNameUsed(memberName) {
+				if !pathNode.IsSegmentUsed(memberName) {
 					fj.skipping--
 				}
 			default:
@@ -256,7 +284,8 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 			}
 			if val != nil {
 				if memberIsUsed {
-					fj.storeObjectMemberField(pathForChild(pathName, memberName), arrayTrail, val)
+					fj.storeObjectMemberField(pathNode.PathForSegment(memberName), arrayTrail, val)
+					fieldsCount--
 				}
 			}
 			if alt != nil {
@@ -282,7 +311,7 @@ func (fj *flattenJSON) readObject(pathName []byte) error {
 	}
 }
 
-func (fj *flattenJSON) readArray(pathName []byte) error {
+func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) error {
 	// eventIndex points at [
 	var err error
 	err = fj.step()
@@ -331,7 +360,8 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
 				}
-				err = fj.readObject(pathName)
+
+				err = fj.readObject(pathNode)
 
 				if err != nil {
 					return err
@@ -340,7 +370,7 @@ func (fj *flattenJSON) readArray(pathName []byte) error {
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
 				}
-				err = fj.readArray(pathName)
+				err = fj.readArray(pathName, pathNode)
 				if err != nil {
 					return err
 				}
@@ -487,6 +517,26 @@ func (fj *flattenJSON) readLiteral(literal []byte) ([]byte, error) {
 	}
 	fj.eventIndex--
 	return literal, nil
+}
+
+func (fj *flattenJSON) skipUntil(symbol byte) error {
+	for fj.eventIndex < len(fj.event) {
+		ch := fj.event[fj.eventIndex]
+
+		switch ch {
+		case '"':
+			err := fj.skipStringValue()
+			if err != nil {
+				return err
+			}
+		case symbol:
+			return nil
+		}
+
+		fj.eventIndex++
+	}
+
+	return fj.error("truncated block")
 }
 
 func (fj *flattenJSON) skipBlock(openSymbol byte, closeSymbol byte) error {
@@ -757,22 +807,6 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 			return nil, 0, fj.error("event truncated in \\u escape")
 		}
 	}
-}
-
-// pathForChild does what the name says.  Since this is likely to be written into the flattened fields,
-// in many circumstances it needs its own copy of the path info
-func pathForChild(pathSoFar []byte, nextSegment []byte) []byte {
-	var mp []byte
-	if len(pathSoFar) == 0 {
-		mp = make([]byte, len(nextSegment))
-		copy(mp, nextSegment)
-	} else {
-		mp = make([]byte, 0, len(pathSoFar)+1+len(nextSegment))
-		mp = append(mp, pathSoFar...)
-		mp = append(mp, '\n')
-		mp = append(mp, nextSegment...)
-	}
-	return mp
 }
 
 // storeArrayElementField adds a field to be returned to the Flatten caller, straightforward except for the field needs its

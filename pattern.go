@@ -32,22 +32,20 @@ type patternField struct {
 }
 
 type patternBuild struct {
-	jd         *json.Decoder
-	path       []string
-	results    []*patternField
-	isNameUsed map[string]bool
+	jd      *json.Decoder
+	path    []string
+	results []*patternField
 }
 
 // TODO: Improve unit test coverage of error conditions
 
 // patternFromJSON - I love naked returns and I cannot lie
-func patternFromJSON(jsonBytes []byte) (fields []*patternField, namesUsed map[string]bool, err error) {
+func patternFromJSON(jsonBytes []byte) (fields []*patternField, err error) {
 	// we can't use json.Unmarshal because it round-trips numbers through float64 and %f so they won't end up matching
 	//  what the caller actually wrote in the patternField. json.Decoder is kind of slow due to excessive
 	//  memory allocation, but I haven't got around to prematurely optimizing the addPattern code path
 	var pb patternBuild
 	pb.jd = json.NewDecoder(bytes.NewReader(jsonBytes))
-	pb.isNameUsed = make(map[string]bool)
 	pb.jd.UseNumber()
 	t, err := pb.jd.Token()
 	if errors.Is(err, io.EOF) {
@@ -69,7 +67,6 @@ func patternFromJSON(jsonBytes []byte) (fields []*patternField, namesUsed map[st
 	}
 
 	err = readPatternObject(&pb)
-	namesUsed = pb.isNameUsed
 	fields = pb.results
 	return
 }
@@ -85,7 +82,6 @@ func readPatternObject(pb *patternBuild) error {
 
 		switch tt := t.(type) {
 		case string:
-			pb.isNameUsed[tt] = true
 			pb.path = append(pb.path, tt)
 			err = readPatternMember(pb)
 			if err != nil {
@@ -127,7 +123,7 @@ func readPatternMember(pb *patternBuild) error {
 }
 
 func readPatternArray(pb *patternBuild) error {
-	pathName := strings.Join(pb.path, "\n")
+	pathName := strings.Join(pb.path, SegmentSeparator)
 	var containsExclusive string
 	elementCount := 0
 	var pathVals []typedVal
