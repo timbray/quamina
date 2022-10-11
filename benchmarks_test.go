@@ -20,8 +20,8 @@ var (
 	cityLotsLineCount int
 )
 
-func getCityLotsLines(t *testing.T) [][]byte {
-	t.Helper()
+func getCityLotsLines(tb testing.TB) [][]byte {
+	tb.Helper()
 
 	cityLotsLock.Lock()
 	defer cityLotsLock.Unlock()
@@ -30,14 +30,14 @@ func getCityLotsLines(t *testing.T) [][]byte {
 	}
 	file, err := os.Open("testdata/citylots.jlines.gz")
 	if err != nil {
-		t.Error("Can't open citlots.jlines.gz: " + err.Error())
+		tb.Error("Can't open citlots.jlines.gz: " + err.Error())
 	}
 	defer func(file *os.File) {
 		_ = file.Close()
 	}(file)
 	zr, err := gzip.NewReader(file)
 	if err != nil {
-		t.Error("Can't open zip reader: " + err.Error())
+		tb.Error("Can't open zip reader: " + err.Error())
 	}
 
 	scanner := bufio.NewScanner(zr)
