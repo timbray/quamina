@@ -2,7 +2,6 @@ package quamina
 
 import (
 	"testing"
-	"time"
 )
 
 func BenchmarkCityLots(b *testing.B) {
@@ -37,7 +36,6 @@ func BenchmarkCityLots(b *testing.B) {
 	lines := getCityLotsLines(b)
 
 	b.ResetTimer()
-	before := time.Now()
 
 	for i := 0; i < b.N; i++ {
 		lineIndex := i
@@ -54,7 +52,4 @@ func BenchmarkCityLots(b *testing.B) {
 	}
 
 	topMatches = localMatches
-	elapsed := float64(time.Since(before).Milliseconds())
-	perSecond := float64(b.N) / (elapsed / 1000.0)
-	b.Logf("%.2f matches/second, total lines: %d", perSecond, b.N)
 }

@@ -1,0 +1,56 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: ["main"]
+
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  benchmark:
+    name: Benchmarks
+    strategy:
+      matrix:
+        go-version: ["1.18"]
+        platform: ["ubuntu-latest"]
+
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@268d8c0ca0432bb2cf416faae41297df9d262d7f
+        with:
+          go-version: ${{ matrix.go-version }}
+        id: go
+
+      - name: Run benchmark
+        run: go test  -benchmem -run="^$" -bench "^Benchmark" . github.com/timbray/quamina | tee output.txt
+
+      - name: Download previous benchmark data
+        uses: actions/cache@v1
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Go Benchmark
+          tool: "go"
+
+          # Compare results against json from cache
+          output-file-path: output.txt
+          external-data-json-path: ./cache/benchmark-data.json
+
+          # Alert on regression
+          alert-threshold: "120%"
+          fail-on-alert: true
+          comment-on-alert: false
+
+          # Disable github pages, for now.
+          auto-push: false
