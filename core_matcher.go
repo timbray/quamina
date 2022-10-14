@@ -181,13 +181,19 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 	// all this looks expensive but in most cases both incoming and state efm signals will be empty, thus a no-op
 	efmsFromState := state.fields().pendingExistsFalses
 
-	// newEFMs = incomingEFMs + efmsFromState
-	newEFMs := make(map[string]*fieldMatcher, len(efmsFromState)+len(incomingEFMs))
-	for path, trans := range incomingEFMs {
-		newEFMs[path] = trans
-	}
-	for path, trans := range efmsFromState {
-		newEFMs[path] = trans
+	// newEFMs = incomingEFMs + efmsFromState, but bypass unless there's actually some exists:false action
+	var newEFMs map[string]*fieldMatcher
+	efmCount := len(efmsFromState) + len(incomingEFMs)
+	if efmCount > 0 {
+		newEFMs = make(map[string]*fieldMatcher, efmCount)
+		for path, trans := range incomingEFMs {
+			newEFMs[path] = trans
+		}
+		for path, trans := range efmsFromState {
+			newEFMs[path] = trans
+		}
+	} else {
+		newEFMs = incomingEFMs
 	}
 
 	// the list in which we'll store any states we'll be processing transitions to as a result of this field
