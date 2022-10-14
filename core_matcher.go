@@ -41,7 +41,6 @@ type coreStart struct {
 }
 
 func newCoreMatcher() *coreMatcher {
-
 	// because of the way the matcher works, to serve its purpose of ensuring that "exists":false maches
 	// will be detected, the Path has to be lexically greater than any field path that appears in
 	// "exists":false. The value with byteCeiling works because that byte can't actually appear in any
@@ -169,7 +168,6 @@ func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 // 1 or more transitions to other states, it calls itself recursively to see if any of the remaining fields
 // can continue the process by matching that state.
 func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSet, incomingEFMs map[string]*fieldMatcher) {
-
 	// finished?
 	if index == len(fields) {
 		return
@@ -215,7 +213,6 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 
 	// for each state in the possibly-empty list of transitions from this state on fields[index]
 	for _, nextState := range nextStates {
-
 		// if arriving at this state means we've matched one or more patterns, record that fact
 		matches = matches.addXSingleThreaded(nextState.fields().matches...)
 
