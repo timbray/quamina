@@ -21,6 +21,8 @@ const (
 	anythingButType
 )
 
+// typedVal represents a field from a parsed Pattern. The list member is only used for
+// anything-but matching
 type typedVal struct {
 	vType valType
 	val   string

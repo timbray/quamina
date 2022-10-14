@@ -41,6 +41,38 @@ func TestBasicMatching(t *testing.T) {
 	}
 }
 
+// thanks to @kylemcc
+func TestExistsFalseOrder(t *testing.T) {
+	j := `{
+ 		"aField": "a",
+ 		"bField": "b",
+ 		"cField": "c"
+ 	}`
+
+	// make sure exists:false properly disqualifies a match regardless of where
+	// it occurs (lexicographically) in the pattern
+	shouldNotMatches := []string{
+		`{ "aField": [ { "exists": false } ], "bField": [ "b" ], "cField": [ "c" ] }`,
+		`{ "aField": [ "a" ], "bField": [ { "exists": false } ], "cField": [ "c" ] }`,
+		`{ "aField": [ "a" ], "bField": [ "b" ], "cField": [ { "exists": false } ] }`,
+	}
+
+	for i, shouldNot := range shouldNotMatches {
+		m := newCoreMatcher()
+		err := m.addPattern(fmt.Sprintf("should NOT %d", i), shouldNot)
+		if err != nil {
+			t.Error("addPattern: " + shouldNot + ": " + err.Error())
+		}
+		matches, err := m.matchesForJSONEvent([]byte(j))
+		if err != nil {
+			t.Error("ShouldNot " + shouldNot + ": " + err.Error())
+		}
+		if len(matches) != 0 {
+			t.Error(shouldNot + " matched but shouldn't have")
+		}
+	}
+}
+
 func TestExerciseMatching(t *testing.T) {
 	j := `{
         "Image": {

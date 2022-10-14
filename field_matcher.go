@@ -1,23 +1,46 @@
 package quamina
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+)
+
+// The only thing that's complicated here is exists:false matching. Here's an explanation by example.
+// If we have the pattern {"x": [ { "exists": false } ] }
+// Then as we process the fields in addPattern, in the FieldMatcher for the field before "x" we put a
+// notice that an exists:false on "x" is pending and if it matches, here's another fieldMatcher to transition to.
+// Then in the match code, when we hit that state we remember the pending exists:false matches in a list that
+// gets passed along from field to field.
+// Whenever we arrive at a new field, if its path is "x", the exists:false failed, and we can remove it from the
+// pending list. If its path is something like "z", i.e. lexically greater than "x", then because the fields are
+// sorted we can tell that we won't be seeing an "x" path, i.e. the exists:false matched, so we can go ahead and
+// transition to the one in the pending list, and once again remove the "x" from the pending list.  If the path
+// is something like "k", lexically less than "x", we haven't learned anything and we keep entry for "x"
+// in the pending list. (Exercise for the reader: How can that happen?)
+// There are more details, and more commentary in the relevant code.
 
 // fieldMatcher represents a state in the matching automaton, which matches field names and dispatches to
-// valueMatcher to complete matching of field values.  fieldMatcher has a map which is keyed by the
-// field pathSegments values that can start transitions from this matcher; for each such field, there is a
-// valueMatcher which, given the field's value, determines whether the automaton progresses to another fieldMatcher
-// matches contains the X values that arrival at this state implies have matched
-// existsFalseFailures reports the condition that traversal has occurred by matching a field which is named in an
-// exists:false pattern, and the named X's should be subtracted from the matches list being built up by a match project
+// valueMatcher to complete matching of field values.
 // the fields that hold state are segregated in updateable so they can be replaced atomically and make the matcher
 // thread-safe.
 type fieldMatcher struct {
 	updateable atomic.Value // always holds an *fmFields
 }
+
+// fmFields groups the updateable fields in fieldMatcher.
+// transitions is a map keyed by the field paths that can start transitions from this state; for each such field,
+// there is a valueMatcher which, given the field's value, determines whether the automaton progresses to another
+// fieldMatcher.
+// matches contains the X values that arrival at this state implies have matched.
+// pendingExistsFalses is keyed by field paths which have appeared in an exists:false pattern where those paths
+// are lexically greater than the one whose name/val matched and transitioned to this one.  The values are
+// states to transition to in the case that the exists:false matches.
+// So when traversing the states, we have to start looking for occurrences of the paths appearing as heys here;
+// if we arrive at a state with one of those paths, the exists:false failed, but if we arrive at a state whose
+// path is lexically greater than one of these, the exists:false will have matched.
 type fmFields struct {
 	transitions         map[string]*valueMatcher
 	matches             []X
-	existsFalseFailures *matchSet
+	pendingExistsFalses map[string]*fieldMatcher
 }
 
 // fields / update / addExistsFalseFailure / addMatch exist to insulate callers from dealing with
@@ -30,21 +53,11 @@ func (m *fieldMatcher) update(fields *fmFields) {
 	m.updateable.Store(fields)
 }
 
-func (m *fieldMatcher) addExistsFalseFailure(x X) {
-	current := m.fields()
-	newFields := &fmFields{
-		transitions:         current.transitions,
-		matches:             current.matches,
-		existsFalseFailures: current.existsFalseFailures.addX(x),
-	}
-	m.update(newFields)
-}
-
 func (m *fieldMatcher) addMatch(x X) {
 	current := m.fields()
 	newFields := &fmFields{
 		transitions:         current.transitions,
-		existsFalseFailures: current.existsFalseFailures,
+		pendingExistsFalses: current.pendingExistsFalses,
 	}
 	newFields.matches = append(newFields.matches, current.matches...)
 	newFields.matches = append(newFields.matches, x)
@@ -52,10 +65,35 @@ func (m *fieldMatcher) addMatch(x X) {
 }
 
 func newFieldMatcher() *fieldMatcher {
-	fields := &fmFields{transitions: make(map[string]*valueMatcher), existsFalseFailures: newMatchSet()}
+	fields := &fmFields{
+		transitions:         make(map[string]*valueMatcher),
+		pendingExistsFalses: make(map[string]*fieldMatcher),
+	}
 	fm := &fieldMatcher{}
 	fm.updateable.Store(fields)
 	return fm
+}
+
+// addExistsFalseTransition is really different from adding a normal transition. We're just going to work on
+// the pendingExistsFalses field. We do *not* make a new valueMatcher or update the transitions field.
+func (m *fieldMatcher) addExistsFalseTransition(field *patternField) []*fieldMatcher {
+	current := m.fields()
+	freshStart := &fmFields{
+		transitions: current.transitions,
+		matches:     current.matches,
+	}
+	freshStart.pendingExistsFalses = make(map[string]*fieldMatcher)
+	for path, trans := range current.pendingExistsFalses {
+		freshStart.pendingExistsFalses[path] = trans
+	}
+
+	pending, ok := freshStart.pendingExistsFalses[field.path]
+	if !ok {
+		pending = newFieldMatcher()
+		freshStart.pendingExistsFalses[field.path] = pending
+	}
+	m.update(freshStart)
+	return []*fieldMatcher{pending}
 }
 
 func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
@@ -71,9 +109,10 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 		vm = newValueMatcher()
 	}
 	freshStart.transitions[field.path] = vm
+	freshStart.pendingExistsFalses = current.pendingExistsFalses
 
+	// TODO: pretty sure we can delete the following line, how could current have picked up any new matches?
 	freshStart.matches = append(freshStart.matches, current.matches...)
-	freshStart.existsFalseFailures = current.existsFalseFailures
 
 	// suppose I'm adding the first pattern to a matcher and it has "x": [1, 2]. In principle the branches on
 	//  "x": 1 and "x": 2 could go to tne same next state. But we have to make a unique next state for each of them
