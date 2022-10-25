@@ -99,7 +99,7 @@ jobs:
 
         - name: Check for .codecov.yaml
           id: codecov-enabled
-          uses: andstor/file-existence-action@f02338908d150e00a4b8bebc2dad18bd9e5229b0
+          uses: andstor/file-existence-action@20b4d2e596410855db8f9ca21e96fbe18e12930b
           with:
             files: .codecov.yaml
 
