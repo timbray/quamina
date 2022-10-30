@@ -32,13 +32,13 @@ jobs:
         run: go test  -benchmem -run="^$" -bench "^Benchmark" . github.com/timbray/quamina | tee output.txt
 
       - name: Download previous benchmark data
-        uses: actions/cache@v1
+        uses: actions/cache@9b0c1fce7a93df8e3bb8926b0d6e9d89e92f20a7
         with:
           path: ./cache
           key: ${{ runner.os }}-benchmark
 
       - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
+        uses: benchmark-action/github-action-benchmark@3b3014adac5e456db8ad428ccc01bec75242487f
         with:
           name: Go Benchmark
           tool: "go"
