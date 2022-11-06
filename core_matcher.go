@@ -19,34 +19,48 @@ import (
 )
 
 // coreMatcher uses a finite automaton to implement the matchesForJSONEvent and MatchesForFields functions.
-// state is the start of the automaton
-// namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
-// patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
-// fields that do not appear in patterns when using the automaton for matching
-// the updateable fields are grouped into the coreStart member so they can be updated atomically using atomic.Load()
+// The updateable fields are grouped into the coreFields member so they can be updated atomically using atomic.Load()
 // and atomic.Store(). This is necessary for coreMatcher to be thread-safe.
 type coreMatcher struct {
-	updateable atomic.Value // always holds a *coreStart
+	updateable atomic.Value // always holds a *coreFields
 	lock       sync.Mutex
 }
-type coreStart struct {
-	state                     *fieldMatcher
-	namesUsed                 map[string]bool
-	presumedExistFalseMatches *matchSet
+
+// coreFields groups the updateable fields in coreMatcher.
+// state is the start of the automaton.
+// namesUsed is a map of field names that are used in any of the patterns that this automaton encodes. Typically,
+// patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
+// fields that do not appear in patterns when using the automaton for matching.
+// fakeField is used when the flattener for an event returns no fields, because it could still match if
+// there were patterns with "exists":false. So in this case we run one fake field through the matcher
+// which will cause it to notice that any "exists":false patterns should match.
+type coreFields struct {
+	state     *fieldMatcher
+	namesUsed map[string]bool
+	fakeField []Field
 }
 
 func newCoreMatcher() *coreMatcher {
+	// because of the way the matcher works, to serve its purpose of ensuring that "exists":false maches
+	// will be detected, the Path has to be lexically greater than any field path that appears in
+	// "exists":false. The value with byteCeiling works because that byte can't actually appear in any
+	// user-supplied path-name because it's not valid in UTF-8
+	fake := Field{
+		Path:       []byte{byte(byteCeiling)},
+		Val:        []byte(""),
+		ArrayTrail: []ArrayPos{{0, 0}},
+	}
 	m := coreMatcher{}
-	m.updateable.Store(&coreStart{
-		state:                     newFieldMatcher(),
-		namesUsed:                 make(map[string]bool),
-		presumedExistFalseMatches: newMatchSet(),
+	m.updateable.Store(&coreFields{
+		state:     newFieldMatcher(),
+		namesUsed: make(map[string]bool),
+		fakeField: []Field{fake},
 	})
 	return &m
 }
 
-func (m *coreMatcher) start() *coreStart {
-	return m.updateable.Load().(*coreStart)
+func (m *coreMatcher) start() *coreFields {
+	return m.updateable.Load().(*coreFields)
 }
 
 // addPattern - the patternBytes is a JSON object. The X is what the matcher returns to indicate that the
@@ -67,20 +81,17 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	defer m.lock.Unlock()
 
 	// we build up the new coreMatcher state in freshStart so we can atomically switch it in once complete
-	freshStart := &coreStart{}
+	freshStart := &coreFields{}
 	freshStart.namesUsed = make(map[string]bool)
 	current := m.start()
 	freshStart.state = current.state
+	freshStart.fakeField = current.fakeField
 
 	for k := range current.namesUsed {
 		freshStart.namesUsed[k] = true
 	}
 	for used := range patternNamesUsed {
 		freshStart.namesUsed[used] = true
-	}
-	freshStart.presumedExistFalseMatches = newMatchSet()
-	for presumedExistsFalseMatch := range current.presumedExistFalseMatches.set {
-		freshStart.presumedExistFalseMatches = freshStart.presumedExistFalseMatches.addX(presumedExistsFalseMatch)
 	}
 
 	// now we add each of the name/value pairs in fields slice to the automaton, starting with the start state -
@@ -89,14 +100,20 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	states := []*fieldMatcher{current.state}
 	for _, field := range patternFields {
 		var nextStates []*fieldMatcher
-		for _, state := range states {
-			ns := state.addTransition(field)
 
-			// special handling for exists:false, in which case there can be only one val and one next state
-			if field.vals[0].vType == existsFalseType {
-				ns[0].addExistsFalseFailure(x)
-				freshStart.presumedExistFalseMatches = freshStart.presumedExistFalseMatches.addX(x)
+		// separate handling for field exists:true/false and regular field name/val matches. Since the exists
+		// true/false are only allowed one value, we can test vals[0] to figure out which type
+		for _, state := range states {
+			var ns []*fieldMatcher
+			switch field.vals[0].vType {
+			case existsTrueType:
+				ns = state.addExists(true, field)
+			case existsFalseType:
+				ns = state.addExists(false, field)
+			default:
+				ns = state.addTransition(field)
 			}
+
 			nextStates = append(nextStates, ns...)
 		}
 		states = nextStates
@@ -106,9 +123,7 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	//  by matching each field in the pattern so update the matches value to indicate this (skipping those that
 	//  are only there to serve exists:false processing)
 	for _, endState := range states {
-		if !endState.fields().existsFalseFailures.contains(x) {
-			endState.addMatch(x)
-		}
+		endState.addMatch(x)
 	}
 	m.updateable.Store(freshStart)
 
@@ -129,76 +144,100 @@ func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// see the commentary on coreMatcher for an explanation of this.
+	// tl;dr: If the flattener returns no fields because there's nothing in the event that's mentioned in
+	// any patterns, the event could still match if there are only "exists":false patterns.
+	if len(fields) == 0 {
+		fields = m.start().fakeField
+	}
+
 	return m.matchesForFields(fields)
 }
 
-// matchesForFields takes a list of Field structures and sorts them by pathname; the fields in a pattern to
-// matched are similarly sorted; thus running an automaton over them works
+// matchesForFields takes a list of Field structures, sorts them by pathname, and launches the field-matching
+// process. The fields in a pattern to match are similarly sorted; thus running an automaton over them works
 func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	sort.Slice(fields, func(i, j int) bool { return string(fields[i].Path) < string(fields[j].Path) })
-	return m.matchesForSortedFields(fields).matches(), nil
-}
-
-// proposedTransition represents a suggestion that the name/value pair at fields[fieldIndex] might allow a transition
-// in the indicated state
-type proposedTransition struct {
-	matcher    *fieldMatcher
-	fieldIndex int
-}
-
-// matchesForSortedFields runs the provided list of name/value pairs against the automaton and returns
-// a possibly-empty list of the patterns that match
-func (m *coreMatcher) matchesForSortedFields(fields []Field) *matchSet {
-	failedExistsFalseMatches := newMatchSet()
 	matches := newMatchSet()
 
-	// The idea is that we add potential field transitions to the proposals list; any time such a transition
-	// succeeds, i.e. matches a particular field and moves to a new state, we propose transitions from that
-	// state on all the following fields in the event
-	// Start by giving each field a chance to match against the start state. Doing it by pre-allocating the
-	// proposals and filling in their values is observably faster than the more idiomatic append()
-	proposals := make([]proposedTransition, len(fields))
-	for i := range fields {
-		proposals[i].fieldIndex = i
-		proposals[i].matcher = m.start().state
+	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch
+	// routine will, in the case that there's a match, call itself to see if subsequent fields after the
+	// first matched will transition through the machine and eventually achieve a match
+	s := m.start()
+	for i := 0; i < len(fields); i++ {
+		tryToMatch(fields, i, s.state, matches)
+	}
+	return matches.matches(), nil
+}
+
+// tryToMatch tries to match the field at fields[index] to the provided state. If it does match and generate
+// 1 or more transitions to other states, it calls itself recursively to see if any of the remaining fields
+// can continue the process by matching that state.
+func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSet) {
+	stateFields := state.fields()
+
+	// transition on exists:true?
+	existsTrans, ok := stateFields.existsTrue[string(fields[index].Path)]
+	if ok {
+		matches = matches.addXSingleThreaded(existsTrans.fields().matches...)
+		for nextIndex := index + 1; nextIndex < len(fields); nextIndex++ {
+			if noArrayTrailConflict(fields[index].ArrayTrail, fields[nextIndex].ArrayTrail) {
+				tryToMatch(fields, nextIndex, existsTrans, matches)
+			}
+		}
 	}
 
-	// as long as there are still potential transitions
-	for len(proposals) > 0 {
-		// go slices could usefully have a "pop" primitive
-		lastIndex := len(proposals) - 1
-		proposal := proposals[lastIndex]
-		proposals = proposals[0:lastIndex]
+	// an exists:false transition is possible if there is no matching field in the event
+	// func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet) {
+	checkExistsFalse(stateFields, fields, index, matches)
 
-		// generate the possibly-empty list of transitions from state on the name/value pair
-		nextStates := proposal.matcher.transitionOn(&fields[proposal.fieldIndex])
+	// try to transition through the machine
+	nextStates := state.transitionOn(&fields[index])
 
-		// for each state in the set of transitions from the proposed state
-		for _, nextState := range nextStates {
-			// if arriving at this state means we've matched one or more patterns, record that fact
-			matches = matches.addXSingleThreaded(nextState.fields().matches...)
+	// for each state in the possibly-empty list of transitions from this state on fields[index]
+	for _, nextState := range nextStates {
+		nextStateFields := nextState.fields()
+		matches = matches.addXSingleThreaded(nextStateFields.matches...)
 
-			// have we invalidated a presumed exists:false pattern?
-			for existsMatch := range nextState.fields().existsFalseFailures.set {
-				failedExistsFalseMatches = failedExistsFalseMatches.addXSingleThreaded(existsMatch)
+		// for each state we've transitioned to, give each subsequent field a chance to
+		//  transition on it, assuming it's not in an object that's in a different element
+		//  of the same array
+		for nextIndex := index + 1; nextIndex < len(fields); nextIndex++ {
+			if noArrayTrailConflict(fields[index].ArrayTrail, fields[nextIndex].ArrayTrail) {
+				tryToMatch(fields, nextIndex, nextState, matches)
 			}
+		}
+		// now we've run out of fields to match this nextState against. But suppose it has an exists:false
+		// transition, and it so happens that the exists:false pattern field is lexically larger than the other
+		// fields and that in fact such a field does not exist. That state would be left hanging. So…
+		checkExistsFalse(nextStateFields, fields, index, matches)
+	}
+}
 
-			// for each state we've transitioned to, give each subsequent field a chance to
-			//  transition on it, assuming it's not in an object that's in a different element
-			//  of the same array
-			for nextIndex := proposal.fieldIndex + 1; nextIndex < len(fields); nextIndex++ {
-				if noArrayTrailConflict(fields[proposal.fieldIndex].ArrayTrail, fields[nextIndex].ArrayTrail) {
-					proposals = append(proposals, proposedTransition{fieldIndex: nextIndex, matcher: nextState})
+func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet) {
+	for existsFalsePath, existsFalseTrans := range stateFields.existsFalse {
+		// it seems like there ought to be a more state-machine-idiomatic way to do this but
+		// I thought of a few and none of them worked.  Quite likely someone will figure it out eventually.
+		var i int
+		var thisFieldIsAnExistsFalse bool
+		for i = 0; i < len(fields); i++ {
+			if string(fields[i].Path) == existsFalsePath {
+				if i == index {
+					thisFieldIsAnExistsFalse = true
 				}
+				break
+			}
+		}
+		if i == len(fields) {
+			matches = matches.addXSingleThreaded(existsFalseTrans.fields().matches...)
+			if thisFieldIsAnExistsFalse {
+				tryToMatch(fields, index+1, existsFalseTrans, matches)
+			} else {
+				tryToMatch(fields, index, existsFalseTrans, matches)
 			}
 		}
 	}
-	for presumedExistsFalseMatch := range m.start().presumedExistFalseMatches.set {
-		if !failedExistsFalseMatches.contains(presumedExistsFalseMatch) {
-			matches = matches.addXSingleThreaded(presumedExistsFalseMatch)
-		}
-	}
-	return matches
 }
 
 func noArrayTrailConflict(from []ArrayPos, to []ArrayPos) bool {
