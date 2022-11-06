@@ -18,9 +18,12 @@ import (
 	"sync/atomic"
 )
 
-// coreMatcher uses a finite automaton to implement the matchesForJSONEvent and MatchesForFields functions.
-// The updateable fields are grouped into the coreFields member so they can be updated atomically using atomic.Load()
-// and atomic.Store(). This is necessary for coreMatcher to be thread-safe.
+// coreMatcher uses an automaton to implement addPattern and matchesForFields.
+// There are two levels of concurrency here. First, the lock field in this struct must be held by any goroutine
+// that is executing addPattern(), i.e. only one thread may be updating the state machine at one time.
+// However, any number of goroutines may in parallel be executing matchesForFields while the addPattern
+// update is in progress. The updateable atomic.Value allows the addPattern thread to change the maps and
+// slices in the structure atomically with atomic.Load() while matchesForFields threads are reading them.
 type coreMatcher struct {
 	updateable atomic.Value // always holds a *coreFields
 	lock       sync.Mutex
@@ -37,7 +40,6 @@ type coreMatcher struct {
 type coreFields struct {
 	state     *fieldMatcher
 	namesUsed map[string]bool
-	fakeField []Field
 }
 
 func newCoreMatcher() *coreMatcher {
@@ -45,16 +47,10 @@ func newCoreMatcher() *coreMatcher {
 	// will be detected, the Path has to be lexically greater than any field path that appears in
 	// "exists":false. The value with byteCeiling works because that byte can't actually appear in any
 	// user-supplied path-name because it's not valid in UTF-8
-	fake := Field{
-		Path:       []byte{byte(byteCeiling)},
-		Val:        []byte(""),
-		ArrayTrail: []ArrayPos{{0, 0}},
-	}
 	m := coreMatcher{}
 	m.updateable.Store(&coreFields{
 		state:     newFieldMatcher(),
 		namesUsed: make(map[string]bool),
-		fakeField: []Field{fake},
 	})
 	return &m
 }
@@ -74,9 +70,6 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	sort.Slice(patternFields, func(i, j int) bool { return patternFields[i].path < patternFields[j].path })
 
 	// only one thread can be updating at a time
-	// NOTE: threads can be calling MatchesFor* functions at any time as we update the automaton. The goal is to
-	//  maintain consistency during updates, in the sense that a pattern that has been matching events will not
-	//  stop working during an update.
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -85,7 +78,6 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	freshStart.namesUsed = make(map[string]bool)
 	current := m.start()
 	freshStart.state = current.state
-	freshStart.fakeField = current.fakeField
 
 	for k := range current.namesUsed {
 		freshStart.namesUsed[k] = true
@@ -149,7 +141,13 @@ func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 	// tl;dr: If the flattener returns no fields because there's nothing in the event that's mentioned in
 	// any patterns, the event could still match if there are only "exists":false patterns.
 	if len(fields) == 0 {
-		fields = m.start().fakeField
+		fields = []Field{
+			{
+				Path:       []byte{byte(byteCeiling)},
+				Val:        []byte(""),
+				ArrayTrail: []ArrayPos{{0, 0}},
+			},
+		}
 	}
 
 	return m.matchesForFields(fields)
@@ -219,6 +217,8 @@ func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches 
 	for existsFalsePath, existsFalseTrans := range stateFields.existsFalse {
 		// it seems like there ought to be a more state-machine-idiomatic way to do this but
 		// I thought of a few and none of them worked.  Quite likely someone will figure it out eventually.
+		// Could get slow for big events with hundreds or more fields (not that I've ever seen that) - might
+		// be worthwhile switching to binary search at some field count.
 		var i int
 		var thisFieldIsAnExistsFalse bool
 		for i = 0; i < len(fields); i++ {

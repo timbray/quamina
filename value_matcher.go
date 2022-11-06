@@ -28,7 +28,6 @@ type vmFields struct {
 	startDfa            *smallTable[*dfaStep]
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
-	existsTransitions   []*fieldMatcher
 }
 
 func (m *valueMatcher) getFields() *vmFields {
@@ -54,10 +53,7 @@ func newValueMatcher() *valueMatcher {
 func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	var transitions []*fieldMatcher
 
-	// exists transitions are basically a * on the value, so if we got the
-	// matcher, add 'em to the output
 	fields := m.getFields()
-	transitions = append(transitions, fields.existsTransitions...)
 
 	switch {
 	case fields.singletonMatch != nil:
@@ -106,14 +102,6 @@ func transitionDfa(table *smallTable[*dfaStep], val []byte, transitions []*field
 func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
-
-	// TODO: Shouldn't these all point to the same fieldMatcher?
-	if val.vType == existsTrueType || val.vType == existsFalseType {
-		next := newFieldMatcher()
-		fields.existsTransitions = append(fields.existsTransitions, next)
-		m.update(fields)
-		return next
-	}
 
 	// there's already a table, thus an out-degree > 1
 	if fields.startDfa != nil {
