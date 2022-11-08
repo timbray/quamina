@@ -66,6 +66,40 @@ are two Exists Patterns that would match the Events above:
 If a Field in a Pattern contains an Exists Pattern, it
 **MUST NOT** contain any other values.
 
+Exists Patterns currently only work on leaf nodes. That is to 
+say, given this event:
+
+```json
+{ "a": { "b":  1 } }
+```
+
+The following pattern will not match:
+
+```json
+{ "a": [ {"exists": true} ] }
+```
+
+We may be able to change this in future.
+
+The case of empty arrays is interesting. Consider this event:
+
+```json
+{ "a": [] }`
+```
+
+Then `"exists": true` does not match but `"exists": false` does.
+I.e., only the first of the two sample patterns below matches.
+
+```json
+{ "a":  [ { "exists": false } ] }
+```
+```json
+{ "a":  [ { "exists": true } ] }
+```
+This makes sense in the context of the leaf-node semantics; there
+really is no value for the `"a"` field.
+
+
 ### Anything-But Pattern
 
 The Pattern Type of an Anything-But Pattern is

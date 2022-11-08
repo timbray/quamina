@@ -131,6 +131,10 @@ one `*` character. The architecture probably allows
 support for a larger subset of regular expressions, 
 eventually.
 
+The `"exists":true` and `"exists":false` patterns 
+have corner cases; details are covered in
+[Patterns in Quamina](PATTERNS.md).
+
 Number matching is weak - the number has to appear 
 exactly the same in the Pattern and the Event. I.e.,
 Quamina doesn't know that 35, 35.000, and 3.5e1 are the
