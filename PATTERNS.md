@@ -84,7 +84,7 @@ We may be able to change this in future.
 The case of empty arrays is interesting. Consider this event:
 
 ```json
-{ "a": [] }`
+{ "a": [] }
 ```
 
 Then `"exists": true` does not match but `"exists": false` does.
