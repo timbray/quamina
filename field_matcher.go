@@ -1,23 +1,28 @@
 package quamina
 
-import "sync/atomic"
+import (
+	"sync/atomic"
+)
 
 // fieldMatcher represents a state in the matching automaton, which matches field names and dispatches to
-// valueMatcher to complete matching of field values.  fieldMatcher has a map which is keyed by the
-// field pathSegments values that can start transitions from this matcher; for each such field, there is a
-// valueMatcher which, given the field's value, determines whether the automaton progresses to another fieldMatcher
-// matches contains the X values that arrival at this state implies have matched
-// existsFalseFailures reports the condition that traversal has occurred by matching a field which is named in an
-// exists:false pattern, and the named X's should be subtracted from the matches list being built up by a match project
+// valueMatcher to complete matching of field values.
 // the fields that hold state are segregated in updateable so they can be replaced atomically and make the matcher
 // thread-safe.
 type fieldMatcher struct {
 	updateable atomic.Value // always holds an *fmFields
 }
+
+// fmFields groups the updateable fields in fieldMatcher.
+// transitions is a map keyed by the field paths that can start transitions from this state; for each such field,
+// there is a valueMatcher which, given the field's value, determines whether the automaton progresses to another
+// fieldMatcher.
+// matches contains the X values that arrival at this state implies have matched.
+// existsTrue and existsFalse record those types of patterns; traversal doesn't require looking at a valueMatcher
 type fmFields struct {
-	transitions         map[string]*valueMatcher
-	matches             []X
-	existsFalseFailures *matchSet
+	transitions map[string]*valueMatcher
+	matches     []X
+	existsTrue  map[string]*fieldMatcher
+	existsFalse map[string]*fieldMatcher
 }
 
 // fields / update / addExistsFalseFailure / addMatch exist to insulate callers from dealing with
@@ -30,38 +35,73 @@ func (m *fieldMatcher) update(fields *fmFields) {
 	m.updateable.Store(fields)
 }
 
-func (m *fieldMatcher) addExistsFalseFailure(x X) {
-	current := m.fields()
-	newFields := &fmFields{
-		transitions:         current.transitions,
-		matches:             current.matches,
-		existsFalseFailures: current.existsFalseFailures.addX(x),
-	}
-	m.update(newFields)
-}
-
 func (m *fieldMatcher) addMatch(x X) {
 	current := m.fields()
 	newFields := &fmFields{
-		transitions:         current.transitions,
-		existsFalseFailures: current.existsFalseFailures,
+		transitions: current.transitions,
+		existsTrue:  current.existsTrue,
+		existsFalse: current.existsFalse,
 	}
+
 	newFields.matches = append(newFields.matches, current.matches...)
 	newFields.matches = append(newFields.matches, x)
 	m.update(newFields)
 }
 
 func newFieldMatcher() *fieldMatcher {
-	fields := &fmFields{transitions: make(map[string]*valueMatcher), existsFalseFailures: newMatchSet()}
+	fields := &fmFields{
+		transitions: make(map[string]*valueMatcher),
+		existsTrue:  make(map[string]*fieldMatcher),
+		existsFalse: make(map[string]*fieldMatcher),
+	}
 	fm := &fieldMatcher{}
 	fm.updateable.Store(fields)
 	return fm
 }
 
+func (m *fieldMatcher) addExists(exists bool, field *patternField) []*fieldMatcher {
+	var trans *fieldMatcher
+	current := m.fields()
+	freshStart := &fmFields{
+		transitions: current.transitions,
+		matches:     current.matches,
+		existsTrue:  make(map[string]*fieldMatcher),
+		existsFalse: make(map[string]*fieldMatcher),
+	}
+	var path string
+	for path, trans = range current.existsTrue {
+		freshStart.existsTrue[path] = trans
+	}
+	for path, trans = range current.existsFalse {
+		freshStart.existsFalse[path] = trans
+	}
+	var ok bool
+	if exists {
+		trans, ok = freshStart.existsTrue[field.path]
+		if !ok {
+			trans = newFieldMatcher()
+			freshStart.existsTrue[field.path] = trans
+		}
+	} else {
+		trans, ok = freshStart.existsFalse[field.path]
+		if !ok {
+			trans = newFieldMatcher()
+			freshStart.existsFalse[field.path] = trans
+		}
+	}
+	m.update(freshStart)
+	return []*fieldMatcher{trans}
+}
+
 func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 	// we build the new updateable state in freshStart so we can blsat it in atomically once computed
 	current := m.fields()
-	freshStart := &fmFields{}
+	freshStart := &fmFields{
+		matches:     current.matches,
+		existsTrue:  current.existsTrue,
+		existsFalse: current.existsFalse,
+	}
+
 	freshStart.transitions = make(map[string]*valueMatcher)
 	for k, v := range current.transitions {
 		freshStart.transitions[k] = v
@@ -72,8 +112,8 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 	}
 	freshStart.transitions[field.path] = vm
 
+	// TODO: pretty sure we can delete the following line, how could current have picked up any new matches?
 	freshStart.matches = append(freshStart.matches, current.matches...)
-	freshStart.existsFalseFailures = current.existsFalseFailures
 
 	// suppose I'm adding the first pattern to a matcher and it has "x": [1, 2]. In principle the branches on
 	//  "x": 1 and "x": 2 could go to tne same next state. But we have to make a unique next state for each of them
@@ -83,6 +123,7 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 	var nextFieldMatchers []*fieldMatcher
 	for _, val := range field.vals {
 		nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(val))
+
 		// if the val is a number, let's add a transition on the canonicalized number
 		// TODO: Only do this if asked
 		/*
