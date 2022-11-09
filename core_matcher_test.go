@@ -41,6 +41,104 @@ func TestBasicMatching(t *testing.T) {
 	}
 }
 
+// thanks to @kylemcc
+func TestExistsFalseOrder(t *testing.T) {
+	j := `{"aField": "a","bField": "b",	"cField": "c"}`
+
+	// make sure exists:false properly disqualifies a match regardless of where
+	// it occurs (lexicographically) in the pattern
+	shouldNotPatterns := []string{
+		`{"aField": ["a"], "bField": [{ "exists": false }], "cField": ["c"]}`,
+		`{"aField": [{ "exists": false }], "bField": ["b"], "cField": ["c"]}`,
+		`{"aField": ["a"], "bField": ["b"], "cField": [{ "exists": false }]}`,
+	}
+	matchesForSNPatterns := []string{
+		`{ "$field": "$", "aField": "a", "cField": "c" }`,
+		`{ "$field": "$", "bField": "b", "cField": "c" }`,
+		`{ "$field": "$", "aField": "a", "bField": "b" }`,
+	}
+
+	for i, shouldNot := range shouldNotPatterns {
+		m := newCoreMatcher()
+		err := m.addPattern(fmt.Sprintf("should NOT %d", i), shouldNot)
+		if err != nil {
+			t.Error("addPattern: " + shouldNot + ": " + err.Error())
+		}
+		// fmt.Println("Try to match: " + j + " to " + shouldNot)
+		matches, err := m.matchesForJSONEvent([]byte(j))
+		if err != nil {
+			t.Error("ShouldNot " + shouldNot + ": " + err.Error())
+		}
+		if len(matches) != 0 {
+			t.Errorf("YES p=%s e=%s", shouldNot, j)
+		}
+
+		// fmt.Println("Try to match: " + matchesForSNPatterns[i] + " to " + shouldNot)
+		matches, err = m.matchesForJSONEvent([]byte(matchesForSNPatterns[i]))
+		if err != nil {
+			t.Error("matchesForSNPatterns: + ", err.Error())
+		}
+		if len(matches) == 0 {
+			t.Errorf("NO p=%s e=%s", shouldNot, matchesForSNPatterns[i])
+		}
+	}
+
+	mm := newCoreMatcher()
+	for _, pattern := range shouldNotPatterns {
+		err := mm.addPattern(pattern, pattern)
+		if err != nil {
+			t.Error("AddP: " + err.Error())
+		}
+	}
+	matches, err := mm.matchesForJSONEvent([]byte(j))
+	if err != nil {
+		t.Error("match: " + err.Error())
+	}
+	if len(matches) != 0 {
+		msg := fmt.Sprintf("all patterns, too many matches (%d) for %s\n", len(matches), j)
+		for _, match := range matches {
+			msg += fmt.Sprintf(" %s\n", match)
+		}
+		t.Errorf(msg)
+	}
+}
+
+func TestFieldNameOrdering(t *testing.T) {
+	j := `{
+		"b": 1
+      }`
+	patterns := []string{
+		`{ "b": [1], "a": [ { "exists":false } ] }"`,
+		`{ "b": [1], "c": [ { "exists":false } ] }"`,
+		`{ "b": [1]}"`,
+		`{ "a": [ { "exists":false } ] }"`,
+	}
+	wanted := make(map[string]int)
+	for _, pattern := range patterns {
+		wanted[pattern] = 0
+	}
+	m := newCoreMatcher()
+	for _, pattern := range patterns {
+		err := m.addPattern(pattern, pattern)
+		if err != nil {
+			t.Error("addPattern: " + err.Error())
+		}
+	}
+	matches, err := m.matchesForJSONEvent([]byte(j))
+	if err != nil {
+		t.Error("M4J: " + err.Error())
+	}
+	for _, match := range matches {
+		smatch := match.(string)
+		wanted[smatch]++
+	}
+	for want, count := range wanted {
+		if count != 1 {
+			t.Error("missed: " + want)
+		}
+	}
+}
+
 func TestExerciseMatching(t *testing.T) {
 	j := `{
         "Image": {
@@ -57,10 +155,10 @@ func TestExerciseMatching(t *testing.T) {
           }
       }`
 	patternsFromReadme := []string{
+		`{"Image": { "Title": [ { "exists": true } ] } }`,
 		`{"Foo": [ { "exists": false } ] }"`,
 		`{"Image": {"Width": [800]}}`,
 		`{"Image": { "Animated": [ false], "Thumbnail": { "Height": [ 125 ] } } }}, "IDs": [943]}`,
-		`{"Image": { "Title": [ { "exists": true } ] } }`,
 		`{"Image": { "Width": [800], "Title": [ { "exists": true } ], "Animated": [ false ] } }`,
 		`{"Image": { "Width": [800], "IDs": [ { "exists": true } ] } }`,
 		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "*9943" } ] } } }`,
@@ -106,7 +204,9 @@ func TestExerciseMatching(t *testing.T) {
 	}
 	// now add them all
 	m := newCoreMatcher()
+	wanted := make(map[X]int)
 	for _, should := range patternsFromReadme {
+		wanted[should] = 0
 		err = m.addPattern(should, should)
 		if err != nil {
 			t.Error("add one of many: " + err.Error())
@@ -117,9 +217,26 @@ func TestExerciseMatching(t *testing.T) {
 		t.Error("m4J on all: " + err.Error())
 	}
 	if len(matches) != len(patternsFromReadme) {
-		t.Errorf("on mix wanted %d got %d", len(patternsFromReadme), len(matches))
+		for _, match := range matches {
+			wanted[match]++
+		}
+		for want := range wanted {
+			if wanted[want] == 0 {
+				t.Errorf("Missed: %v" + want.(string))
+			}
+		}
+		fmt.Println()
 	}
-	fmt.Println(matcherStats(m))
+	// fmt.Println("Should not: " + matcherStats(m))
+}
+
+func TestTacos(t *testing.T) {
+	pat := `{"like":["tacos","queso"],"want":[0]}`
+	m := newCoreMatcher()
+	err := m.addPattern(pat, pat)
+	if err != nil {
+		t.Error("Tacos: " + err.Error())
+	}
 }
 
 func TestSimpleaddPattern(t *testing.T) {

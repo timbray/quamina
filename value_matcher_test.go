@@ -58,23 +58,6 @@ func TestAddTransition(t *testing.T) {
 	if len(t1x) != 1 || t1x[0] != t1 {
 		t.Error("Retrieve failed")
 	}
-
-	v4 := typedVal{
-		vType: existsTrueType,
-		val:   "",
-	}
-	t4 := m.addTransition(v4)
-	t4x := m.transitionOn([]byte("foo"))
-	if len(t4x) != 1 || t4x[0] != t4 {
-		t.Error("Trans failed T4")
-	}
-	t4x = m.transitionOn([]byte("two"))
-	if len(t4x) != 2 {
-		t.Error("Should get 2 results")
-	}
-	if !contains(t4x, t4) || !contains(t4x, t2) {
-		t.Error("missing contains")
-	}
 }
 
 /* - restore this one when we get multi-glob working
