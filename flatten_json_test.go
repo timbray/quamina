@@ -36,6 +36,7 @@ func TestFJStrings(t *testing.T) {
 	j := `{
 		"skipped_escaped_string": "\"hello\"",
 		"skipped_escaped_string_in_middle": "\"hello\" world",
+		"two_escaping": "\"hello\" world \\",
 		"skipped_normal_string": "abc",
 		"normal_string": "abc",
 		"escaped_string": "\"hello\"",
