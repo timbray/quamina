@@ -248,15 +248,6 @@ func TestSimpleaddPattern(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	if len(m.start().namesUsed) != 2 {
-		t.Errorf("nameUsed = %d", len(m.start().namesUsed))
-	}
-	if !m.IsNameUsed([]byte("a")) {
-		t.Error("'a' not showing as used")
-	}
-	if !m.IsNameUsed([]byte("b")) {
-		t.Error("'b' not showing as used")
-	}
 	s0 := m.start().state
 	if len(s0.fields().transitions) != 1 {
 		t.Errorf("s0 trans len %d", len(s0.fields().transitions))

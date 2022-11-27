@@ -79,21 +79,17 @@ type prunerMatcher struct {
 	lock sync.RWMutex
 }
 
-func (m *prunerMatcher) IsNameUsed(label []byte) bool {
-	return m.Matcher.IsNameUsed(label)
-}
-
 var defaultRebuildTrigger = newTooMuchFiltering(0.2, 1000)
 
 // nolint:gofmt,goimports
 // tooMuchFiltering is the standard rebuildTrigger, which will fire
 // when:
 //
-//   MinAction is less than the sum of counts of found and filtered
-//   patterns and
+//	MinAction is less than the sum of counts of found and filtered
+//	patterns and
 //
-//   FilteredToEmitted is greater than the ratio of counts of filtered
-//   and found patterns.
+//	FilteredToEmitted is greater than the ratio of counts of filtered
+//	and found patterns.
 //
 // defaultRebuildTrigger provides the default trigger policy used by
 // newPrunerMatcher.
@@ -221,7 +217,7 @@ func (m *prunerMatcher) addPattern(x X, pat string) error {
 
 // MatchesForJSONEvent calls MatchesForFields with a new Flattener.
 func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
-	fs, err := newJSONFlattener().Flatten(event, m)
+	fs, err := newJSONFlattener().Flatten(event, m.Matcher.start().segmentsTree)
 	if err != nil {
 		return nil, err
 	}
@@ -340,4 +336,8 @@ func (m *prunerMatcher) getStats() prunerStats {
 	s := m.stats // Copies
 	m.lock.RUnlock()
 	return s
+}
+
+func (m *prunerMatcher) getSegmentsTreeTracker() SegmentsTreeTracker {
+	return m.Matcher.getSegmentsTreeTracker()
 }

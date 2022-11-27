@@ -125,7 +125,7 @@ func TestRebuildSome(t *testing.T) {
 		f := newJSONFlattener()
 		for i := 0; i < n; i++ {
 			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
-			fs, err := f.Flatten([]byte(e), m)
+			fs, err := f.Flatten([]byte(e), m.getSegmentsTreeTracker())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -353,7 +353,7 @@ func TestFlattener(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fs, err := f.Flatten([]byte(`{"wants":"queso"}`), m)
+	fs, err := f.Flatten([]byte(`{"wants":"queso"}`), m.getSegmentsTreeTracker())
 	if err != nil {
 		t.Fatal(err)
 	}

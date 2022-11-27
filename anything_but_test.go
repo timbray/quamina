@@ -129,7 +129,7 @@ func TestParseAnythingButPattern(t *testing.T) {
 	}
 
 	for i, good := range goods {
-		fields, _, err := patternFromJSON([]byte(good))
+		fields, err := patternFromJSON([]byte(good))
 		if err != nil {
 			t.Errorf("parse anything-but i=%d: "+err.Error(), i)
 		}
@@ -139,7 +139,7 @@ func TestParseAnythingButPattern(t *testing.T) {
 	}
 
 	for _, bad := range bads {
-		_, _, err := patternFromJSON([]byte(bad))
+		_, err := patternFromJSON([]byte(bad))
 		if err == nil {
 			t.Errorf(`accepted anything-but "%s"`, bad)
 		}

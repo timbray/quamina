@@ -142,7 +142,7 @@ func (q *Quamina) DeletePatterns(x X) error {
 // if no patterns match. error can be returned in case that the event is not a valid JSON object or contains
 // invalid UTF-8 byte sequences.
 func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
-	fields, err := q.flattener.Flatten(event, q.matcher)
+	fields, err := q.flattener.Flatten(event, q.matcher.getSegmentsTreeTracker())
 	if err != nil {
 		return nil, err
 	}

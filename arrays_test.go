@@ -70,30 +70,29 @@ const bands = `{
 }`
 
 func TestArrayCorrectness(t *testing.T) {
-	// only pattern3 should match
-	pattern1 := `{"bands": { "members": { "given": [ "Mick" ], "surname": [ "Strummer" ] } } }`
-	pattern2 := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "drums" ] } } }`
-	pattern3 := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "guitar" ] } } }`
+	// only wataGuiterPattern should match
+	mickStrummerPattern := `{"bands": { "members": { "given": [ "Mick" ], "surname": [ "Strummer" ] } } }`
+	wataDrumsPattern := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "drums" ] } } }`
+	wataGuiterPattern := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "guitar" ] } } }`
+
 	m := newCoreMatcher()
-	err := m.addPattern("Mick strummer", pattern1)
-	if err != nil {
-		t.Error(err.Error())
+	if err := m.addPattern("Mick strummer", mickStrummerPattern); err != nil {
+		t.Errorf("Failed adding pattern: %s: %s", mickStrummerPattern, err)
 	}
-	err = m.addPattern("Wata drums", pattern2)
-	if err != nil {
-		t.Error(err.Error())
+
+	if err := m.addPattern("Wata drums", wataDrumsPattern); err != nil {
+		t.Errorf("Failed adding pattern: %s: %s", wataDrumsPattern, err)
 	}
-	err = m.addPattern("Wata guitar", pattern3)
-	if err != nil {
-		t.Error(err.Error())
+	if err := m.addPattern("Wata guitar", wataGuiterPattern); err != nil {
+		t.Errorf("Failed adding pattern: %s: %s", wataGuiterPattern, err)
 	}
 
 	matches, err := m.matchesForJSONEvent([]byte(bands))
 	if err != nil {
-		t.Error(err.Error())
+		t.Errorf("Failed 'matchesForJSONEvent': %s", err)
 	}
 
 	if len(matches) != 1 || matches[0].(string) != "Wata guitar" {
-		t.Error("Matches across array boundaries")
+		t.Errorf("Expected to get a single of 'Wata guiter', but got %d matches: %+v", len(matches), matches)
 	}
 }
