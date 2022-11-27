@@ -16,13 +16,13 @@ import (
 // There is an exception, namely strings that contain \-prefixed JSON escapes; since we want to work with the
 // actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 type flattenJSON struct {
-	event      []byte              // event being processed, treated as immutable
-	eventIndex int                 // current byte index into the event
-	fields     []Field             // the under-construction return value of the Flatten method
-	skipping   int                 // track whether we're within the scope of a segment that isn't used
-	arrayTrail []ArrayPos          // current array-position cookie crumbs
-	arrayCount int32               // how many arrays we've seen, used in building arrayTrail
-	cleanSheet bool                // initially true, don't have to call Reset()
+	event      []byte     // event being processed, treated as immutable
+	eventIndex int        // current byte index into the event
+	fields     []Field    // the under-construction return value of the Flatten method
+	skipping   int        // track whether we're within the scope of a segment that isn't used
+	arrayTrail []ArrayPos // current array-position cookie crumbs
+	arrayCount int32      // how many arrays we've seen, used in building arrayTrail
+	cleanSheet bool       // initially true, don't have to call Reset()
 }
 
 // Reset an flattenJSON struct so it can be re-used and won't need to be reconstructed for each event to be flattened
