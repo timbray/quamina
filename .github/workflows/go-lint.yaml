@@ -30,7 +30,7 @@ jobs:
       id: go
       
     - name: Restore Go cache
-      uses: actions/cache@c1a5de879eb890d062a85ee0252d6036480b1fe2
+      uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d
       with:
         path: |
           ~/.cache/go-build
