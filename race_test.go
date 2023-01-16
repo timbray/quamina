@@ -33,14 +33,6 @@ func testConcurrency(t *testing.T, m matcher) {
 		}
 	}
 
-	// depopulate := func() {
-	//      for i := 0; i < n; i += 2 {
-	//              if err := m.deletePatterns(i); err != nil {
-	//                      t.Fatal(err)
-	//              }
-	//      }
-	// }
-
 	query := func(verify bool) {
 		f := newJSONFlattener()
 

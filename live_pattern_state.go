@@ -46,8 +46,6 @@ func newMemState() *memState {
 	}
 }
 
-// var ErrExists = fmt.Errorf("pattern already exists for that X")
-
 func (s *memState) Add(x X, pattern string) error {
 	s.lock.Lock()
 	ps, have := s.m[x]

@@ -7,30 +7,31 @@ import (
 
 const SegmentSeparator = "\n"
 
+// segmentsTree implements the SegmentsTreeTracker interface, and includes other calls used by
+// the AddPattern() code to load up the tree tracker.
 type segmentsTree struct {
 	root bool
 
-	// "nodes" stores a map from a segment to it's childrens
-	// in an hierarchial data like JSON, a node can be Object or Array.
+	// nodes stores a map from a segment to its children.
+	// in a hierarchial data format like JSON, a node can be Object or Array.
 	// for example, in this path "context\nuser\nid", both "context" and "user" will be nodes.
 	nodes map[string]*segmentsTree
 
-	// "fields" is storing leaf fields here mapped to their full paths
-	// for example:
-	//  leaf "id" will be mapped to it's full path "context\nuser\nid"
-	//  leaf "user" will be mapped to it's full path "context\nuser"
+	// fields maps the children of this node which are leafs rather than nodes
+	// to the []byte representation of the Path component of the Field.
+	// In the "context\nuser\nid" example:
+	//  leaf "id" will be mapped to []byte("context\nuser\nid")
+	//  leaf "user", if it has non-node values, will be mapped to []byte("context\nuser")
 	fields map[string][]byte
 }
 
-// newSegmentsIndex creates a segmentsTree node which is the root
-// passing paths will auto-add them to the tree, useful for testing.
+// newSegmentsIndex creates a segmentsTree node which is the root.
+// The paths argument is used for testing; it auto-adds those to the tree.
 func newSegmentsIndex(paths ...string) *segmentsTree {
 	st := newSegmentsIndexNode(true)
-
 	for _, path := range paths {
 		st.add(path)
 	}
-
 	return st
 }
 
@@ -72,7 +73,6 @@ func (p *segmentsTree) getOrCreate(name string) *segmentsTree {
 	if !ok {
 		p.nodes[name] = newSegmentsIndexNode(false)
 	}
-
 	return p.nodes[name]
 }
 
@@ -138,6 +138,8 @@ func (p *segmentsTree) String() string {
 	return fmt.Sprintf("root: %v, nodes [%s], fields: [%s]", p.root, strings.Join(nodeNames, ","), strings.Join(fieldNames, ","))
 }
 
+// copy produces a fresh copy of an existing segmentsTree which is used to support atomic update of
+// the Quamina automaton.
 func (p *segmentsTree) copy() *segmentsTree {
 	np := newSegmentsIndexNode(p.root)
 

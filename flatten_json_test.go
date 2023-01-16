@@ -318,7 +318,7 @@ func TestFJErrorCases(t *testing.T) {
 func fakeMatcher(paths ...string) *coreMatcher {
 	m := newCoreMatcher()
 	for _, path := range paths {
-		m.start().segmentsTree.add(path)
+		m.fields().segmentsTree.add(path)
 	}
 	return m
 }

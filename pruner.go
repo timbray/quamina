@@ -217,7 +217,7 @@ func (m *prunerMatcher) addPattern(x X, pat string) error {
 
 // MatchesForJSONEvent calls MatchesForFields with a new Flattener.
 func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
-	fs, err := newJSONFlattener().Flatten(event, m.Matcher.start().segmentsTree)
+	fs, err := newJSONFlattener().Flatten(event, m.Matcher.fields().segmentsTree)
 	if err != nil {
 		return nil, err
 	}
