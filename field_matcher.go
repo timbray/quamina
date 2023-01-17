@@ -6,13 +6,13 @@ import (
 
 // fieldMatcher represents a state in the matching automaton, which matches field names and dispatches to
 // valueMatcher to complete matching of field values.
-// the fields that hold state are segregated in updateable so they can be replaced atomically and make the matcher
+// the fields that hold state are segregated in updateable so they can be replaced atomically and make the coreMatcher
 // thread-safe.
 type fieldMatcher struct {
 	updateable atomic.Value // always holds an *fmFields
 }
 
-// fmFields groups the updateable fields in fieldMatcher.
+// fmFields contains the updateable fields in fieldMatcher.
 // transitions is a map keyed by the field paths that can start transitions from this state; for each such field,
 // there is a valueMatcher which, given the field's value, determines whether the automaton progresses to another
 // fieldMatcher.
@@ -111,9 +111,6 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 		vm = newValueMatcher()
 	}
 	freshStart.transitions[field.path] = vm
-
-	// TODO: pretty sure we can delete the following line, how could current have picked up any new matches?
-	freshStart.matches = append(freshStart.matches, current.matches...)
 
 	// suppose I'm adding the first pattern to a matcher and it has "x": [1, 2]. In principle the branches on
 	//  "x": 1 and "x": 2 could go to tne same next state. But we have to make a unique next state for each of them

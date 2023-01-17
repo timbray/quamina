@@ -1,17 +1,14 @@
 package quamina
 
-// coreMatcher represents an automaton that allows matching sequences of
-// name/value field pairs against
-//  patterns, which are combinations of field names and lists of allowed valued field values.
-// The field names are called "Paths" because they encode, in a jsonpath-ish
-// style, the pathSegments from the
-//  root of an incoming object to the leaf field.
-// Since the order of fields is generally not significant in encoded data
-// objects, the fields are sorted
-//  by name before constructing the automaton, and so are the incoming field lists to be matched, allowing
-//  the automaton to work.
+// coreMatcher represents an automaton that allows matching sequences of name/value field pairs against patterns,
+// which are combinations of field names and lists of allowed field values. The field names are called
+// "Paths" because they encode, in a jsonpath-ish style, the pathSegments from the root of an incoming object to
+// the leaf field. Since the order of fields is generally not significant in encoded data objects, the fields are
+// sorted by name before constructing the automaton, and so are the incoming field lists to be matched, allowing
+// the automaton to work.
 
 import (
+	"bytes"
 	"errors"
 	"sort"
 	"sync"
@@ -31,19 +28,15 @@ type coreMatcher struct {
 
 // coreFields groups the updateable fields in coreMatcher.
 // state is the start of the automaton.
-// segmentsTree is a tree of segments that are used in any of the patterns that this automaton encodes.Typically,
-// patterns only consider a subset of the fields in an incoming data object, and there is no reason to consider
-// fields that do not appear in patterns when using the automaton for matching.
+// segmentsTree is a structure that encodes which fields appear in the Patterns that are added to the coreMatcher.
+// It is built during calls to addPattern. It implements SegmentsTreeTracker, which is used by the event flattener
+// to optimize the flattening process by skipping the processing of fields which are not used in any patern.
 type coreFields struct {
 	state        *fieldMatcher
 	segmentsTree *segmentsTree
 }
 
 func newCoreMatcher() *coreMatcher {
-	// because of the way the matcher works, to serve its purpose of ensuring that "exists":false maches
-	// will be detected, the Path has to be lexically greater than any field path that appears in
-	// "exists":false. The value with byteCeiling works because that byte can't actually appear in any
-	// user-supplied path-name because it's not valid in UTF-8
 	m := coreMatcher{}
 	m.updateable.Store(&coreFields{
 		state:        newFieldMatcher(),
@@ -52,18 +45,19 @@ func newCoreMatcher() *coreMatcher {
 	return &m
 }
 
-func (m *coreMatcher) start() *coreFields {
+func (m *coreMatcher) fields() *coreFields {
 	return m.updateable.Load().(*coreFields)
 }
 
-// addPattern - the patternBytes is a JSON object. The X is what the matcher returns to indicate that the
-// provided pattern has been matched. In many applications it might be a string which is the pattern's name.
+// addPattern - the patternBytes is a JSON text which must be an object. The X is what the matcher returns to indicate
+// that the provided pattern has been matched. In many applications it might be a string which is the pattern's name.
 func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	patternFields, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
 		return err
 	}
 
+	// sort the pattern fields lexically
 	sort.Slice(patternFields, func(i, j int) bool { return patternFields[i].path < patternFields[j].path })
 
 	// only one thread can be updating at a time
@@ -72,9 +66,9 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 
 	// we build up the new coreMatcher state in freshStart so we can atomically switch it in once complete
 	freshStart := &coreFields{}
-	current := m.start()
-	freshStart.segmentsTree = current.segmentsTree.copy()
-	freshStart.state = current.state
+	currentFields := m.fields()
+	freshStart.segmentsTree = currentFields.segmentsTree.copy()
+	freshStart.state = currentFields.state
 
 	// Add paths to the segments tree index.
 	for _, field := range patternFields {
@@ -82,9 +76,9 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	}
 
 	// now we add each of the name/value pairs in fields slice to the automaton, starting with the start state -
-	//  the addTransition for a field returns a list of the fieldMatchers transitioned to for that name/val
-	//  combo.
-	states := []*fieldMatcher{current.state}
+	// the addTransition for a field returns a list of the fieldMatchers transitioned to for that name/val
+	// combo.
+	states := []*fieldMatcher{currentFields.state}
 	for _, field := range patternFields {
 		var nextStates []*fieldMatcher
 
@@ -107,8 +101,7 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	}
 
 	// we've processed all the name/val combos in fields, "states" now holds the set of terminal states arrived at
-	//  by matching each field in the pattern so update the matches value to indicate this (skipping those that
-	//  are only there to serve exists:false processing)
+	//  by matching each field in the pattern, so update the matches value to indicate this.
 	for _, endState := range states {
 		endState.addMatch(x)
 	}
@@ -132,32 +125,52 @@ func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 		return nil, err
 	}
 
-	// see the commentary on coreMatcher for an explanation of this.
-	// tl;dr: If the flattener returns no fields because there's nothing in the event that's mentioned in
-	// any patterns, the event could still match if there are only "exists":false patterns.
-	if len(fields) == 0 {
-		fields = []Field{
-			{
-				Path:       []byte{byte(byteCeiling)},
-				Val:        []byte(""),
-				ArrayTrail: []ArrayPos{{0, 0}},
-			},
-		}
-	}
-
 	return m.matchesForFields(fields)
 }
 
+// emptyFields returns a fake []Field list containing a single field whose name is lexically greater than any that
+// can occur in real data
+// see the commentary on coreMatcher for an explanation.
+// tl;dr: If the flattener returns no fields because there's nothing in the event that's mentioned in
+// any patterns, the event could still match if there are only "exists":false patterns.
+func emptyFields() []Field {
+	return []Field{
+		{
+			Path:       []byte{byte(byteCeiling)},
+			Val:        []byte(""),
+			ArrayTrail: []ArrayPos{{0, 0}},
+		},
+	}
+}
+
+// fieldsList exists to support the sort.Sort call in matchesForFields()
+type fieldsList []Field
+
+func (a fieldsList) Len() int {
+	return len(a)
+}
+func (a fieldsList) Less(i, j int) bool {
+	return bytes.Compare(a[i].Path, a[j].Path) < 0
+}
+func (a fieldsList) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
 // matchesForFields takes a list of Field structures, sorts them by pathname, and launches the field-matching
-// process. The fields in a pattern to match are similarly sorted; thus running an automaton over them works
+// process. The fields in a pattern to match are similarly sorted; thus running an automaton over them works.
+// No error can be returned but the matcher interface requires one and it is used by the pruner implementation
 func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
-	sort.Slice(fields, func(i, j int) bool { return string(fields[i].Path) < string(fields[j].Path) })
+	if len(fields) == 0 {
+		fields = emptyFields()
+	} else {
+		sort.Sort(fieldsList(fields))
+	}
 	matches := newMatchSet()
 
 	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch
 	// routine will, in the case that there's a match, call itself to see if subsequent fields after the
 	// first matched will transition through the machine and eventually achieve a match
-	s := m.start()
+	s := m.fields()
 	for i := 0; i < len(fields); i++ {
 		tryToMatch(fields, i, s.state, matches)
 	}
@@ -182,7 +195,6 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 	}
 
 	// an exists:false transition is possible if there is no matching field in the event
-	// func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet) {
 	checkExistsFalse(stateFields, fields, index, matches)
 
 	// try to transition through the machine
@@ -201,7 +213,7 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 				tryToMatch(fields, nextIndex, nextState, matches)
 			}
 		}
-		// now we've run out of fields to match this nextState against. But suppose it has an exists:false
+		// now we've run out of fields to match this state against. But suppose it has an exists:false
 		// transition, and it so happens that the exists:false pattern field is lexically larger than the other
 		// fields and that in fact such a field does not exist. That state would be left hanging. So…
 		checkExistsFalse(nextStateFields, fields, index, matches)
@@ -213,7 +225,7 @@ func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches 
 		// it seems like there ought to be a more state-machine-idiomatic way to do this but
 		// I thought of a few and none of them worked.  Quite likely someone will figure it out eventually.
 		// Could get slow for big events with hundreds or more fields (not that I've ever seen that) - might
-		// be worthwhile switching to binary search at some field count.
+		// be worthwhile switching to binary search at some field count or building a map[]boolean in addPattern
 		var i int
 		var thisFieldIsAnExistsFalse bool
 		for i = 0; i < len(fields); i++ {
@@ -247,5 +259,5 @@ func noArrayTrailConflict(from []ArrayPos, to []ArrayPos) bool {
 }
 
 func (m *coreMatcher) getSegmentsTreeTracker() SegmentsTreeTracker {
-	return m.start().segmentsTree
+	return m.fields().segmentsTree
 }

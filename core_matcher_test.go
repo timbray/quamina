@@ -248,7 +248,7 @@ func TestSimpleaddPattern(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	s0 := m.start().state
+	s0 := m.fields().state
 	if len(s0.fields().transitions) != 1 {
 		t.Errorf("s0 trans len %d", len(s0.fields().transitions))
 	}

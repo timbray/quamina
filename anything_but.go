@@ -58,14 +58,18 @@ func readAnythingButSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typ
 	return
 }
 
-// makeMultiFieldAnythingButAutomaton exists to handle constructs such as
+// makeMultiAnythingButAutomaton exists to handle constructs such as
 //
 // {"x": [ {"anything-but": [ "a", "b" ] } ] }
 //
+// A DFA that matches anything but one byte sequence is like this:
+// For each byte in val with value Z, we produce a table that leads to a nextField match on all non-Z values,
+// and to another such table for Z. After all the bytes have matched, a match on valueTerminator leads to
+// an empty table with no field Transitions, all others to a nexField match
+//
 // Making a succession of anything-but automata for each of "a" and "b" and then merging them turns out not
 // to work because what the caller means is really an AND - everything that matches neither "a" nor "b". So
-// in principle we could intersect automata, which is probably the right answer, but for the moment we can
-// build like makeAnythingButAutomaton but do it for several vals in parallel
+// in principle we could intersect automata.
 func makeMultiAnythingButAutomaton(vals [][]byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
 	var nextField *fieldMatcher
 	if useThisTransition != nil {
@@ -112,32 +116,3 @@ func oneMultiAnythingButStep(vals [][]byte, index int, nextField *fieldMatcher) 
 	table.pack(&u)
 	return table
 }
-
-/*
-// makeAnythingButAutomaton produces a DFA that matches anything but the byte sequence in val.
-// For each byte in val with value Z, we produce a table that leads to a nextField match on all non-Z values,
-// and to another such table for Z. After all the bytes have matched, a match on valueTerminator leads to
-// an empty table with no field Transitions, all others to a nexField match
-// [no longer used but retaining for now]
-func makeAnythingButAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
-	var nextField *fieldMatcher
-	if useThisTransition != nil {
-		nextField = useThisTransition
-	} else {
-		nextField = newFieldMatcher()
-	}
-	return oneAnythingButStep(val, 0, nextField), nextField
-}
-
-func oneAnythingButStep(val []byte, index int, nextField *fieldMatcher) *smallTable[*dfaStep] {
-	var nextStep *dfaStep
-	success := &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{nextField}}
-	if index == len(val)-1 {
-		lastStep := &dfaStep{table: newSmallTable[*dfaStep]()} // note no transition
-		nextStep = &dfaStep{table: makeSmallDfaTable(success, []byte{valueTerminator}, []*dfaStep{lastStep})}
-	} else {
-		nextStep = &dfaStep{table: oneAnythingButStep(val, index+1, nextField)}
-	}
-	return makeSmallDfaTable(success, []byte{val[index]}, []*dfaStep{nextStep})
-}
-*/
