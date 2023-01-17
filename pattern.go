@@ -21,35 +21,42 @@ const (
 	anythingButType
 )
 
+// typedVal represents the value of a field in a pattern, giving the value and the type of pattern.
+// list is used to handle anything-but matches with multiple values.
 type typedVal struct {
 	vType valType
 	val   string
 	list  [][]byte
 }
+
+// patternField represents a field in a pattern.
+// vals is a list because field values are always given as a JSON array.
 type patternField struct {
 	path string
 	vals []typedVal
 }
 
+// patternBuild tracks the progress of patternFromJSON through a pattern-compilation project.
 type patternBuild struct {
 	jd      *json.Decoder
 	path    []string
 	results []*patternField
 }
 
-// TODO: Improve unit test coverage of error conditions
-
-// patternFromJSON - I love naked returns and I cannot lie
+// patternFromJSON compiles a JSON text provided in jsonBytes into a list of patternField structures.
+// I love naked returns and I cannot lie
 func patternFromJSON(jsonBytes []byte) (fields []*patternField, err error) {
 	// we can't use json.Unmarshal because it round-trips numbers through float64 and %f so they won't end up matching
-	//  what the caller actually wrote in the patternField. json.Decoder is kind of slow due to excessive
-	//  memory allocation, but I haven't got around to prematurely optimizing the addPattern code path
+	// what the caller actually wrote in the patternField. json.Decoder is kind of slow due to excessive
+	// memory allocation, but I haven't got around to prematurely optimizing the patternFromJSON code path
 	var pb patternBuild
 	pb.jd = json.NewDecoder(bytes.NewReader(jsonBytes))
 	pb.jd.UseNumber()
+
+	// we use the tokenizer rather than pulling the pattern in with UnMarshall
 	t, err := pb.jd.Token()
 	if errors.Is(err, io.EOF) {
-		err = errors.New("empty patternField")
+		err = errors.New("empty Pattern")
 		return
 	} else if err != nil {
 		err = errors.New("patternField is not a JSON object" + err.Error())
@@ -90,11 +97,8 @@ func readPatternObject(pb *patternBuild) error {
 			pb.path = pb.path[:len(pb.path)-1]
 
 		case json.Delim:
-			if tt == '}' {
-				return nil
-			} else {
-				return fmt.Errorf("floating '%v' in object", tt)
-			}
+			// has to be '}' or the tokenizer would have thrown an error
+			return nil
 		}
 	}
 }
@@ -102,7 +106,7 @@ func readPatternObject(pb *patternBuild) error {
 func readPatternMember(pb *patternBuild) error {
 	t, err := pb.jd.Token()
 	if errors.Is(err, io.EOF) {
-		return errors.New("patternField atEnd mid-field")
+		return errors.New("pattern ends mid-field")
 	} else if err != nil {
 		return errors.New("pattern malformed: " + err.Error())
 	}
@@ -114,7 +118,7 @@ func readPatternMember(pb *patternBuild) error {
 			return readPatternArray(pb)
 		case '{':
 			return readPatternObject(pb)
-		default:
+		default: // can't happen
 			return fmt.Errorf("pattern malformed, illegal %v", tt)
 		}
 	default:
@@ -132,6 +136,7 @@ func readPatternArray(pb *patternBuild) error {
 		if errors.Is(err, io.EOF) {
 			return errors.New("patternField atEnd mid-field")
 		} else if err != nil {
+			// can't happen
 			return errors.New("pattern malformed: " + err.Error())
 		}
 
@@ -179,22 +184,20 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 	if err != nil {
 		return
 	}
-	switch tt := t.(type) {
-	case string:
-		switch tt {
-		case "anything-but":
-			containsExclusive = tt
-			pathVals, err = readAnythingButSpecial(pb, pathVals)
-		case "exists":
-			containsExclusive = tt
-			pathVals, err = readExistsSpecial(pb, pathVals)
-		case "shellstyle":
-			pathVals, err = readShellStyleSpecial(pb, pathVals)
-		default:
-			err = errors.New("unrecognized in special pattern: " + tt)
-		}
+
+	// tokenizer will throw an error if it's not a string
+	tt := t.(string)
+	switch tt {
+	case "anything-but":
+		containsExclusive = tt
+		pathVals, err = readAnythingButSpecial(pb, pathVals)
+	case "exists":
+		containsExclusive = tt
+		pathVals, err = readExistsSpecial(pb, pathVals)
+	case "shellstyle":
+		pathVals, err = readShellStyleSpecial(pb, pathVals)
 	default:
-		err = errors.New("error reading name of special pattern")
+		err = errors.New("unrecognized in special pattern: " + tt)
 	}
 	return
 }
@@ -221,11 +224,9 @@ func readExistsSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 	if err != nil {
 		return
 	}
-	switch tt := t.(type) {
+	switch t.(type) {
 	case json.Delim:
-		if tt != '}' {
-			err = fmt.Errorf("invalid character %v in 'existsMatches' pattern", tt)
-		}
+		// no-op, has to be }
 	default:
 		err = errors.New("trailing garbage in 'existsMatches' pattern")
 	}

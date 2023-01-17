@@ -1,10 +1,11 @@
 package quamina
 
-// this needs to exist so that all all the lists containing a single step to X are the same list, and similarly all
+// this needs to exist so that all the lists containing a single step to X are the same list, and similarly all
 // those containing the triple step to X,Y,Z are the same list, so that pack/unpack work properly. In a large majority
 // of cases, there's only one step in the list, so those are handled straightforwardly with a map. Otherwise, we
 // laboriously look through all the lists for a match. In Java I'd implement a hashCode() method and everything
 // would be a hash, but I haven't learned yet what the Go equivalent is.
+// TODO: This can be greatly reduced when we shake down the whole DFA/NFA mess.
 type dfaMemory struct {
 	singletons map[*nfaStep]*dfaStep
 	plurals    []perList

@@ -23,6 +23,7 @@ type flattenJSON struct {
 	arrayTrail []ArrayPos // current array-position cookie crumbs
 	arrayCount int32      // how many arrays we've seen, used in building arrayTrail
 	cleanSheet bool       // initially true, don't have to call Reset()
+	isSpace    [256]bool
 }
 
 // Reset an flattenJSON struct so it can be re-used and won't need to be reconstructed for each event to be flattened
@@ -35,13 +36,14 @@ func (fj *flattenJSON) reset() {
 }
 
 // JSON literals
-var trueBytes = []byte("true")
-
 var (
+	trueBytes  = []byte("true")
 	falseBytes = []byte("false")
 	nullBytes  = []byte("null")
 )
 
+// errEarlyStop is used to signal the case when we've detected that we've read all the fields that appear in any pattern
+// and so we don't need to read any more
 var errEarlyStop = errors.New("earlyStop")
 
 // fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
@@ -67,7 +69,11 @@ const (
 )
 
 func newJSONFlattener() Flattener {
-	return &flattenJSON{fields: make([]Field, 0, 32), cleanSheet: true}
+	f := &flattenJSON{fields: make([]Field, 0, 32), cleanSheet: true}
+	for _, space := range []byte{' ', '\r', '\n', '\t'} {
+		f.isSpace[space] = true
+	}
+	return f
 }
 
 func (fj *flattenJSON) Copy() Flattener {
@@ -92,9 +98,9 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 		ch := fj.ch()
 		switch state {
 		case startState:
-			switch ch {
+			switch {
 			// single top-level object
-			case '{':
+			case ch == '{':
 				err = fj.readObject(tracker)
 				if err != nil {
 					if errors.Is(err, errEarlyStop) {
@@ -104,18 +110,16 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 				}
 				state = trailerState
 
-			case ' ', '\t', '\n', '\r':
+			case fj.isSpace[ch]:
 			// no-op
+
 			default:
 				return nil, fj.error("not a JSON object")
 			}
 
 		// eat trailing white space, if any
 		case trailerState:
-			switch ch {
-			case ' ', '\t', '\n', '\r':
-				// no-op
-			default:
+			if !fj.isSpace[ch] {
 				return nil, fj.error(fmt.Sprintf("garbage char '%c' after top-level object", ch))
 			}
 		}
@@ -128,7 +132,10 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 	}
 }
 
-// readObject - process through a JSON object, recursing if necessary into sub-objects
+// readObject - process through a JSON object, recursing if necessary into sub-objects. pathNode is used to
+// determine whether any particular object member is used, and skipping tracks that status up and down the stack.
+// This is all done to allow the parser to skip child nodes which do not appear in any Patterns and thus
+// minimize the cost of the Flatten call.
 func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	var err error
 	state := inObjectState
@@ -139,6 +146,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 		return err
 	}
 
+	// how many leaf steps (fieldsCount) and chidStructures (nodesCount) have been mentioned in patterns?
 	fieldsCount := pathNode.FieldsCount()
 	nodesCount := pathNode.NodesCount()
 
@@ -155,6 +163,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	var memberIsUsed bool
 	isLeaf := false
 	for {
+		// if we've read all the nodes and fields tha have been mentioned in Patterns, we can stop reading this object
 		if nodesCount == 0 && fieldsCount == 0 {
 			if pathNode.IsRoot() {
 				return errEarlyStop
@@ -167,26 +176,28 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 
 		switch state {
 		case inObjectState:
-			switch ch {
-			case ' ', '\t', '\n', '\r':
+			switch {
+			case fj.isSpace[ch]:
 				// no-op
-			case '"':
+			case ch == '"':
 				memberName, err = fj.readMemberName()
 				if err != nil {
 					return err
 				}
+
+				// we know the name of the next object member, use the pathNode to check if it's used
 				memberIsUsed = (fj.skipping == 0) && pathNode.IsSegmentUsed(memberName)
 				state = seekingColonState
-			case '}':
+			case ch == '}':
 				return nil
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in JSON object", ch))
 			}
 		case seekingColonState:
-			switch ch {
-			case ' ', '\t', '\n', '\r':
+			switch {
+			case fj.isSpace[ch]:
 				// no-op
-			case ':':
+			case ch == ':':
 				state = memberValueState
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c while looking for colon", ch))
@@ -194,7 +205,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 		case memberValueState:
 			// bypass space between colon and value. A bit klunky but allows for immense simplification
 			// TODO: Investigate if there's a more efficient way to say this, or should just trust Go compiler
-			for ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			for fj.isSpace[ch] {
 				if fj.step() != nil {
 					return fj.error("event truncated after colon")
 				}
@@ -293,13 +304,13 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 			}
 			state = afterValueState
 		case afterValueState:
-			switch ch {
-			case ',':
-				state = inObjectState
-			case '}':
-				return nil
-			case ' ', '\t', '\n', '\r':
+			switch {
+			case fj.isSpace[ch]:
 				// no-op
+			case ch == ',':
+				state = inObjectState
+			case ch == '}':
+				return nil
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in object", ch))
 			}
@@ -311,6 +322,8 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	}
 }
 
+// read an array in an incoming event, recursing as necessary into members. pathNode and fj.skipping are
+// used to bypass elements where possible.
 func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) error {
 	// eventIndex points at [
 	var err error
@@ -333,7 +346,7 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 		switch state {
 		case inArrayState:
 			// bypass space before element value. A bit klunky but allows for immense simplification
-			for ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			for fj.isSpace[ch] {
 				if fj.step() != nil {
 					return fj.error("event truncated within array")
 				}
@@ -395,13 +408,13 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 			}
 			state = afterValueState
 		case afterValueState:
-			switch ch {
-			case ']':
-				return nil
-			case ',':
-				state = inArrayState
-			case ' ', '\t', '\n', '\r':
+			switch {
+			case fj.isSpace[ch]:
 				// no-op
+			case ch == ']':
+				return nil
+			case ch == ',':
+				state = inArrayState
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in array", ch))
 			}
@@ -539,6 +552,8 @@ func (fj *flattenJSON) skipUntil(symbol byte) error {
 	return fj.error("truncated block")
 }
 
+// used to bypass object members and array elements which are not significant to any Pattern more quickly
+// than running the whole state machine.
 func (fj *flattenJSON) skipBlock(openSymbol byte, closeSymbol byte) error {
 	level := 0
 
@@ -809,11 +824,10 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 	}
 }
 
-// storeArrayElementField adds a field to be returned to the Flatten caller, straightforward except for the field needs its
-//
-//	own snapshot of the array-trail data, because it'll be different for each array element
-//	NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
-//	 because of the necessity to construct a new arrayTrail for each element.
+// storeArrayElementField adds a field to be returned to the Flatten caller, straightforward except for the field needs
+// its own snapshot of the array-trail data, because it'll be different for each array element
+// NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
+// because of the necessity to construct a new arrayTrail for each element.
 func (fj *flattenJSON) storeArrayElementField(path []byte, val []byte) {
 	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val}
 	copy(f.ArrayTrail, fj.arrayTrail)
