@@ -1,9 +1,11 @@
 package quamina
 
-// SegmentsTreeTracker is an interfaced used by Flattener to represents all living paths
-// as segments tree in order to allow efficient selection of fields from hierarchial data structure.
+// SegmentsTreeTracker is an interface used by Flattener to represents all the paths mentioned
+// Patterns added to a Quamina instance in AddPattern() calls. It allows a Flattener to determine
+// which Event fields may safely be ignored, and also caches the runtime form of the Field.Path
+// value.
 //
-// Consider this JSON exampe:
+// Consider this JSON example:
 //
 //	{ "a": {"b": 1, "c": 2}}
 //
@@ -30,16 +32,19 @@ type SegmentsTreeTracker interface {
 	// NOTE: need for early exit, can be solved differently maybe.
 	IsRoot() bool
 
-	// Do we need to select the given segment from event as Quamina's Field.
+	// Called by the Flattener looking at a member name in a JSON object to ascertain
+	// whether this particular member of the object is mentioned in any Patterns added
+	// to the Quamina instance.
 	IsSegmentUsed(segment []byte) bool
 
-	// Given a segment, returns the full path.
-	// This is caching mechanism.
+	// When a Flattener reaches the last (leaf) step of a path, this returns the full
+	// path-name for that Field.  This is an optimization; since these need to be calculated
+	// while executing `ddPattern, we might as wewll remember them for use during Flattening.
 	PathForSegment(name []byte) []byte
 
-	// NodesCount and FieldsCount returns how much nodes we have to trverse into
-	// and how much fields we need to pluck.
-	// Once we are on a node, we need to decrement those counts, once we got zero in both - we can do early exit.
+	// Called by the Flattener to return the number of nodes (non-leaf children) and fields
+	// (field values) contained in any node.  When processing through the node, once we've
+	// hit the right number of nodes and fields we can terminate the Flattening process.
 	NodesCount() int
 	FieldsCount() int
 

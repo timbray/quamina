@@ -4,6 +4,43 @@ import (
 	"testing"
 )
 
+func TestPatternErrorHandling(t *testing.T) {
+	_, err := patternFromJSON([]byte{})
+	if err == nil {
+		t.Error("accepted empty pattern")
+	}
+	_, err = patternFromJSON([]byte("33"))
+	if err == nil {
+		t.Error("accepted non-object JSON text")
+	}
+	_, err = patternFromJSON([]byte("{"))
+	if err == nil {
+		t.Error("accepted stub JSON object")
+	}
+	_, err = patternFromJSON([]byte("{ ="))
+	if err == nil {
+		t.Error("accepted malformed JSON object")
+	}
+	_, err = patternFromJSON([]byte(`{ "foo": `))
+	if err == nil {
+		t.Error("accepted stub JSON object")
+	}
+	_, err = patternFromJSON([]byte(`{ "foo": [`))
+	if err == nil {
+		t.Error("accepted stub JSON array")
+	}
+
+	_, err = patternFromJSON([]byte(`{ "foo": [ { "exists" == ] }`))
+	if err == nil {
+		t.Error("accepted stub JSON array")
+	}
+
+	_, err = patternFromJSON([]byte(`{ "foo": [ { "exists": false . ] }`))
+	if err == nil {
+		t.Error("accepted stub JSON array")
+	}
+}
+
 func TestPatternFromJSON(t *testing.T) {
 	bads := []string{
 		`x`,

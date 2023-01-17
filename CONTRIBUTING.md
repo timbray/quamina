@@ -56,6 +56,7 @@ Currently the following prefixes are used:
 - `pat:` - Use for changes to the Quamina pattern language
 - `chore:` - Use for repository related activities
 - `fix:` - Use for bug fixes
+- `kaizen:` - Use for code improvements or performance optimization
 - `docs:` - Use for changes to the documentation
 
 If your contribution falls into multiple categories, e.g. `api` and `pat` it
