@@ -27,7 +27,7 @@ func matcherStats(m *coreMatcher) string {
 		vmVisited: make(map[*valueMatcher]bool),
 		stVisited: make(map[any]bool),
 	}
-	fmStats(m.start().state, &s)
+	fmStats(m.fields().state, &s)
 	avgFmSize := fmt.Sprintf("%.3f", float64(s.fmEntries)/float64(s.fmTblCount))
 	avgStSize := "n/a"
 	if s.stTblCount > 0 {

@@ -1,37 +1,40 @@
 # Patterns in Quamina
 
-**Patterns** are added to Quamina instances using the 
-`AddPattern` API.  This document specifies the syntax and
+**Patterns** are added to Quamina instances using the
+`AddPattern` API. This document specifies the syntax and
 semantics of Patterns.
+
+The discussion of JSON constructs in this document uses
+the terminology specified in [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259.html).
 
 ## Fields
 
 Patterns exist to match **Fields** in incoming **Events**. At
-launch, Quamina supports only JSON syntax for Events. An 
+launch, Quamina supports only JSON syntax for Events. An
 Event **MUST** be equivalent to a JSON Object in the
 sense that it consists of an unordered set of members,
 each identified by a name which is string composed of
 Unicode characters.
 
-As in JSON, the allowed member values may be strings, 
-numbers, the literals `true`, `false`, and `null`, arrays, 
-and objects.  We refer to values which are neither arrays
-nor objects as **Leaf** values.  
+As in JSON, the allowed member values may be strings,
+numbers, the literals `true`, `false`, and `null`, arrays,
+and objects. We refer to values which are neither arrays
+nor objects as **Leaf** values.
 
-A **Field** is the combination of a Leaf value and a 
-**Path**, a list of strings which are the Field names 
+A **Field** is the combination of a Leaf value and a
+**Path**, a list of strings which are the Field names
 that must be traversed to reach it from the Event root.
 
 For example, in the Event
 ```json
-{"alpha": {"beta":  1}}
+{"alpha": {"beta": 1}}
 ```
 There is only one Field whose Leaf value is `1`
 and whose Path is `"alpha","beta"`.
 
-Paths omit arrays.  So in the Event
+Paths omit arrays. So in the Event
 ```json
-{"alpha": [ {"beta":  [1, 2]}, {"beta":  [3, 4]} ] }
+{"alpha": [ {"beta": [1, 2]}, {"beta": [3, 4]} ] }
 ```
 The Path for the Leaf value `1` is still `"alpha","beta"`
 
@@ -39,24 +42,28 @@ The Path for the Leaf value `1` is still `"alpha","beta"`
 A Pattern **MUST** be a JSON object all of whose Leaf
 values **MUST** be in arrays.
 
+Note that a Field in an Event may have multiple Leaf Values
+if the Field's value is an array.
+
 To match a Field in an Event, the Pattern **MUST** contain
-an exactly-matching Path whose value **MUST** be an array 
-which contains either the Field’s Leaf value or an
-**Extended Pattern**
+an exactly-matching Path whose value **MUST** be an array
+which contains either an Event Field Leaf value or an
+**Extended Pattern** which matches an Event Field Leaf
+value.
 
 Thus, the following Pattern would match both JSON events above:
 ```json
-{"alpha": {"beta":  [1]}}
+{"alpha": {"beta": [1]}}
 ```
 
 ## Extended Patterns
 An **Extended Pattern** **MUST** be a JSON object containing
-a single field whose name is called the **Pattern Type**. 
+a single field whose name is called the **Pattern Type**.
 
 ### Exists Pattern
 
 The Pattern Type of an Exists Pattern is `exists` and its
-value **MUST** be `true` or `false`.  Here
+value **MUST** be `true` or `false`. Here
 are two Exists Patterns that would match the Events above:
 ```json
 {"alpha": {"beta": [ {"exists": true} ]}}
@@ -66,11 +73,11 @@ are two Exists Patterns that would match the Events above:
 If a Field in a Pattern contains an Exists Pattern, it
 **MUST NOT** contain any other values.
 
-Exists Patterns currently only work on leaf nodes. That is to 
+Exists Patterns currently only work on leaf nodes. That is to
 say, given this event:
 
 ```json
-{ "a": { "b":  1 } }
+{ "a": { "b": 1 } }
 ```
 
 The following pattern will not match:
@@ -91,10 +98,10 @@ Then `"exists": true` does not match but `"exists": false` does.
 I.e., only the first of the two sample patterns below matches.
 
 ```json
-{ "a":  [ { "exists": false } ] }
+{ "a": [ { "exists": false } ] }
 ```
 ```json
-{ "a":  [ { "exists": true } ] }
+{ "a": [ { "exists": true } ] }
 ```
 This makes sense in the context of the leaf-node semantics; there
 really is no value for the `"a"` field.
@@ -104,19 +111,19 @@ really is no value for the `"a"` field.
 
 The Pattern Type of an Anything-But Pattern is
 `anything-but` and its value **MUST** be an array
-of strings.  It will match a string value which
+of strings. It will match a string value which
 is not equal to any of the strings in the array.
 
-If a Field in a Pattern contains an Anything-But Pattern, 
+If a Field in a Pattern contains an Anything-But Pattern,
 it **MUST NOT** contain any other values.
 
 ### Shellstyle Pattern
 
-The Pattern Type of a Shellstyle Pattern is `shellstyle` 
+The Pattern Type of a Shellstyle Pattern is `shellstyle`
 and its value **MUST** be a string which **MAY** contain
-a single `*` (“star”) character. The star character 
-functions exactly as the same character does in 
-command-line processors which descend from Unix’s 
+a single `*` (“star”) character. The star character
+functions exactly as the same character does in
+command-line processors which descend from Unix’s
 shell; i.e., matches the regular expression `.*`
 
 Consider the following Event:
@@ -131,15 +138,13 @@ The following Shellstyle Patterns would match it:
 ```
 ## EventBridge Patterns
 
-Quamina’s Patterns are inspired by those offered by 
+Quamina’s Patterns are inspired by those offered by
 the AWS EventBridge service, as documented in
 [Amazon EventBridge event patterns](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
 
-As of release 0.1.1, Quamina supports Exists and
-Anything-But patterns but does not yet support AWS’s 
-`numeric` or `prefix` patterns.  Note that a 
+As of release 1.0, Quamina supports Exists and
+Anything-But Patterns, but does not yet support any other
+EventBridge patterns. Note that a
 Shellstyle Pattern with a trailing `*` is equivalent
 to a `prefix` pattern.
-
-
 

@@ -16,18 +16,18 @@ const PatternMiddleNestedField = `{ "payload": { "user": { "id_str": ["903487807
 const PatternLastField = `{ "payload": { "lang_value": ["ja"] } }`
 
 func Benchmark_JsonFlattener_ContextFields(b *testing.B) {
-	RunBehcmarkWithJSONFlattener(b, "context\nuser_id", "context\nfriends_count")
+	RunBenchmarkWithJSONFlattener(b, "context\nuser_id", "context\nfriends_count")
 }
 
 func Benchmark_JsonFlattener_MiddleNestedField(b *testing.B) {
-	RunBehcmarkWithJSONFlattener(b, "payload\nuser\nid_str")
+	RunBenchmarkWithJSONFlattener(b, "payload\nuser\nid_str")
 }
 
 func Benchmark_JsonFlattener_LastField(b *testing.B) {
-	RunBehcmarkWithJSONFlattener(b, "payload\nlang_value")
+	RunBenchmarkWithJSONFlattener(b, "payload\nlang_value")
 }
 
-func RunBehcmarkWithJSONFlattener(b *testing.B, paths ...string) {
+func RunBenchmarkWithJSONFlattener(b *testing.B, paths ...string) {
 	b.Helper()
 	var localFields []Field
 
@@ -53,10 +53,8 @@ func RunBehcmarkWithJSONFlattener(b *testing.B, paths ...string) {
 		if err != nil {
 			b.Fatal(err)
 		}
-
 		localFields = fields
 	}
-
 	topFields = localFields
 }
 
@@ -92,7 +90,6 @@ func Benchmark_JsonFlattner_Evaluate_LastField(b *testing.B) {
 
 func RunBenchmarkEvaluate(b *testing.B, q *Quamina, pattern string) {
 	b.Helper()
-	var localMatches []X
 
 	err := q.AddPattern(1, pattern)
 	if err != nil {
@@ -125,11 +122,7 @@ func RunBenchmarkEvaluate(b *testing.B, q *Quamina, pattern string) {
 		if len(matches) != 1 {
 			b.Fatalf("in-correct matching: %+v", matches)
 		}
-
-		localMatches = matches
 	}
-
-	topMatches = localMatches
 }
 
 func PrintFields(tb testing.TB, fields []Field) {

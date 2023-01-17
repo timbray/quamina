@@ -6,6 +6,7 @@ import (
 	"fmt"
 )
 
+// readShellStyleSpecial parses a shellStyle object in a Pattern
 func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal, err error) {
 	t, err := pb.jd.Token()
 	if err != nil {
