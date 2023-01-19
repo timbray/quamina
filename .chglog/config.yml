@@ -18,6 +18,7 @@ options:
       pat: 📖 Pattern Language
       chore: 🧹 Chore
       fix: 🐞 Fix
+      kaizen: 👩‍🎨 Improve
       docs: 📚 Documentation
   header:
     pattern: "^(\\w*)\\:\\s(.*)$"
