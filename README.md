@@ -10,6 +10,8 @@
 
 ### Fast pattern-matching library
 
+This to test commit signing.
+
 **Quamina** implements a data type with APIs to
 create an instance and add multiple **Patterns** to it,
 and then query data objects called **Events** to
