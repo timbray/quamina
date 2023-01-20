@@ -10,7 +10,7 @@ import (
 
 /* This test adopted, with thanks, from aws/event-ruler */
 
-func TestArraysBug(t *testing.T) {
+func TestRulerArraysBug(t *testing.T) {
 	event := "{\n" +
 		"  \"requestContext\": { \"obfuscatedCustomerId\": \"AIDACKCEVSQ6C2EXAMPLE\" },\n" +
 		"  \"hypotheses\": [\n" +
@@ -58,7 +58,7 @@ func readTestData(t *testing.T, fname string) []byte {
 	return bytes
 }
 
-func TestNestedArrays(t *testing.T) {
+func TestRulerNestedArrays(t *testing.T) {
 	event1 := readTestData(t, "arrayEvent1.json")
 	event2 := readTestData(t, "arrayEvent2.json")
 	event3 := readTestData(t, "arrayEvent3.json")
@@ -114,7 +114,7 @@ func TestNestedArrays(t *testing.T) {
 	}
 }
 
-func TestSimplestPossibleMachine(t *testing.T) {
+func TestRulerSimplestPossibleMachine(t *testing.T) {
 	rule1 := "{ \"a\" : [ 1 ] }"
 	rule2 := "{ \"b\" : [ 2 ] }"
 	rule3 := "{ \"c\" : [ 3 ] }"
@@ -173,7 +173,7 @@ func TestSimplestPossibleMachine(t *testing.T) {
 	}
 }
 
-func TestEmptyInput(t *testing.T) {
+func TestRulerEmptyInput(t *testing.T) {
 	rule1 := `{
   "detail": {
     "c-count": [
