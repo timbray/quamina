@@ -2,7 +2,7 @@ style: github
 template: CHANGELOG.tpl.md
 info:
   title: CHANGELOG
-  repository_url: https://github.com/embano1/ci-demo-app
+  repository_url: https://github.com/timbray/quamina
 options:
   commits:
     filters:
@@ -11,6 +11,7 @@ options:
         - pat
         - chore
         - fix
+        - kaizen
         - docs
   commit_groups:
     title_maps:
@@ -18,6 +19,7 @@ options:
       pat: 📖 Pattern Language
       chore: 🧹 Chore
       fix: 🐞 Fix
+      kaizen: 👩‍🎨 Improve
       docs: 📚 Documentation
   header:
     pattern: "^(\\w*)\\:\\s(.*)$"
