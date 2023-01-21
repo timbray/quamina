@@ -50,7 +50,7 @@ func getCL2Lines(t *testing.T) [][]byte {
 	return cl2Lines
 }
 
-func TestCl2(t *testing.T) {
+func TestRulerCl2(t *testing.T) {
 	exactRules := []string{
 		"{\n" +
 			"  \"properties\": {\n" +
