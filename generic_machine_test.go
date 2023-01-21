@@ -1,5 +1,3 @@
-//go:build fromRuler
-
 package quamina
 
 import (
