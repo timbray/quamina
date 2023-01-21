@@ -11,7 +11,7 @@ jobs:
   dependency-review:
     strategy:
       matrix:
-        go-version: ["1.18"]
+        go-version: ["1.19"]
         platform: ["ubuntu-latest"]
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 5

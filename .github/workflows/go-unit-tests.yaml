@@ -16,8 +16,15 @@ jobs:
     name: Unit Tests
     strategy:
       matrix:
-        go-version: ["1.18"]
+        go-version: ["1.19"]
         platform: ["ubuntu-latest"]
+        type: ["Tests","Cover"] # run coverage as separate job w/out -race to avoid killing process
+        include:
+          - type: "Tests"
+            goflags: '-v -race -count=1 -json'
+          - type: "Cover"
+            goflags: "-v -count=1 -json"
+            coveropts: "-coverprofile=coverage.txt -covermode=atomic"
 
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 20
@@ -46,10 +53,21 @@ jobs:
       - name: Install tparse
         run: go install github.com/mfridman/tparse@latest
 
+      - name: Check for .codecov.yaml
+        id: codecov-enabled
+        uses: andstor/file-existence-action@20b4d2e596410855db8f9ca21e96fbe18e12930b
+        with:
+          files: .codecov.yaml
+
       - name: Test
         env:
-          GOFLAGS: "-v -race -count=1 -json"
-        run: go test ./... | tparse -all
+          COVER_OPTS: ${{ matrix.coveropts }}
+          GOFLAGS: ${{ matrix.goflags }}
+        run: go test $COVER_OPTS ./... | tparse -all -notests -format markdown >> $GITHUB_STEP_SUMMARY
+
+      - if: steps.codecov-enabled.outputs.files_exists == 'true'
+        name: Upload Codecov Report
+        uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
 
       - name: Verify git clean
         shell: bash
@@ -61,55 +79,3 @@ jobs:
             echo "::error:: $(git status)"
             exit 1
           fi
-
-  # see https://github.com/timbray/quamina/issues/28 for details why a separate job
-  coverage:
-      name: Create Coverage Report
-      strategy:
-        matrix:
-          go-version: ["1.18"]
-          platform: ["ubuntu-latest"]
-
-      runs-on: ${{ matrix.platform }}
-      timeout-minutes: 10
-
-      steps:
-        - name: Checkout repository
-          uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
-
-        - name: Set up Go ${{ matrix.go-version }}
-          uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568
-          with:
-            go-version: ${{ matrix.go-version }}
-          id: go
-
-        - name: Restore Go cache
-          uses: actions/cache@58c146cc91c5b9e778e71775dfe9bf1442ad9a12
-          with:
-            path: |
-              ~/.cache/go-build
-              ~/go/pkg/mod
-
-            key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum', 'testdata/**') }}
-            restore-keys: |
-              ${{ runner.os }}-go-${{ matrix.go-version }}-
-
-        - name: Install tparse
-          run: go install github.com/mfridman/tparse@latest
-
-        - name: Check for .codecov.yaml
-          id: codecov-enabled
-          uses: andstor/file-existence-action@20b4d2e596410855db8f9ca21e96fbe18e12930b
-          with:
-            files: .codecov.yaml
-
-        - if: steps.codecov-enabled.outputs.files_exists == 'true'
-          name: Produce Go Coverage Report File
-          env:
-            COVER_OPTS: "-coverprofile=coverage.txt -covermode=atomic"
-            GOFLAGS: "-v -count=1 -json"
-          run: go test $COVER_OPTS ./... | tparse -all
-
-        - if: steps.codecov-enabled.outputs.files_exists == 'true'
-          name: Upload Codecov Report
-          uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70
