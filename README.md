@@ -16,6 +16,8 @@ and then query data objects called **Events** to
 discover which of the Patterns match
 the fields in the Event.
 
+Quamina has no run-time dependencies beyond built-in Go libraries.
+
 Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
