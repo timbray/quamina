@@ -1,3 +1,3 @@
-module github.com/timbray/quamina
+module quamina.net/go/quamina
 
 go 1.18
