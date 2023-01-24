@@ -62,6 +62,13 @@ Currently the following prefixes are used:
 If your contribution falls into multiple categories, e.g. `api` and `pat` it
 is recommended to break up your commits using distinct prefixes.
 
+### Signing commits
+
+Commits should be signed (not just the `-s` “signd off on”) with
+any of the [styles GitHub supports](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+Note that you can use `git config` to arrange that your commits are
+automatically signed with the right key.
+
 ### Running Tests
 
 In any repo subdirectory, `go test` runs unit tests
