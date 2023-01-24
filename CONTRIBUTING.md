@@ -66,7 +66,7 @@ is recommended to break up your commits using distinct prefixes.
 
 Commits should be signed (not just the `-s` “signd off on”) with
 any of the [styles GitHub supports](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
-Note that you use `git config` to arrange that your commits are
+Note that you can use `git config` to arrange that your commits are
 automatically signed with the right key.
 
 ### Running Tests
