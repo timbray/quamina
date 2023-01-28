@@ -119,8 +119,6 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			newDfa = nfa2Dfa(newNfa)
 		case prefixType:
 			newDfa, nextField = makePrefixAutomaton(valBytes, nil)
-		default:
-			panic("unknown value type")
 		}
 		fields.startDfa = mergeDfas(fields.startDfa, newDfa)
 		m.update(fields)
@@ -153,9 +151,6 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			fields.startDfa = newAutomaton
 			m.update(fields)
 			return nextField
-
-		default:
-			panic("unknown value type")
 		}
 	}
 
@@ -182,8 +177,6 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 		newDfa = nfa2Dfa(newNfa)
 	case prefixType:
 		newDfa, nextField = makePrefixAutomaton(valBytes, nil)
-	default:
-		panic("unknown val type")
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it
