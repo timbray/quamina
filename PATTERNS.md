@@ -60,6 +60,23 @@ Thus, the following Pattern would match both JSON events above:
 An **Extended Pattern** **MUST** be a JSON object containing
 a single field whose name is called the **Pattern Type**.
 
+### Prefix Pattern
+
+The Pattern Type of a Prefix Pattern is `prefix` and its value
+**MUST** be a string.
+
+The following event:
+
+```json
+{"a": "alpha"}
+```
+
+would be matched by this Prefix Pattern:
+
+```json
+{"a": [ { "prefix":  "al" } ] }
+```
+
 ### Exists Pattern
 
 The Pattern Type of an Exists Pattern is `exists` and its
@@ -132,9 +149,9 @@ Consider the following Event:
 ```
 The following Shellstyle Patterns would match it:
 ```json
-{"img": [ {"shellstyle": "*.jpg"} ]}
-{"img": [ {"shellstyle": "https://example.com/*"} ]}
-{"img": [ {"shellstyle": "https://example.com/*.jpg"} ]}
+{"img": [ {"shellstyle": "*.jpg"} ] }
+{"img": [ {"shellstyle": "https://example.com/*"} ] }
+{"img": [ {"shellstyle": "https://example.com/*.jpg"} ] }
 ```
 ## EventBridge Patterns
 

@@ -113,6 +113,14 @@ The following Patterns would match it:
   }
 }
 ```
+```json
+{
+  "Image": {
+    "Thumbnail": {
+      "Url": [ "a", { "prefix": "https:" } ] }
+  }
+} 
+```
 The syntax and semantics of Patterns are fully specified
 in [Patterns in Quamina](PATTERNS.md).
 
