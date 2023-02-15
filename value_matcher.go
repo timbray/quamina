@@ -70,8 +70,8 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		return transitionDfa(fields.startDfa, val, transitions)
 
 	default:
-		// no dfa, no singleton, nothing to do
-		// this probably can't happen because a flattener shouldn't preserve a field that hasn't appeared in a pattern
+		// no dfa, no singleton, nothing to do, this probably can't happen because a flattener
+		// shouldn't preserve a field that hasn't appeared in a pattern
 		return transitions
 	}
 }
@@ -119,6 +119,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			newDfa = nfa2Dfa(newNfa)
 		case prefixType:
 			newDfa, nextField = makePrefixAutomaton(valBytes, nil)
+		default:
+			panic("unknown value type")
 		}
 		fields.startDfa = mergeDfas(fields.startDfa, newDfa)
 		m.update(fields)
@@ -151,6 +153,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			fields.startDfa = newAutomaton
 			m.update(fields)
 			return nextField
+		default:
+			panic("unknown value type")
 		}
 	}
 
@@ -177,6 +181,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 		newDfa = nfa2Dfa(newNfa)
 	case prefixType:
 		newDfa, nextField = makePrefixAutomaton(valBytes, nil)
+	default:
+		panic("unknown value type")
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it
@@ -189,6 +195,7 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 
 func makePrefixAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
 	var nextField *fieldMatcher
+
 	if useThisTransition != nil {
 		nextField = useThisTransition
 	} else {

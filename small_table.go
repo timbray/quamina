@@ -107,8 +107,7 @@ func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *df
 		return combined
 	}
 
-	// TODO: this works, all the tests pass, but I'm not satisfied with it. My intuition is that you ought
-	// to be able to come out of this with just one *fieldMatcher
+	// TODO: this works, all the tests pass, but should to be able to have with just one *fieldMatcher
 	newTable := newSmallTable[*dfaStep]()
 	switch {
 	case step1.fieldTransitions == nil && step2.fieldTransitions == nil:

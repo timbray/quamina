@@ -217,7 +217,11 @@ func readPrefixSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 		err = errors.New("value for 'prefix' must be a string")
 		return
 	}
-	pathVals = append(pathVals, typedVal{vType: prefixType, val: `"` + prefixString + `"`})
+	val := typedVal{
+		vType: prefixType,
+		val:   `"` + prefixString + `"`,
+	}
+	pathVals = append(pathVals, val)
 
 	// has to be } or tokenizer will throw error
 	_, err = pb.jd.Token()
