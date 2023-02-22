@@ -61,6 +61,11 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"xxx": [ { "exists": false, "x": ["a", 3 ] }] }`,
 		`{"abc": [ {"shellstyle":15} ] }`,
 		`{"abc": [ {"shellstyle":"a**b"}, "foo" ] }`,
+		`{"abc": [ {"prefix":23}, "foo" ] }`,
+		`{"abc": [ {"prefix":["a", "b"]}, "foo" ] }`,
+		`{"abc": [ {"prefix": - }, "foo" ] }`,
+		`{"abc": [ {"prefix":  - "a" }, "foo" ] }`,
+		`{"abc": [ {"prefix":  "a" {, "foo" ] }`,
 	}
 	for _, b := range bads {
 		_, err := patternFromJSON([]byte(b))

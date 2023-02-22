@@ -7,6 +7,46 @@ import (
 	"testing"
 )
 
+func TestInvalidValueTypes(t *testing.T) {
+	var before []typedVal
+	addInvalid(t, before)
+
+	before = append(before, typedVal{vType: stringType, val: "foo"})
+	addInvalid(t, before)
+
+	before = append(before, typedVal{vType: stringType, val: "bar"})
+	addInvalid(t, before)
+}
+func addInvalid(t *testing.T, before []typedVal) {
+	t.Helper()
+	defer func() {
+		if recover() == nil {
+			t.Errorf("TestAddInvalidTransition should have panicked")
+		}
+	}()
+
+	panicType := valType(999)
+
+	// empty value matcher
+	m := newValueMatcher()
+	invalidField := typedVal{
+		vType: panicType,
+		val:   "one",
+	}
+	for _, addBefore := range before {
+		m.addTransition(addBefore)
+	}
+	m.addTransition(invalidField)
+}
+
+func TestNoOpTransition(t *testing.T) {
+	vm := newValueMatcher()
+	tr := vm.transitionOn([]byte("foo"))
+	if len(tr) != 0 {
+		t.Error("matched on empty valuematcher")
+	}
+}
+
 func TestAddTransition(t *testing.T) {
 	m := newValueMatcher()
 	v1 := typedVal{
