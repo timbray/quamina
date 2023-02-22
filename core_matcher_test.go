@@ -165,9 +165,20 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*" } ] } } }`,
 		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*9943" } ] } } }`,
 		`{"Image": { "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ]  } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "prefix": "https:" } ] } } }`,
+		`{"Image": { "Thumbnail": { "Url": [ "a", { "prefix": "https:" } ] } } }`,
 	}
 
 	var err error
+	blankMatcher := newCoreMatcher()
+	empty, err := blankMatcher.matchesForJSONEvent([]byte(j))
+	if err != nil {
+		t.Error("blank: " + err.Error())
+	}
+	if len(empty) != 0 {
+		t.Error("matches on blank matcher")
+	}
+
 	for i, should := range patternsFromReadme {
 		m := newCoreMatcher()
 		err = m.addPattern(fmt.Sprintf("should %d", i), should)
@@ -187,6 +198,7 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "Animated": [ { "exists": false } ] } }`,
 		`{"Image": { "NotThere": [ { "exists": true } ] } }`,
 		`{"Image": { "IDs": [ { "exists": false } ], "Animated": [ false ] } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "prefix": "http:" } ] } } }`,
 	}
 	for i, shouldNot := range shouldNotMatches {
 		m := newCoreMatcher()
