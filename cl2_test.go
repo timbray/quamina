@@ -78,6 +78,35 @@ func TestRulerCl2(t *testing.T) {
 	}
 	exactMatches := []int{1, 101, 35, 655, 1}
 
+	prefixRules := []string{
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"AC\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"BL\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"DR\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"FU\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"RH\" } ]\n" +
+			"  }\n" +
+			"}",
+	}
+	prefixMatches := []int{24, 442, 38, 2387, 328}
+
 	anythingButRules := []string{
 		"{\n" +
 			"  \"properties\": {\n" +
@@ -165,6 +194,10 @@ func TestRulerCl2(t *testing.T) {
 	bm = newBenchmarker()
 	bm.addRules(exactRules, exactMatches)
 	fmt.Printf("EXACT events/sec: %.1f\n", bm.run(t, lines))
+
+	bm = newBenchmarker()
+	bm.addRules(prefixRules, prefixMatches)
+	fmt.Printf("PREFIX events/sec: %.1f\n", bm.run(t, lines))
 
 	bm = newBenchmarker()
 	bm.addRules(anythingButRules, anythingButMatches)

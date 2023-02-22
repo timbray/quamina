@@ -70,7 +70,8 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		return transitionDfa(fields.startDfa, val, transitions)
 
 	default:
-		// no dfa, no singleton, nothing to do
+		// no dfa, no singleton, nothing to do, this probably can't happen because a flattener
+		// shouldn't preserve a field that hasn't appeared in a pattern
 		return transitions
 	}
 }
@@ -116,6 +117,8 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			var newNfa *smallTable[*nfaStepList]
 			newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
 			newDfa = nfa2Dfa(newNfa)
+		case prefixType:
+			newDfa, nextField = makePrefixAutomaton(valBytes, nil)
 		default:
 			panic("unknown value type")
 		}
@@ -145,6 +148,11 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			fields.startDfa = nfa2Dfa(newAutomaton)
 			m.update(fields)
 			return nextField
+		case prefixType:
+			newAutomaton, nextField := makePrefixAutomaton(valBytes, nil)
+			fields.startDfa = newAutomaton
+			m.update(fields)
+			return nextField
 		default:
 			panic("unknown value type")
 		}
@@ -171,8 +179,10 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 		var newNfa *smallTable[*nfaStepList]
 		newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
 		newDfa = nfa2Dfa(newNfa)
+	case prefixType:
+		newDfa, nextField = makePrefixAutomaton(valBytes, nil)
 	default:
-		panic("unknown val type")
+		panic("unknown value type")
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it
@@ -181,6 +191,29 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	fields.singletonTransition = nil
 	m.update(fields)
 	return nextField
+}
+
+func makePrefixAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
+	var nextField *fieldMatcher
+
+	if useThisTransition != nil {
+		nextField = useThisTransition
+	} else {
+		nextField = newFieldMatcher()
+	}
+	return onePrefixStep(val, 0, nextField), nextField
+}
+
+func onePrefixStep(val []byte, index int, nextField *fieldMatcher) *smallTable[*dfaStep] {
+	var nextStep *dfaStep
+
+	// have to stop one short to skip the closing "
+	if index == len(val)-2 {
+		nextStep = &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{nextField}}
+	} else {
+		nextStep = &dfaStep{table: onePrefixStep(val, index+1, nextField)}
+	}
+	return makeSmallDfaTable(nil, []byte{val[index]}, []*dfaStep{nextStep})
 }
 
 // makeStringAutomaton creates a utf8-based automaton from a literal string

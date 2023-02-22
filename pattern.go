@@ -19,6 +19,7 @@ const (
 	existsFalseType
 	shellStyleType
 	anythingButType
+	prefixType
 )
 
 // typedVal represents the value of a field in a pattern, giving the value and the type of pattern.
@@ -196,9 +197,34 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 		pathVals, err = readExistsSpecial(pb, pathVals)
 	case "shellstyle":
 		pathVals, err = readShellStyleSpecial(pb, pathVals)
+	case "prefix":
+		pathVals, err = readPrefixSpecial(pb, pathVals)
 	default:
 		err = errors.New("unrecognized in special pattern: " + tt)
 	}
+	return
+}
+
+func readPrefixSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal, err error) {
+	t, err := pb.jd.Token()
+	if err != nil {
+		return
+	}
+	pathVals = valsIn
+
+	prefixString, ok := t.(string)
+	if !ok {
+		err = errors.New("value for 'prefix' must be a string")
+		return
+	}
+	val := typedVal{
+		vType: prefixType,
+		val:   `"` + prefixString + `"`,
+	}
+	pathVals = append(pathVals, val)
+
+	// has to be } or tokenizer will throw error
+	_, err = pb.jd.Token()
 	return
 }
 
