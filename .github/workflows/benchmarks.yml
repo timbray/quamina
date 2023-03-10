@@ -38,7 +38,7 @@ jobs:
           key: ${{ runner.os }}-benchmark
 
       - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@c3efd4d54319dbc90622069cc273cba59b46abbf
+        uses: benchmark-action/github-action-benchmark@5bbce78ef18edf5b96cb2d23e8d240b485f9dc4a
         with:
           name: Go Benchmark
           tool: "go"
