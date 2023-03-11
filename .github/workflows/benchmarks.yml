@@ -47,6 +47,9 @@ jobs:
           output-file-path: output.txt
           external-data-json-path: ./cache/benchmark-data.json
 
+          # print job summary in workflow output
+          summary-always: true
+
           # Alert on regression
           alert-threshold: "120%"
           fail-on-alert: true
