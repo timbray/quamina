@@ -168,7 +168,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 			if pathNode.IsRoot() {
 				return errEarlyStop
 			} else {
-				return fj.skipUntil('}')
+				return fj.leaveObject()
 			}
 		}
 
@@ -532,7 +532,7 @@ func (fj *flattenJSON) readLiteral(literal []byte) ([]byte, error) {
 	return literal, nil
 }
 
-func (fj *flattenJSON) skipUntil(symbol byte) error {
+func (fj *flattenJSON) leaveObject() error {
 	for fj.eventIndex < len(fj.event) {
 		ch := fj.event[fj.eventIndex]
 
@@ -542,7 +542,14 @@ func (fj *flattenJSON) skipUntil(symbol byte) error {
 			if err != nil {
 				return err
 			}
-		case symbol:
+		case '{', '[':
+			// ch+2 is the matching closing brace, since both '}' and ']' are 2 characters away
+			// from '{' and ']', respectively
+			err := fj.skipBlock(ch, ch+2)
+			if err != nil {
+				return err
+			}
+		case '}':
 			return nil
 		}
 
