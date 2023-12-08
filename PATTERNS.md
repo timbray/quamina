@@ -105,7 +105,7 @@ The following pattern will not match:
 
 We may be able to change this in future.
 
-The case of empty arrays is interesting. Consider this event:
+The case of empty arrays is interesting, both in Patterns and Events. Consider this event:
 
 ```json
 { "a": [] }
@@ -122,6 +122,16 @@ I.e., only the first of the two sample patterns below matches.
 ```
 This makes sense in the context of the leaf-node semantics; there
 really is no value for the `"a"` field.
+
+In Patterns, the following never matches any Event:
+
+```json
+{ "a": [] }
+```
+
+Once again, there is nothing in the array of candidate values in the Pattern that can match any value of an `"a"`
+field in an Event.
+
 
 
 ### Anything-But Pattern
