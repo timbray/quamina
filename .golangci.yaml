@@ -24,3 +24,8 @@ linters:
     - whitespace
     # wastedassign is disabled because of generics. You can track the evolution of the generics support by following the https://github.com/golangci/golangci-lint/issues/2649
     # - wastedassign
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      text: "Use of weak random number generator" #gosec:G404

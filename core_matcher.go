@@ -80,7 +80,6 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	// combo.
 	states := []*fieldMatcher{currentFields.state}
 	for _, field := range patternFields {
-
 		// if the field has no values, this is a no-op
 		if len(field.vals) == 0 {
 			continue

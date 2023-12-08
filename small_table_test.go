@@ -176,7 +176,7 @@ func TestFuzzPack(t *testing.T) {
 func fuzzPack(t *testing.T, seed int64) {
 	t.Helper()
 
-	rand.Seed(seed)
+	rand.New(rand.NewSource(seed))
 	var used [byteCeiling]bool
 	var unpacked unpackedTable[*dfaStep]
 

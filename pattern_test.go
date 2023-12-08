@@ -67,15 +67,16 @@ func TestEmptyValueArray(t *testing.T) {
 		}
 	}
 
-	for want, _ := range wanted {
+	for want := range wanted {
 		matches, err := cm.matchesForJSONEvent([]byte(want))
 		if err != nil {
 			t.Errorf("m4je err on %s", want)
 		}
-		checkXEqual(wanted[want], matches, t)
+		checkXEqual(t, wanted[want], matches)
 	}
 }
-func checkXEqual(x1s []X, x2s []X, t *testing.T) {
+func checkXEqual(t *testing.T, x1s []X, x2s []X) {
+	t.Helper()
 	x2size := len(x2s)
 	for _, x1 := range x1s {
 		count := 0
