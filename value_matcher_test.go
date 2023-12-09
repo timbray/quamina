@@ -196,7 +196,7 @@ func TestOverlappingValues(t *testing.T) {
 }
 
 func TestFuzzValueMatcher(t *testing.T) {
-	rand.Seed(98543)
+	rand.New(rand.NewSource(98543))
 	m := newCoreMatcher()
 	var pNames []X
 	bytes := "abcdefghijklmnopqrstuvwxyz"
@@ -268,7 +268,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 }
 
 func TestFuzzWithNumbers(t *testing.T) {
-	rand.Seed(98543)
+	rand.New(rand.NewSource(98543))
 	m := newCoreMatcher()
 	var pNames []X
 	used := make(map[X]bool)
