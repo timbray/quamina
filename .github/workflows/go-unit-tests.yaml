@@ -67,7 +67,7 @@ jobs:
 
       - if: steps.codecov-enabled.outputs.files_exists == 'true'
         name: Upload Codecov Report
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
+        uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457
 
       - name: Verify git clean
         shell: bash
