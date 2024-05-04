@@ -40,4 +40,4 @@ jobs:
           ${{ runner.os }}-go-${{ matrix.go-version }}-
         
     - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@9d1e0624a798bb64f6c3cea93db47765312263dc
+      uses: golangci/golangci-lint-action@d9c9b53e53fa63215cdd19637cd95fbc34fdf4a1
