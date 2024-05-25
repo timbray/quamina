@@ -51,20 +51,14 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 }
 
 // makeShellStyleAutomaton - recognize a "-delimited string containing one '*' glob.
-// TODO: Make this recursive like makeStringAutomaton
-func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start *smallTable[*nfaStepList], nextField *fieldMatcher) {
-	table := newSmallTable[*nfaStepList]()
+func makeShellStyleAutomaton(val []byte) (start *smallTable, nextField *fieldMatcher) {
+	table := newSmallTable()
 	start = table
-	if useThisTransition != nil {
-		nextField = useThisTransition
-	} else {
-		nextField = newFieldMatcher()
-	}
-	lister := newListMaker()
+	nextField = newFieldMatcher()
 
 	// for each byte in the pattern
-	var globStep *nfaStep = nil
-	var globExitStep *nfaStep = nil
+	var globStep *faState = nil
+	var globExitStep *faState = nil
 	var globExitByte byte
 	i := 0
 	for i < len(val) {
@@ -72,54 +66,58 @@ func makeShellStyleAutomaton(val []byte, useThisTransition *fieldMatcher) (start
 		if ch == '*' {
 			// special-case handling for string ending in '*"' - transition to field match on any character.
 			//  we know the trailing '"' will be there because of JSON syntax.
-			// TODO: This doesn't even need to be an NFA
 			if i == len(val)-2 {
-				step := &nfaStep{table: newSmallTable[*nfaStepList](), fieldTransitions: []*fieldMatcher{nextField}}
-				list := lister.getList(step)
-				table.addRangeSteps(0, byteCeiling, list)
+				step := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
+				table.setDefault(&faNext{steps: []*faState{step}})
+				//DEBUG step.table.label = fmt.Sprintf("prefix escape at %d", i)
 				return
 			}
 
 			// loop back on everything
-			globStep = &nfaStep{table: table}
-			table.addRangeSteps(0, byteCeiling, lister.getList(globStep))
+			globStep = &faState{table: table}
+			//DEBUG table.label = fmt.Sprintf("gS at %d", i)
+			table.setDefault(&faNext{steps: []*faState{globStep}})
 
 			// escape the glob on the next char from the pattern - remember the byte and the state escaped to
 			i++
 			globExitByte = val[i]
-			globExitStep = &nfaStep{table: newSmallTable[*nfaStepList]()}
+			globExitStep = &faState{table: newSmallTable()}
+			//DEBUG globExitStep.table.label = fmt.Sprintf("gX on %c at %d", val[i], i)
 			// escape the glob
-			table.addByteStep(globExitByte, lister.getList(globExitStep))
+			table.addByteStep(globExitByte, &faNext{steps: []*faState{globExitStep}})
 			table = globExitStep.table
 		} else {
-			nextStep := &nfaStep{table: newSmallTable[*nfaStepList]()}
+			nextStep := &faState{table: newSmallTable()}
+			//DEBUG nextStep.table.label = fmt.Sprintf("on %c at %d", val[i], i)
 
 			// we're going to move forward on 'ch'.  On anything else, we leave it at nil or - if we've passed
 			//  a glob, loop back to the glob stae.  if 'ch' is also the glob exit byte, also put in a transfer
 			//  back to the glob exist state
 			if globExitStep != nil {
-				table.addRangeSteps(0, byteCeiling, lister.getList(globStep))
+				table.setDefault(&faNext{steps: []*faState{globStep}})
 				if ch == globExitByte {
-					table.addByteStep(ch, lister.getList(globExitStep, nextStep))
+					table.addByteStep(ch, &faNext{steps: []*faState{globExitStep, nextStep}})
 				} else {
-					table.addByteStep(globExitByte, lister.getList(globExitStep))
-					table.addByteStep(ch, lister.getList(nextStep))
+					table.addByteStep(globExitByte, &faNext{steps: []*faState{globExitStep}})
+					table.addByteStep(ch, &faNext{steps: []*faState{nextStep}})
 				}
 			} else {
-				table.addByteStep(ch, lister.getList(nextStep))
+				table.addByteStep(ch, &faNext{steps: []*faState{nextStep}})
 			}
 			table = nextStep.table
 		}
 		i++
 	}
 
-	lastStep := &nfaStep{table: newSmallTable[*nfaStepList](), fieldTransitions: []*fieldMatcher{nextField}}
+	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
+	//DEBUG lastStep.table.label = fmt.Sprintf("last step at %d", i)
 	if globExitStep != nil {
-		table.addRangeSteps(0, byteCeiling, lister.getList(globStep))
-		table.addByteStep(globExitByte, lister.getList(globExitStep))
-		table.addByteStep(valueTerminator, lister.getList(lastStep))
+		table.setDefault(&faNext{steps: []*faState{globStep}})
+		table.addByteStep(globExitByte, &faNext{steps: []*faState{globExitStep}})
+		table.addByteStep(valueTerminator, &faNext{steps: []*faState{lastStep}})
 	} else {
-		table.addByteStep(valueTerminator, lister.getList(lastStep))
+		table.addByteStep(valueTerminator, &faNext{steps: []*faState{lastStep}})
 	}
+	// fmt.Printf("new for [%s]: %s\n", string(val), start.dump())
 	return
 }

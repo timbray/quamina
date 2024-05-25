@@ -11,7 +11,7 @@ func TestAnythingButMerging(t *testing.T) {
 	q, _ := New()
 	var err error
 
-	// can merge with DFA?
+	// can merge with FA?
 	err = q.AddPattern("pFoo", pFoo)
 	if err != nil {
 		t.Error("add pFoo")
@@ -63,11 +63,95 @@ func TestAnythingButMerging(t *testing.T) {
 	}
 }
 
+func TestFootCornerCase(t *testing.T) {
+	q, _ := New()
+	pFoot := `{"z": ["foot"]}`
+	err := q.AddPattern("foot", pFoot)
+	if err != nil {
+		t.Error("addP: " + err.Error())
+	}
+	m, err := q.MatchesForEvent([]byte(`{"z": "foot"}`))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	if len(m) != 1 || m[0] != "foot" {
+		t.Error("foot not 1")
+	}
+	q, _ = New()
+	pNotFoo := `{"z": [ { "anything-but": ["foo"]} ] }`
+	err = q.AddPattern("notFoo", pNotFoo)
+	if err != nil {
+		t.Error("addP: " + err.Error())
+	}
+	m, err = q.MatchesForEvent([]byte(`{"z": "foot"}`))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	if len(m) != 1 || m[0] != "notFoo" {
+		t.Error("foot not 1")
+	}
+	q, _ = New()
+	pFooStar := `{"z": [ { "shellstyle": "foo*" } ] }`
+	err = q.AddPattern("foostar", pFooStar)
+	if err != nil {
+		t.Error("addP: " + err.Error())
+	}
+	m, err = q.MatchesForEvent([]byte(`{"z": "foot"}`))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	if len(m) != 1 || m[0] != "foostar" {
+		t.Error("foot not 1")
+	}
+}
+
+func TestAnythingButAlgo(t *testing.T) {
+	notJoeTim := `{"x": [ { "anything-but": ["joe", "tim"] } ] }`
+	q, _ := New()
+	err := q.AddPattern("notJoeTim", notJoeTim)
+	if err != nil {
+		t.Error("NJT: " + err.Error())
+	}
+	event := `{"x": "toe"}`
+	matches, err := q.MatchesForEvent([]byte(event))
+	if err != nil {
+		t.Error("NJT: " + err.Error())
+	}
+	if len(matches) != 1 {
+		t.Error("NJT: Didn't match")
+	}
+	event = `{"x": "joe"}`
+	matches, err = q.MatchesForEvent([]byte(event))
+	if err != nil {
+		t.Error("NJT: " + err.Error())
+	}
+	if len(matches) != 0 {
+		t.Error("NJT: matched joe")
+	}
+
+	notTTT := `{"x": [ { "anything-but": ["tim", "time", "timed"] } ] }`
+	q, _ = New()
+	err = q.AddPattern("notTTT", notTTT)
+	if err != nil {
+		t.Error("NTTT: " + err.Error())
+	}
+	events := []string{`{"x": "tim"}`, `{"x": "time"}`, `{"x": "timed"}`}
+	for _, ev := range events {
+		matches, err := q.MatchesForEvent([]byte(ev))
+		if err != nil {
+			t.Error("NTTT: (" + ev + ") " + err.Error())
+		}
+		if len(matches) != 0 {
+			t.Error("NTTT: (" + ev + ") matched")
+		}
+	}
+}
+
 func TestAnythingButMatching(t *testing.T) {
 	q, _ := New()
 	// the idea is we're testing against all the 5-letter Wordle patterns, so we want a 4-letter prefix and
 	// suffix of an existing wordle, a 5-letter non-wordle, and a 6-letter where the wordle might match at the start
-	// and end. I tried to think of scenarios that would defeat the pretty-simple anything-but DFA but couldn't.
+	// and end. I tried to think of scenarios that would defeat the pretty-simple anything-but FA but couldn't.
 	problemWords := []string{
 		`"bloo"`,
 		`"aper"`,

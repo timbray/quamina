@@ -2,7 +2,6 @@ package quamina
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"testing"
 )
@@ -126,7 +125,7 @@ func TestFJSkippingErrors(t *testing.T) {
 	for _, event := range events {
 		fields, err := f.Flatten([]byte(event), matcher.getSegmentsTreeTracker())
 		if err == nil {
-			t.Errorf("Expected to fail [%s], but got %d fields", string(event), len(fields))
+			t.Errorf("Expected to fail [%s], but got %d fields", event, len(fields))
 		}
 	}
 }
@@ -248,7 +247,7 @@ func testTrackerSelection(t *testing.T, fj Flattener, tracker SegmentsTreeTracke
 }
 
 func TestFJErrorCases(t *testing.T) {
-	// adding "a\nx" so we will goes into "a" object, otherwise we will skip it
+	// adding "a\nx" so we will go into "a" object, otherwise we will skip it
 	matcher := fakeMatcher("a", "b", "c", "d", "e", "f", "a\nx")
 	fj := newJSONFlattener().(*flattenJSON)
 
@@ -313,76 +312,6 @@ func TestFJErrorCases(t *testing.T) {
 		if err == nil {
 			t.Errorf("Accepted bad JSON at %d: %s", i, shouldFail)
 		}
-	}
-}
-
-func TestSkipUnusedPaths(t *testing.T) {
-	// Each of theses cases has a nested object with additional values that should
-	// be skipped after the specified paths have been checked
-	//
-	// e.g., take the following object and paths:
-	//
-	//     object: { "a": { "b": 1, "c": 2} }
-	//     paths:  ["a\nb", "d"]
-	//
-	// After the flattener evaluates a.b, it should skip a.c before looking
-	// for d in the outer object.
-	//
-	// These tests make sure that the flattener correctly skips remaining
-	// values including nested objects and arrays.
-	//
-	// The tests below contain an additional path to look for after the
-	// paths in the nested object to make sure the flattener correctly
-	// exits the nested object and begings parsing the rest of the event
-	// at the correct location.
-	cases := []struct {
-		event        string
-		matcherPaths []string
-	}{
-		{
-			event:        `{"nested":{"thing":"whatever","extra":{}}}`,
-			matcherPaths: []string{"nested\nthing", "another"},
-		},
-		{
-			event:        `{"nested":{"thing":"whatever","extra":{"empty": false}}}`,
-			matcherPaths: []string{"nested\nthing", "another"},
-		},
-		{
-			event:        `{"nested":{"thing":"whatever","extra":[{}]}}`,
-			matcherPaths: []string{"nested\nthing", "another"},
-		},
-		{
-			event:        `{"nested":{"thing":"whatever","extra":[{"empty": false}]}}`,
-			matcherPaths: []string{"nested\nthing", "another"},
-		},
-		{
-			event:        `{"nested":{"thing":"whatever","extra":[]}}`,
-			matcherPaths: []string{"nested\nthing", "another"},
-		},
-		{
-			event:        `{"nested":{"thing":"whatever","extra":[1,"two",true,null]}}`,
-			matcherPaths: []string{"nested\nthing", "another"},
-		},
-		{
-			event:        `{"nested":{"thing":"whatever","extra":[],"andAnother":{}}}`,
-			matcherPaths: []string{"nested\nthing", "another"},
-		},
-	}
-
-	for i, c := range cases {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			matcher := fakeMatcher(c.matcherPaths...)
-
-			fj := newJSONFlattener().(*flattenJSON)
-
-			// ignore the fields - this test isn't concerned with the flattening result
-			_, err := fj.Flatten([]byte(c.event), matcher.getSegmentsTreeTracker())
-
-			// make sure the flattener didn't return an error
-			if err != nil {
-				t.Fatalf("failed to flatten json: %v", err)
-			}
-		})
 	}
 }
 

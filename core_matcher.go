@@ -30,7 +30,7 @@ type coreMatcher struct {
 // state is the start of the automaton.
 // segmentsTree is a structure that encodes which fields appear in the Patterns that are added to the coreMatcher.
 // It is built during calls to addPattern. It implements SegmentsTreeTracker, which is used by the event flattener
-// to optimize the flattening process by skipping the processing of fields which are not used in any patern.
+// to optimize the flattening process by skipping the processing of fields which are not used in any pattern.
 type coreFields struct {
 	state        *fieldMatcher
 	segmentsTree *segmentsTree
@@ -64,7 +64,7 @@ func (m *coreMatcher) addPattern(x X, patternJSON string) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	// we build up the new coreMatcher state in freshStart so we can atomically switch it in once complete
+	// we build up the new coreMatcher state in freshStart so that we can atomically switch it in once complete
 	freshStart := &coreFields{}
 	currentFields := m.fields()
 	freshStart.segmentsTree = currentFields.segmentsTree.copy()
@@ -163,7 +163,7 @@ func (a fieldsList) Swap(i, j int) {
 
 // matchesForFields takes a list of Field structures, sorts them by pathname, and launches the field-matching
 // process. The fields in a pattern to match are similarly sorted; thus running an automaton over them works.
-// No error can be returned but the matcher interface requires one and it is used by the pruner implementation
+// No error can be returned but the matcher interface requires one, and it is used by the pruner implementation
 func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	if len(fields) == 0 {
 		fields = emptyFields()
@@ -227,7 +227,7 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 
 func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet) {
 	for existsFalsePath, existsFalseTrans := range stateFields.existsFalse {
-		// it seems like there ought to be a more state-machine-idiomatic way to do this but
+		// it seems like there ought to be a more state-machine-idiomatic way to do this, but
 		// I thought of a few and none of them worked.  Quite likely someone will figure it out eventually.
 		// Could get slow for big events with hundreds or more fields (not that I've ever seen that) - might
 		// be worthwhile switching to binary search at some field count or building a map[]boolean in addPattern

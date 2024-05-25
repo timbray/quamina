@@ -1,25 +1,18 @@
 package quamina
 
-// dfaStep and nfaStep are used by the valueMatcher automaton - every step through the
+// faState is used by the valueMatcher automaton - every step through the
 // automaton requires a smallTable and for some of them, taking the step means you've matched a value and can
 // transition to a new fieldMatcher, in which case the fieldTransitions slice will be non-nil
-type dfaStep struct {
-	table            *smallTable[*dfaStep]
-	fieldTransitions []*fieldMatcher
-}
-
-type nfaStep struct {
-	table            *smallTable[*nfaStepList]
+type faState struct {
+	table            *smallTable
 	fieldTransitions []*fieldMatcher
 }
 
 // struct wrapper to make this comparable to help with pack/unpack
-type nfaStepList struct {
-	steps []*nfaStep
+type faNext struct {
+	// serial int // very useful in debugging table construction
+	steps []*faState
 }
-
-// TODO: declare dfaTable { smallTable[*dfaStep } and nfaTable { smallTable[*nfaStepList] }
-//  and make a bunch of code more concise and readable.
 
 // byteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go's byte, which is uint8. The values
 // 0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
@@ -52,23 +45,25 @@ const valueTerminator byte = 0xf5
 // or array construct. One could imagine making step() smarter and do a binary search in the case where there are
 // more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
 // number of those has a good chance of minimizing memory fetches
-type smallTable[S comparable] struct {
+type smallTable struct {
+	//DEBUG label string
+	//DEBUG serial   uint64
 	ceilings []byte
-	steps    []S
+	steps    []*faNext
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
 // the end, which smallTable.step totally depends on.
-func newSmallTable[S comparable]() *smallTable[S] {
-	var sNil S // declared but not assigned, thus serves as nil
-	return &smallTable[S]{
+func newSmallTable() *smallTable {
+	return &smallTable{
+		//DEBUG serial:   rand.Uint64() % 1000,
 		ceilings: []byte{byte(byteCeiling)},
-		steps:    []S{sNil},
+		steps:    []*faNext{nil},
 	}
 }
 
 // step finds the member of steps in the smallTable that corresponds to the utf8Byte argument. It may return nil.
-func (t *smallTable[S]) step(utf8Byte byte) S {
+func (t *smallTable) step(utf8Byte byte) *faNext {
 	for index, ceiling := range t.ceilings {
 		if utf8Byte < ceiling {
 			return t.steps[index]
@@ -77,148 +72,16 @@ func (t *smallTable[S]) step(utf8Byte byte) S {
 	panic("Malformed smallTable")
 }
 
-// mergeDfas and mergeNfas compute the union of two valueMatch automata.  If you look up the textbook theory about this,
-// they say to compute the set product for automata A and B and build A0B0, A0B1 … A1BN, A1B0 … but if you look
-// at that you realize that many of the product states aren't reachable. So you compute A0B0 and then keep
-// recursing on the transitions coming out, I'm pretty sure you get a correct result. I don't know if it's
-// minimal or even avoids being wasteful.
-// INVARIANT: neither argument is nil
-// INVARIANT: To be thread-safe, no existing table can be updated except when we're building it
-func mergeDfas(existing, newStep *smallTable[*dfaStep]) *smallTable[*dfaStep] {
-	step1 := &dfaStep{table: existing}
-	step2 := &dfaStep{table: newStep}
-	return mergeOneDfaStep(step1, step2, make(map[dfaStepKey]*dfaStep)).table
-}
-
-// dfaStepKey exists to serve as the key for the memoize map that's needed to control recursion in mergeAutomata
-type dfaStepKey struct {
-	step1 *dfaStep
-	step2 *dfaStep
-}
-
-func mergeOneDfaStep(step1, step2 *dfaStep, memoize map[dfaStepKey]*dfaStep) *dfaStep {
-	var combined *dfaStep
-
-	// to support automata that loop back to themselves (typically on *) we have to stop recursing (and also
-	//  trampolined recursion)
-	mKey := dfaStepKey{step1: step1, step2: step2}
-	combined, ok := memoize[mKey]
-	if ok {
-		return combined
-	}
-
-	// TODO: this works, all the tests pass, but should to be able to have with just one *fieldMatcher
-	newTable := newSmallTable[*dfaStep]()
-	switch {
-	case step1.fieldTransitions == nil && step2.fieldTransitions == nil:
-		combined = &dfaStep{table: newTable}
-	case step1.fieldTransitions != nil && step2.fieldTransitions != nil:
-		transitions := append(step1.fieldTransitions, step2.fieldTransitions...)
-		combined = &dfaStep{table: newTable, fieldTransitions: transitions}
-	case step1.fieldTransitions != nil && step2.fieldTransitions == nil:
-		combined = &dfaStep{table: newTable, fieldTransitions: step1.fieldTransitions}
-	case step1.fieldTransitions == nil && step2.fieldTransitions != nil:
-		combined = &dfaStep{table: newTable, fieldTransitions: step2.fieldTransitions}
-	}
-	memoize[mKey] = combined
-
-	uExisting := unpackTable(step1.table)
-	uNew := unpackTable(step2.table)
-	var uComb unpackedTable[*dfaStep]
-	for i, stepExisting := range uExisting {
-		stepNew := uNew[i]
-		switch {
-		case stepExisting == nil && stepNew == nil:
-			uComb[i] = nil
-		case stepExisting != nil && stepNew == nil:
-			uComb[i] = stepExisting
-		case stepExisting == nil && stepNew != nil:
-			uComb[i] = stepNew
-		case stepExisting != nil && stepNew != nil:
-			// there are considerable runs of the same value
-			if i > 0 && stepExisting == uExisting[i-1] && stepNew == uNew[i-1] {
-				uComb[i] = uComb[i-1]
-			} else {
-				uComb[i] = mergeOneDfaStep(stepExisting, stepNew, memoize)
-			}
-		}
-	}
-	combined.table.pack(&uComb)
-	return combined
-}
-
-// nfa2Dfa does what the name says. As of now it does not consider epsilon
-// transitions in the NFA because, as of the time of writing, none of the
-// pattern-matching required those transitions.  It is based on the algorithm
-// taught in the TU München course “Automata and Formal Languages”, lecturer
-// Prof. Dr. Ernst W. Mayr in 2014-15, in particular the examples appearing in
-// http://wwwmayr.informatik.tu-muenchen.de/lehre/2014WS/afs/2014-10-14.pdf
-// especially the slide in Example 11.
-func nfa2Dfa(table *smallTable[*nfaStepList]) *smallTable[*dfaStep] {
-	firstStep := &nfaStepList{steps: []*nfaStep{{table: table}}}
-	return nfaStep2DfaStep(firstStep, newDfaMemory()).table
-}
-
-func nfaStep2DfaStep(stepList *nfaStepList, memoize *dfaMemory) *dfaStep {
-	var dStep *dfaStep
-	dStep, ok := memoize.dfaForNfas(stepList.steps...)
-	if ok {
-		return dStep
-	}
-	dStep = &dfaStep{
-		table: &smallTable[*dfaStep]{},
-	}
-	memoize.rememberDfaForList(dStep, stepList.steps...)
-	if len(stepList.steps) == 1 {
-		// there's only stepList.steps[0]
-		nStep := stepList.steps[0]
-		dStep.fieldTransitions = nStep.fieldTransitions
-		dStep.table.ceilings = make([]byte, len(nStep.table.ceilings))
-		dStep.table.steps = make([]*dfaStep, len(nStep.table.ceilings)) // defaults will be nil, which is OK
-		for i, nfaList := range nStep.table.steps {
-			dStep.table.ceilings[i] = nStep.table.ceilings[i]
-			if nfaList != nil {
-				dStep.table.steps[i] = nfaStep2DfaStep(nfaList, memoize)
-			}
-		}
-	} else {
-		// coalesce - first, unpack each of the steps
-		unpackedNfaSteps := make([]*unpackedTable[*nfaStepList], len(stepList.steps))
-		var unpackedDfa unpackedTable[*dfaStep]
-		for i, list := range stepList.steps {
-			unpackedNfaSteps[i] = unpackTable(list.table)
-			dStep.fieldTransitions = append(dStep.fieldTransitions, list.fieldTransitions...)
-		}
-		for utf8Byte := 0; utf8Byte < byteCeiling; utf8Byte++ {
-			steps := make(map[*nfaStep]bool)
-			for _, table := range unpackedNfaSteps {
-				if table[utf8Byte] != nil {
-					for _, step := range table[utf8Byte].steps {
-						steps[step] = true
-					}
-				}
-			}
-			var synthStep nfaStepList
-			for step := range steps {
-				synthStep.steps = append(synthStep.steps, step)
-			}
-			unpackedDfa[utf8Byte] = nfaStep2DfaStep(&synthStep, memoize)
-		}
-		dStep.table.pack(&unpackedDfa)
-	}
-
-	return dStep
-}
-
-// makeSmallDfaTable creates a pre-loaded small table, with all bytes not otherwise specified having the defaultStep
+// makeSmallTable creates a pre-loaded small table, with all bytes not otherwise specified having the defaultStep
 // value, and then a few other values with their indexes and values specified in the other two arguments. The
 // goal is to reduce memory churn
 // constraint: positions must be provided in order
-func makeSmallDfaTable(defaultStep *dfaStep, indices []byte, steps []*dfaStep) *smallTable[*dfaStep] {
-	t := smallTable[*dfaStep]{
+func makeSmallTable(defaultStep *faNext, indices []byte, steps []*faNext) *smallTable {
+	t := smallTable{
 		ceilings: make([]byte, 0, len(indices)+2),
-		steps:    make([]*dfaStep, 0, len(indices)+2),
+		steps:    make([]*faNext, 0, len(indices)+2),
 	}
+
 	var lastIndex byte = 0
 	for i, index := range indices {
 		if index > lastIndex {
@@ -237,13 +100,13 @@ func makeSmallDfaTable(defaultStep *dfaStep, indices []byte, steps []*dfaStep) *
 }
 
 // unpackedTable replicates the data in the smallTable ceilings and steps arrays.  It's quite hard to
-// update the list structure in a smallDfaTable, but trivial in an unpackedTable.  The idea is that to update
-// a smallDfaTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
-// TODO: Figure out how to update a smallDfaTable in place
-type unpackedTable[S comparable] [byteCeiling]S
+// update the list structure in a smallTable, but trivial in an unpackedTable.  The idea is that to update
+// a smallTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
+// TODO: Figure out how to update a smallTable in place
+type unpackedTable [byteCeiling]*faNext
 
-func unpackTable[S comparable](t *smallTable[S]) *unpackedTable[S] {
-	var u unpackedTable[S]
+func unpackTable(t *smallTable) *unpackedTable {
+	var u unpackedTable
 	unpackedIndex := 0
 	for packedIndex, c := range t.ceilings {
 		ceiling := int(c)
@@ -255,9 +118,9 @@ func unpackTable[S comparable](t *smallTable[S]) *unpackedTable[S] {
 	return &u
 }
 
-func (t *smallTable[S]) pack(u *unpackedTable[S]) {
+func (t *smallTable) pack(u *unpackedTable) {
 	ceilings := make([]byte, 0, 16)
-	steps := make([]S, 0, 16)
+	steps := make([]*faNext, 0, 16)
 	lastStep := u[0]
 	for unpackedIndex, ss := range u {
 		if ss != lastStep {
@@ -272,16 +135,84 @@ func (t *smallTable[S]) pack(u *unpackedTable[S]) {
 	t.steps = steps
 }
 
-func (t *smallTable[S]) addByteStep(utf8Byte byte, step S) {
+func (t *smallTable) addByteStep(utf8Byte byte, step *faNext) {
 	unpacked := unpackTable(t)
 	unpacked[utf8Byte] = step
 	t.pack(unpacked)
 }
 
-func (t *smallTable[S]) addRangeSteps(floor int, ceiling int, s S) {
+// setDefault sets all the values of the table to the provided faNext pointer
+// TODO: Do we need this at all? Maybe just a variant of newSmallTable?
+func (t *smallTable) setDefault(s *faNext) {
+	t.steps = []*faNext{s}
+	t.ceilings = []byte{byte(byteCeiling)}
+}
+
+// Debugging from here down
+/*
+// addRangeSteps not currently used but think it will be useful in future regex-y work
+func (t *smallTable) addRangeSteps(floor int, ceiling int, s *faNext) {
 	unpacked := unpackTable(t)
 	for i := floor; i < ceiling; i++ {
 		unpacked[i] = s
 	}
 	t.pack(unpacked)
 }
+
+func st2(t *smallTable) string {
+	// going to build a string rep of a smallTable based on the unpacked form
+	// each line is going to be a range like
+	// 'c' .. 'e' => %X
+	// lines where the *faNext is nil are omitted
+	var rows []string
+	unpacked := unpackTable(t)
+
+	var rangeStart int
+	var b int
+
+	defTrans := unpacked[0]
+
+	for {
+		for b < len(unpacked) && unpacked[b] == nil {
+			b++
+		}
+		if b == len(unpacked) {
+			break
+		}
+		rangeStart = b
+		lastN := unpacked[b]
+		for b < len(unpacked) && unpacked[b] == lastN {
+			b++
+		}
+		if lastN != defTrans {
+			row := ""
+			if b == rangeStart+1 {
+				row += fmt.Sprintf("'%s'", branchChar((byte(rangeStart))))
+			} else {
+				row += fmt.Sprintf("'%s'…'%s'", branchChar(byte(rangeStart)), branchChar(byte(b-1)))
+			}
+			row += " → " + lastN.String()
+			rows = append(rows, row)
+		}
+	}
+	if defTrans != nil {
+		dtString := "★ → " + defTrans.String()
+		return fmt.Sprintf("%d [%s] ", t.serial, t.label) + strings.Join(rows, " / ") + " / " + dtString
+	} else {
+		return fmt.Sprintf("%d [%s] ", t.serial%1000, t.label) + strings.Join(rows, " / ")
+	}
+}
+
+func branchChar(b byte) string {
+	switch b {
+	case 0:
+		return "∅"
+	case valueTerminator:
+		return "ℵ"
+	case byte(byteCeiling):
+		return "♾️"
+	default:
+		return fmt.Sprintf("%c", b)
+	}
+}
+*/

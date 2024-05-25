@@ -5,16 +5,13 @@ import (
 	"sync/atomic"
 )
 
-// valueMatcher represents a byte-driven automaton.  The table needs to be the
-// equivalent of a map[byte]nextState and is represented by smallTable. Some
-// patterns can be represented by a deterministic finite automaton (DFA) but
-// others, particularly with a regex flavor, need to be represented by a
-// nondeterministic finite automaton (NFA).  NFAs are converted to DFAs for
-// simplicity and efficiency. The basic algorithm is to compute the automaton
-// for a pattern, convert it to a DFA if necessary, and merge with any
-// existing DFA.
+// valueMatcher represents a byte-driven finite automaton (FA).  The table needs to be the
+// equivalent of a map[byte]nextState and is represented by smallTable.
+// In this implementation all the FAs are nondeterministic, which means each
+// byte can cause transfers to multiple other states. The basic algorithm is to compute the FA
+// for a pattern and merge with any existing FA.
 // In some (common) cases there is only one byte sequence forward from a state,
-// i.e. a string-valued field with only one string match. In this case, the DFA
+// i.e. a string-valued field with only one string match. In this case, the FA
 // will be null and the value being matched has to exactly equal the singletonMatch
 // field; if so, the singletonTransition is the return value. This is to avoid
 // having a long chain of smallTables each with only one entry.
@@ -25,7 +22,7 @@ type valueMatcher struct {
 	updateable atomic.Value // always contains *vmFields
 }
 type vmFields struct {
-	startDfa            *smallTable[*dfaStep]
+	startTable          *smallTable
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
 }
@@ -66,38 +63,14 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		}
 		return transitions
 
-	case fields.startDfa != nil:
-		return transitionDfa(fields.startDfa, val, transitions)
+	case fields.startTable != nil:
+		return traverseFA(fields.startTable, val, transitions)
 
 	default:
-		// no dfa, no singleton, nothing to do, this probably can't happen because a flattener
+		// no FA, no singleton, nothing to do, this probably can't happen because a flattener
 		// shouldn't preserve a field that hasn't appeared in a pattern
 		return transitions
 	}
-}
-
-func transitionDfa(table *smallTable[*dfaStep], val []byte, transitions []*fieldMatcher) []*fieldMatcher {
-	// step through the smallTables, byte by byte
-	for _, utf8Byte := range val {
-		step := table.step(utf8Byte)
-		if step == nil {
-			return transitions
-		}
-
-		transitions = append(transitions, step.fieldTransitions...)
-		table = step.table
-	}
-
-	// look for terminator after exhausting bytes of val
-	lastStep := table.step(valueTerminator)
-
-	// we only do a field-level transition if there's one in the table that the
-	// last character in val arrives at
-	if lastStep != nil {
-		transitions = append(transitions, lastStep.fieldTransitions...)
-	}
-
-	return transitions
 }
 
 func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
@@ -105,24 +78,22 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 	fields := m.getFieldsForUpdate()
 
 	// there's already a table, thus an out-degree > 1
-	if fields.startDfa != nil {
-		var newDfa *smallTable[*dfaStep]
+	if fields.startTable != nil {
+		var newFA *smallTable
 		var nextField *fieldMatcher
 		switch val.vType {
 		case stringType, numberType, literalType:
-			newDfa, nextField = makeStringAutomaton(valBytes, nil)
+			newFA, nextField = makeStringFA(valBytes, nil)
 		case anythingButType:
-			newDfa, nextField = makeMultiAnythingButAutomaton(val.list, nil)
+			newFA, nextField = makeMultiAnythingButFA(val.list)
 		case shellStyleType:
-			var newNfa *smallTable[*nfaStepList]
-			newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
-			newDfa = nfa2Dfa(newNfa)
+			newFA, nextField = makeShellStyleAutomaton(valBytes)
 		case prefixType:
-			newDfa, nextField = makePrefixAutomaton(valBytes, nil)
+			newFA, nextField = makePrefixAutomaton(valBytes)
 		default:
 			panic("unknown value type")
 		}
-		fields.startDfa = mergeDfas(fields.startDfa, newDfa)
+		fields.startTable = mergeFAs(fields.startTable, newFA)
 		m.update(fields)
 		return nextField
 	}
@@ -139,18 +110,18 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 			m.update(fields)
 			return fields.singletonTransition
 		case anythingButType:
-			newAutomaton, nextField := makeMultiAnythingButAutomaton(val.list, nil)
-			fields.startDfa = newAutomaton
+			newFA, nextField := makeMultiAnythingButFA(val.list)
+			fields.startTable = newFA
 			m.update(fields)
 			return nextField
 		case shellStyleType:
-			newAutomaton, nextField := makeShellStyleAutomaton(valBytes, nil)
-			fields.startDfa = nfa2Dfa(newAutomaton)
+			newAutomaton, nextField := makeShellStyleAutomaton(valBytes)
+			fields.startTable = newAutomaton
 			m.update(fields)
 			return nextField
 		case prefixType:
-			newAutomaton, nextField := makePrefixAutomaton(valBytes, nil)
-			fields.startDfa = newAutomaton
+			newFA, nextField := makePrefixAutomaton(valBytes)
+			fields.startTable = newFA
 			m.update(fields)
 			return nextField
 		default:
@@ -167,77 +138,85 @@ func (m *valueMatcher) addTransition(val typedVal) *fieldMatcher {
 
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have
 	// to build an automaton with two values in it
-	singletonAutomaton, _ := makeStringAutomaton(fields.singletonMatch, fields.singletonTransition)
+	singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition)
 	var nextField *fieldMatcher
-	var newDfa *smallTable[*dfaStep]
+	var newFA *smallTable
 	switch val.vType {
 	case stringType, numberType, literalType:
-		newDfa, nextField = makeStringAutomaton(valBytes, nil)
+		newFA, nextField = makeStringFA(valBytes, nil)
 	case anythingButType:
-		newDfa, nextField = makeMultiAnythingButAutomaton(val.list, nil)
+		newFA, nextField = makeMultiAnythingButFA(val.list)
 	case shellStyleType:
-		var newNfa *smallTable[*nfaStepList]
-		newNfa, nextField = makeShellStyleAutomaton(valBytes, nil)
-		newDfa = nfa2Dfa(newNfa)
+		newFA, nextField = makeShellStyleAutomaton(valBytes)
 	case prefixType:
-		newDfa, nextField = makePrefixAutomaton(valBytes, nil)
+		newFA, nextField = makePrefixAutomaton(valBytes)
 	default:
 		panic("unknown value type")
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it
-	fields.startDfa = mergeDfas(singletonAutomaton, newDfa)
+	fields.startTable = mergeFAs(singletonAutomaton, newFA)
+	// fmt.Println("Merged: " + fields.startTable.dump())
 	fields.singletonMatch = nil
 	fields.singletonTransition = nil
 	m.update(fields)
 	return nextField
 }
 
-func makePrefixAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
-	var nextField *fieldMatcher
-
-	if useThisTransition != nil {
-		nextField = useThisTransition
-	} else {
-		nextField = newFieldMatcher()
-	}
+func makePrefixAutomaton(val []byte) (*smallTable, *fieldMatcher) {
+	nextField := newFieldMatcher()
 	return onePrefixStep(val, 0, nextField), nextField
 }
 
-func onePrefixStep(val []byte, index int, nextField *fieldMatcher) *smallTable[*dfaStep] {
-	var nextStep *dfaStep
+func onePrefixStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
+	var nextStep *faNext
 
 	// have to stop one short to skip the closing "
+	var nextState *faState
+
 	if index == len(val)-2 {
-		nextStep = &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{nextField}}
+		nextState = &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 	} else {
-		nextStep = &dfaStep{table: onePrefixStep(val, index+1, nextField)}
+		nextState = &faState{table: onePrefixStep(val, index+1, nextField)}
 	}
-	return makeSmallDfaTable(nil, []byte{val[index]}, []*dfaStep{nextStep})
+	nextStep = &faNext{steps: []*faState{nextState}}
+	return makeSmallTable(nil, []byte{val[index]}, []*faNext{nextStep})
 }
 
-// makeStringAutomaton creates a utf8-based automaton from a literal string
+// makeStringFA creates a utf8-based automaton from a literal string
 // using smallTables. Note the addition of a valueTerminator. The implementation
-// is recursive because this allows the use of the makeSmallDfaTable call, which
+// is recursive because this allows the use of the makeSmallTable call, which
 // reduces memory churn. Converting from a straightforward implementation to
 // this approximately doubled the fields/second rate in addPattern
-func makeStringAutomaton(val []byte, useThisTransition *fieldMatcher) (*smallTable[*dfaStep], *fieldMatcher) {
+func makeStringFA(val []byte, useThisTransition *fieldMatcher) (*smallTable, *fieldMatcher) {
 	var nextField *fieldMatcher
 	if useThisTransition != nil {
 		nextField = useThisTransition
 	} else {
 		nextField = newFieldMatcher()
 	}
-	return oneDfaStep(val, 0, nextField), nextField
+
+	return makeOneFAStep(val, 0, nextField), nextField
 }
 
-func oneDfaStep(val []byte, index int, nextField *fieldMatcher) *smallTable[*dfaStep] {
-	var nextStep *dfaStep
+func makeOneFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
+	var nextStepList *faNext
 	if index == len(val)-1 {
-		lastStep := &dfaStep{table: newSmallTable[*dfaStep](), fieldTransitions: []*fieldMatcher{nextField}}
-		nextStep = &dfaStep{table: makeSmallDfaTable(nil, []byte{valueTerminator}, []*dfaStep{lastStep})}
+		lastStep := &faState{
+			table:            newSmallTable(),
+			fieldTransitions: []*fieldMatcher{nextField},
+		}
+		lastStepList := &faNext{steps: []*faState{lastStep}}
+		nextStep := &faState{
+			table: makeSmallTable(nil, []byte{valueTerminator}, []*faNext{lastStepList}),
+		}
+		nextStepList = &faNext{steps: []*faState{nextStep}}
 	} else {
-		nextStep = &dfaStep{table: oneDfaStep(val, index+1, nextField)}
+		nextStep := &faState{table: makeOneFAStep(val, index+1, nextField)}
+		nextStepList = &faNext{steps: []*faState{nextStep}}
 	}
-	return makeSmallDfaTable(nil, []byte{val[index]}, []*dfaStep{nextStep})
+	var u unpackedTable
+	u[val[index]] = nextStepList
+	// return stepper.buildTable(&u)
+	return makeSmallTable(nil, []byte{val[index]}, []*faNext{nextStepList})
 }

@@ -196,11 +196,12 @@ func TestOverlappingValues(t *testing.T) {
 }
 
 func TestFuzzValueMatcher(t *testing.T) {
-	rand.New(rand.NewSource(98543))
+	source := rand.NewSource(98543)
+
 	m := newCoreMatcher()
 	var pNames []X
 	bytes := "abcdefghijklmnopqrstuvwxyz"
-	lb := len(bytes)
+	lb := int64(len(bytes))
 	strLen := 12
 	used := make(map[X]bool)
 
@@ -209,7 +210,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 		str := ""
 		for j := 0; j < strLen; j++ {
 			//nolint:gosec
-			ch := bytes[rand.Int()%lb]
+			ch := bytes[source.Int63()%lb]
 			str += string([]byte{ch})
 		}
 		pNames = append(pNames, str)
@@ -248,7 +249,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 		str := ""
 		for j := 0; j < strLen; j++ {
 			//nolint:gosec
-			ch := bytes[rand.Int()%lb]
+			ch := bytes[source.Int63()%lb]
 			str += string([]byte{ch})
 		}
 		_, ok := used[str]
@@ -268,7 +269,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 }
 
 func TestFuzzWithNumbers(t *testing.T) {
-	rand.New(rand.NewSource(98543))
+	source := rand.NewSource(98543)
 	m := newCoreMatcher()
 	var pNames []X
 	used := make(map[X]bool)
@@ -276,7 +277,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 	// make ten thousand random numbers between 1 and 100K. There are probably dupes?
 	for i := 0; i < 10000; i++ {
 		//nolint:gosec
-		n := rand.Int63n(1000000)
+		n := source.Int63()
 		ns := fmt.Sprintf("%d", n)
 		pNames = append(pNames, ns)
 		used[ns] = true
@@ -330,13 +331,4 @@ func TestFuzzWithNumbers(t *testing.T) {
 			t.Errorf("OUCH %d matches to %s", len(matches), ns)
 		}
 	}
-}
-
-func contains(list []*fieldMatcher, s *fieldMatcher) bool {
-	for _, l := range list {
-		if l == s {
-			return true
-		}
-	}
-	return false
 }

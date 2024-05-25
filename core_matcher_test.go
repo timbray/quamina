@@ -139,6 +139,58 @@ func TestFieldNameOrdering(t *testing.T) {
 	}
 }
 
+func TestSuffixBug(t *testing.T) {
+	var err error
+	j := `{"Url":    "xy9"}`
+	patterns := []string{
+		`{ "Url": [ { "shellstyle": "*9" } ] }`,
+		`{ "Url": [ { "shellstyle": "x*9" } ] }`,
+	}
+
+	// make sure each works individually
+	m := newCoreMatcher()
+	_ = m.addPattern("p0", patterns[0])
+	matches, _ := m.matchesForJSONEvent([]byte(j))
+	if len(matches) != 1 || matches[0] != "p0" {
+		t.Error("p0 didn't match")
+	}
+
+	m = newCoreMatcher()
+	_ = m.addPattern("p1", patterns[1])
+	matches, _ = m.matchesForJSONEvent([]byte(j))
+	if len(matches) != 1 || matches[0] != "p1" {
+		t.Error("p1 didn't match")
+	}
+
+	// now let's see if they work merged
+	m = newCoreMatcher()
+	wanted := make(map[X]int)
+	for _, should := range patterns {
+		wanted[should] = 0
+		err = m.addPattern(should, should)
+		if err != nil {
+			t.Error("add one of many: " + err.Error())
+		}
+	}
+	matches, err = m.matchesForJSONEvent([]byte(j))
+	if err != nil {
+		t.Error("m4J on all: " + err.Error())
+	}
+	if len(matches) != len(patterns) {
+		for _, match := range matches {
+			wanted[match]++
+		}
+		for want := range wanted {
+			if wanted[want] == 0 {
+				t.Errorf("Missed: %s", want.(string))
+			} else {
+				fmt.Printf("Matched %s\n", want)
+			}
+		}
+		fmt.Println()
+	}
+}
+
 func TestExerciseMatching(t *testing.T) {
 	j := `{
         "Image": {
@@ -234,12 +286,11 @@ func TestExerciseMatching(t *testing.T) {
 		}
 		for want := range wanted {
 			if wanted[want] == 0 {
-				t.Errorf("Missed: %v" + want.(string))
+				t.Errorf("Missed: %s", want.(string))
 			}
 		}
 		fmt.Println()
 	}
-	// fmt.Println("Should not: " + matcherStats(m))
 }
 
 func TestTacos(t *testing.T) {
