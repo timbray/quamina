@@ -61,7 +61,7 @@ type prunerMatcher struct {
 
 	// Maybe prunerMatcher should maybe not be embedded or public.
 
-	// live is live set of patterns.
+	// live is the live set of patterns.
 	live LivePatternsState
 
 	stats prunerStats
@@ -123,7 +123,7 @@ func (t *tooMuchFiltering) rebuild(added bool, s *prunerStats) bool {
 	// We won't rebuildWhileLocked if nothing's been emitted yet.
 	//
 	// In isolation, this heuristic is arguable, but for this
-	// policy we need it.  Otherwise we'll divide by zero, and
+	// policy we need it. Otherwise, we'll divide by zero, and
 	// nobody wants that.
 	if s.Emitted == 0 {
 		return false
@@ -148,9 +148,9 @@ func (m *prunerMatcher) disableRebuild() {
 // rebuildTrigger provides a way to control when rebuilds are
 // automatically triggered during standard operations.
 //
-// Currently an addPattern, deletePatterns, or matchesForFields can
+// Currently, an addPattern, deletePatterns, or matchesForFields can
 // trigger a rebuild.  When a rebuild is triggered, it's executed
-// synchronously: the the Add/Delete/Match method doesn't return until
+// synchronously: the Add/Delete/Match method doesn't return until
 // the rebuild is complete.
 type rebuildTrigger interface {
 	// rebuild should return true to trigger a rebuild.

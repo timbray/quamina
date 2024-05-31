@@ -198,7 +198,7 @@ func TestBigShellStyle(t *testing.T) {
 }
 
 // TestPatternAddition adds a whole lot of string-only rules as fast as possible  The profiler says that the
-// performance is totally doinated by the garbage-collector thrashing, in particular it has to allocate
+// performance is totally dominated by the garbage-collector thrashing, in particular it has to allocate
 // ~220K smallTables.  Tried https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap/
 // but it doesn't seem to help.
 // TODO: Add shellstyle patterns
@@ -231,7 +231,7 @@ func TestPatternAddition(t *testing.T) {
 	runtime.ReadMemStats(&msAfter)
 	delta := 1.0 / 1000000.0 * float64(msAfter.Alloc-msBefore.Alloc)
 	fmt.Printf("before %d, after %d, delta %f\n", msBefore.Alloc, msAfter.Alloc, delta)
-	fmt.Println("stats:" + matcherStats(m))
+	fmt.Println("statsAccum:" + matcherStats(m))
 	elapsed := float64(time.Since(before).Milliseconds())
 	perSecond := float64(fieldCount) / (elapsed / 1000.0)
 	fmt.Printf("%.2f fields/second\n\n", perSecond)

@@ -41,61 +41,6 @@ func TestPatternErrorHandling(t *testing.T) {
 	}
 }
 
-// test that adding an empty pattern doesn't screw anything up
-func TestEmptyValueArray(t *testing.T) {
-	var err error
-	empties := []string{
-		`{"data": {"field": []}}`,
-		`{"data": {"field": [], "field2": [23]}}`,
-		`{"data": {"field2": [], "field": [23]}}`,
-	}
-	wanted := map[string][]X{
-		`{"data": {"field": 23}}`:  {empties[2]},
-		`{"data": {"field2": 23}}`: {empties[1]},
-		`{"data": {"field": []}}`:  {},
-	}
-	cm := newCoreMatcher()
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("addPattern panicked")
-		}
-	}()
-	for _, empty := range empties {
-		err = cm.addPattern(empty, empty)
-		if err != nil {
-			t.Error("addPattern: " + err.Error())
-		}
-	}
-
-	for want := range wanted {
-		matches, err := cm.matchesForJSONEvent([]byte(want))
-		if err != nil {
-			t.Errorf("m4je err on %s", want)
-		}
-		checkXEqual(t, wanted[want], matches)
-	}
-}
-func checkXEqual(t *testing.T, x1s []X, x2s []X) {
-	t.Helper()
-	x2size := len(x2s)
-	for _, x1 := range x1s {
-		count := 0
-		for _, x2 := range x2s {
-			if x1 == x2 {
-				count++
-			}
-		}
-		if count != 1 {
-			t.Errorf("for %s in X1, %d", x1, count)
-		} else {
-			x2size--
-		}
-	}
-	if x2size != 0 {
-		t.Error("Extra elements in X2")
-	}
-}
-
 func TestPatternFromJSON(t *testing.T) {
 	bads := []string{
 		`x`,

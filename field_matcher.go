@@ -94,7 +94,7 @@ func (m *fieldMatcher) addExists(exists bool, field *patternField) []*fieldMatch
 }
 
 func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
-	// we build the new updateable state in freshStart so we can blsat it in atomically once computed
+	// we build the new updateable state in freshStart so that we can blast it in atomically once computed
 	current := m.fields()
 	freshStart := &fmFields{
 		matches:     current.matches,

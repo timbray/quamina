@@ -3,7 +3,7 @@ package quamina
 import "fmt"
 
 // TODO: add stats for average and max smallTable fanout
-type stats struct {
+type statsAccum struct {
 	fmCount    int
 	fmTblCount int
 	fmEntries  int
@@ -19,10 +19,18 @@ type stats struct {
 	siCount    int
 }
 
+func (s *statsAccum) stStats() string {
+	avgStSize := "n/a"
+	if s.stTblCount > 0 {
+		avgStSize = fmt.Sprintf("%.3f", float64(s.stEntries)/float64(s.stTblCount))
+	}
+	return fmt.Sprintf("SmallTables %d (avg size %s, max %d), singletons %d", s.stCount, avgStSize, s.stMax, s.siCount)
+}
+
 // matcherStats gathers statistics about the size of a coreMatcher, including the average and max fanout sizes of
 // the transition tables, returning this information in string form
 func matcherStats(m *coreMatcher) string {
-	s := stats{
+	s := statsAccum{
 		fmVisited: make(map[*fieldMatcher]bool),
 		vmVisited: make(map[*valueMatcher]bool),
 		stVisited: make(map[any]bool),
@@ -39,7 +47,7 @@ func matcherStats(m *coreMatcher) string {
 	return fmPart + vmPart + stPart
 }
 
-func fmStats(m *fieldMatcher, s *stats) {
+func fmStats(m *fieldMatcher, s *statsAccum) {
 	if s.fmVisited[m] {
 		return
 	}
@@ -59,7 +67,7 @@ func fmStats(m *fieldMatcher, s *stats) {
 	}
 }
 
-func vmStats(m *valueMatcher, s *stats) {
+func vmStats(m *valueMatcher, s *statsAccum) {
 	if s.vmVisited[m] {
 		return
 	}
@@ -70,12 +78,12 @@ func vmStats(m *valueMatcher, s *stats) {
 		s.siCount++
 		fmStats(state.singletonTransition, s)
 	}
-	if state.startDfa != nil {
-		dfaStats(state.startDfa, s)
+	if state.startTable != nil {
+		faStats(state.startTable, s)
 	}
 }
 
-func dfaStats(t *smallTable[*dfaStep], s *stats) {
+func faStats(t *smallTable, s *statsAccum) {
 	if s.stVisited[t] {
 		return
 	}
@@ -89,14 +97,16 @@ func dfaStats(t *smallTable[*dfaStep], s *stats) {
 		s.stTblCount++
 		s.stEntries += len(t.ceilings)
 	}
-	for _, step := range t.steps {
-		if step != nil {
-			if step.fieldTransitions != nil {
-				for _, m := range step.fieldTransitions {
-					fmStats(m, s)
+	for _, next := range t.steps {
+		if next != nil {
+			for _, step := range next.steps {
+				if step.fieldTransitions != nil {
+					for _, m := range step.fieldTransitions {
+						fmStats(m, s)
+					}
 				}
+				faStats(step.table, s)
 			}
-			dfaStats(step.table, s)
 		}
 	}
 }

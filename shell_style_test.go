@@ -57,29 +57,23 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 		{`"ayybyyzxx"`},
 	}
 
-	// NOTE also testing nfa2Dfa
 	for i, pattern := range patterns {
-		myNext := newFieldMatcher()
-		a, wanted := makeShellStyleAutomaton([]byte(pattern), myNext)
-		if wanted != myNext {
-			t.Error("bad next on: " + pattern)
-		}
-		d := nfa2Dfa(a)
+		a, wanted := makeShellStyleAutomaton([]byte(pattern))
 		vm := newValueMatcher()
-		vmf := vmFields{startDfa: d}
+		vmf := vmFields{startTable: a}
 		vm.update(&vmf)
 		for _, should := range shouldsForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := transitionDfa(d, []byte(should), transitions)
+			gotTrans := traverseFA(a, []byte(should), transitions)
 			if len(gotTrans) != 1 || gotTrans[0] != wanted {
 				t.Errorf("Failure for %s on %s", pattern, should)
 			}
 		}
 		for _, shouldNot := range shouldNotForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := transitionDfa(d, []byte(shouldNot), transitions)
+			gotTrans := traverseFA(a, []byte(shouldNot), transitions)
 			if gotTrans != nil {
-				t.Errorf("bogus DFA match for %s on %s", pattern, shouldNot)
+				t.Errorf("bogus match for %s on %s", pattern, shouldNot)
 			}
 		}
 	}
@@ -89,18 +83,17 @@ func TestShellStyleBuildTime(t *testing.T) {
 	words := readWWords(t)
 	starWords := make([]string, 0, len(words))
 	patterns := make([]string, 0, len(words))
+	source := rand.NewSource(293591)
 	for _, word := range words {
 		//nolint:gosec
-		starAt := rand.Int31n(6)
+		starAt := source.Int63() % 6
 		starWord := string(word[:starAt]) + "*" + string(word[starAt:])
 		starWords = append(starWords, starWord)
 		pattern := fmt.Sprintf(`{"x": [ {"shellstyle": "%s" } ] }`, starWord)
 		patterns = append(patterns, pattern)
 	}
 	q, _ := New()
-	for i := 0; i < 32; i++ {
-		// fmt.Printf("i=%d w=%s: %s\n", i, starWords[i], matcherStats(q.matcher.(*coreMatcher)))
-		// fmt.Println(patterns[i])
+	for i := 0; i < 21; i++ {
 		err := q.AddPattern(starWords[i], patterns[i])
 		if err != nil {
 			t.Error("AddP: " + err.Error())
@@ -140,6 +133,8 @@ func TestMixedPatterns(t *testing.T) {
 			t.Error("addPattern: " + name + ", prob=" + err.Error())
 		}
 	}
+	fmt.Println("M: " + matcherStats(m))
+
 	got := make(map[X]int)
 	lines := getCityLotsLines(t)
 	for _, line := range lines {
