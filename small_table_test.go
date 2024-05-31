@@ -6,38 +6,6 @@ import (
 	"time"
 )
 
-/* TODO: Restore
-func TestMakeSmallTable(t *testing.T) {
-	tMST(t, []byte{1, 2, 33})
-	tMST(t, []byte{0, 1, 2, 33, byte(byteCeiling - 1)})
-	tMST(t, []byte{2, 33, byte(byteCeiling - 1)})
-	tMST(t, []byte{0, 1, 2, 33})
-}
-
-func tMST(t *testing.T, b []byte) {
-	t.Helper()
-
-	comp := &dfaStep{table: newSmallTable[*dfaStep]()}
-	sdef := &dfaStep{table: newSmallTable[*dfaStep]()}
-	comp.table.addRangeSteps(0, byteCeiling, sdef)
-	var steps []*dfaStep
-	for _, pos := range b {
-		onestep := &dfaStep{table: newSmallTable[*dfaStep]()}
-		steps = append(steps, onestep)
-		comp.table.addByteStep(pos, onestep)
-	}
-	table := makeSmallDfaTable(sdef, b, steps)
-	uComp := unpackTable(comp.table)
-	uT := unpackTable(table)
-	for i := range uComp {
-		if uComp[i] != uT[i] {
-			t.Errorf("wrong at %d", i)
-		}
-	}
-}
-
-*/
-
 func TestFAMergePerf(t *testing.T) {
 	words := readWWords(t)
 	patterns := make([]string, 0, len(words))
@@ -69,94 +37,22 @@ func TestFAMergePerf(t *testing.T) {
 	fmt.Printf("%.2f addPatterns/second with letter patterns\n\n", perSecond)
 }
 
-/* TODO: Restore
-func TestCombiner(t *testing.T) {
-	// "jab"
-	A0 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	A1 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	A2 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	A3 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	A0.table.addByteStep('j', A1)
-	A1.table.addByteStep('a', A2)
-	A2.table.addByteStep('b', A3)
-	AFM := newFieldMatcher()
-	AFM.fields().transitions["AFM"] = newValueMatcher()
-	st := newDfaTransition(AFM)
-	A3.table.addByteStep(valueTerminator, st)
-
-	// *ay*
-	B0 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	B1 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	B2 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	B0.table.addRangeSteps(0, byteCeiling, B0)
-	B0.table.addByteStep('a', B1)
-	B1.table.addRangeSteps(0, byteCeiling, B0)
-	B1.table.addByteStep('y', B2)
-	BFM := newFieldMatcher()
-	BFM.fields().transitions["BFM"] = newValueMatcher()
-	st = newDfaTransition(BFM)
-	B2.table.addRangeSteps(0, byteCeiling, st)
-
-	combo := mergeOneDfaStep(A0, B0, make(map[dfaStepKey]*dfaStep))
-
-	state := &vmFields{startTable: combo.table}
-	vm := newValueMatcher()
-	vm.update(state)
-	matches := vm.transitionOn([]byte("jab"))
-	if len(matches) != 1 || matches[0].fields().transitions["AFM"] == nil {
-		t.Error("wanted AFM")
-	}
-	matches = vm.transitionOn([]byte("jayhawk"))
-	if len(matches) != 1 || matches[0].fields().transitions["BFM"] == nil {
-		t.Error("wanted BFM")
-	}
-
-	// "*yy"
-	C0 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	C1 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	C2 := &dfaStep{table: newSmallTable[*dfaStep]()}
-	C0.table.addRangeSteps(0, byteCeiling, C0)
-	C0.table.addByteStep('y', C1)
-	C1.table.addRangeSteps(0, byteCeiling, C0)
-	C1.table.addByteStep('y', C2)
-	C2.table.addRangeSteps(0, byteCeiling, C0)
-	CFM := newFieldMatcher()
-	CFM.fields().transitions["CFM"] = newValueMatcher()
-	st = newDfaTransition(CFM)
-	C2.table.addByteStep(valueTerminator, st)
-
-	combo = mergeOneDfaStep(&dfaStep{table: vm.getFields().startTable}, C0, make(map[dfaStepKey]*dfaStep))
-	vm.update(&vmFields{startTable: combo.table})
-	matches = vm.transitionOn([]byte("jab"))
-	if len(matches) != 1 || matches[0].fields().transitions["AFM"] == nil {
-		t.Error("wanted AFM")
-	}
-	matches = vm.transitionOn([]byte("jayhawk"))
-	if len(matches) != 1 || matches[0].fields().transitions["BFM"] == nil {
-		t.Error("wanted BFM")
-	}
-	matches = vm.transitionOn([]byte("xayjjyy"))
-	if len(matches) != 2 {
-		t.Error("less than two matches")
-	}
-	if !(contains(matches, BFM) && contains(matches, CFM)) {
-		t.Error("should have BFM and CFM")
-	}
-}
-*/
-
-/* TODO: Restore
 func TestUnpack(t *testing.T) {
-	st1 := &dfaStep{table: newSmallTable[*dfaStep]()}
+	st1 := newSmallTable()
+	nextState := faState{
+		table:            st1,
+		fieldTransitions: nil,
+	}
+	nextStep := faNext{steps: []*faState{&nextState}}
 
-	st := smallTable[*dfaStep]{
+	st := smallTable{
 		ceilings: []uint8{2, 3, byte(byteCeiling)},
-		steps:    []*dfaStep{nil, st1, nil},
+		steps:    []*faNext{nil, &nextStep, nil},
 	}
 	u := unpackTable(&st)
 	for i := range u {
 		if i == 2 {
-			if u[i] != st1 {
+			if u[i] != &nextStep {
 				t.Error("Not in pos 2")
 			}
 		} else {
@@ -167,7 +63,7 @@ func TestUnpack(t *testing.T) {
 	}
 }
 
-
+/* TODO: Restore (sigh, going to be a lot of tedious work)
 func TestFuzzPack(t *testing.T) {
 	seeds := []int64{9, 81, 1729, 8, 64, 512, 7, 49, 343, 6, 36, 216, 5, 25, 125}
 	for _, seed := range seeds {
@@ -236,53 +132,4 @@ func fuzzPack(t *testing.T, seed int64) {
 		}
 	}
 }
-
-
-*/
-
-/* Debug testing
-func TestSt2(t *testing.T) {
-	fas1 := faNext{
-		serial: 1,
-		steps:  []*faState{},
-	}
-	fas2 := faNext{
-		serial: 2,
-		steps:  []*faState{},
-	}
-	fas3 := faNext{
-		serial: 3,
-		steps:  []*faState{},
-	}
-	fas4 := faNext{
-		serial: 4,
-		steps:  []*faState{},
-	}
-	fas0 := faNext{
-		serial: 0,
-		steps:  []*faState{},
-	}
-
-	fasp1 := &fas1
-	fasp2 := &fas2
-	fasp3 := &fas3
-	fasp4 := &fas4
-	fasp0 := &fas0
-
-	table := newSmallTable()
-	table.addByteStep('b', fasp1)
-	table.addByteStep('c', fasp2)
-	table.addByteStep('z', fasp2)
-	table.addByteStep('$', fasp3)
-	table.addRangeSteps('p', 't', fasp4)
-
-	DEBUG fmt.Println("ta-da! " + st2(table))
-
-	table = newSmallTable()
-	table.addByteStep('c', fasp2)
-
-	table = makeSmallTable(fasp0, []byte{'b', 'c', 'z', '$'}, []*faNext{fasp1, fasp2, fasp2, fasp3})
-	fmt.Println("to-do! " + st2(table))
-}
-
 */

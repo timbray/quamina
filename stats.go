@@ -15,7 +15,7 @@ type statsAccum struct {
 	stTblCount int
 	stEntries  int
 	stMax      int
-	stVisited  map[any]bool
+	stVisited  map[*smallTable]bool
 	siCount    int
 }
 
@@ -33,7 +33,7 @@ func matcherStats(m *coreMatcher) string {
 	s := statsAccum{
 		fmVisited: make(map[*fieldMatcher]bool),
 		vmVisited: make(map[*valueMatcher]bool),
-		stVisited: make(map[any]bool),
+		stVisited: make(map[*smallTable]bool),
 	}
 	fmStats(m.fields().state, &s)
 	avgFmSize := fmt.Sprintf("%.3f", float64(s.fmEntries)/float64(s.fmTblCount))
@@ -41,10 +41,11 @@ func matcherStats(m *coreMatcher) string {
 	if s.stTblCount > 0 {
 		avgStSize = fmt.Sprintf("%.3f", float64(s.stEntries)/float64(s.stTblCount))
 	}
-	fmPart := fmt.Sprintf("Field matchers: %d (avg size %s, max %d), ", s.fmCount, avgFmSize, s.fmMax)
-	vmPart := fmt.Sprintf("Value matchers: %d, ", s.vmCount)
-	stPart := fmt.Sprintf("SmallTables %d (avg size %s, max %d), singletons %d", s.stCount, avgStSize, s.stMax, s.siCount)
-	return fmPart + vmPart + stPart
+	fmPart := fmt.Sprintf("Field matchers: %d (avg size %s, max %d)", s.fmCount, avgFmSize, s.fmMax)
+	vmPart := fmt.Sprintf("Value matchers: %d", s.vmCount)
+	stPart := fmt.Sprintf("SmallTables %d (unique %d, avg size %s, max %d), singletons %d", s.stCount, len(s.stVisited), avgStSize, s.stMax, s.siCount)
+
+	return fmPart + "\n" + vmPart + "\n" + stPart
 }
 
 func fmStats(m *fieldMatcher, s *statsAccum) {
@@ -84,11 +85,11 @@ func vmStats(m *valueMatcher, s *statsAccum) {
 }
 
 func faStats(t *smallTable, s *statsAccum) {
+	s.stCount++
 	if s.stVisited[t] {
 		return
 	}
 	s.stVisited[t] = true
-	s.stCount++
 	tSize := len(t.ceilings)
 	if tSize > 1 {
 		if tSize > s.stMax {

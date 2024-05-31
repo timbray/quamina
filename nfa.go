@@ -21,6 +21,10 @@ func traverseOneFAStep(table *smallTable, index int, val []byte, transitions []*
 		return transitions
 	}
 	index++
+	// 1. Note no effort to traverse multiple next-steps in parallel. The traversal compute is tiny and the
+	//    necessary concurrency apparatus would almost certainly outweigh it
+	// 2. TODO: It would probably be better to implement this iteratively rather than recursively.
+	//    The recursion will potentially go as deep as the val argument is long.
 	for _, nextStep := range nextSteps.steps {
 		transitions = append(transitions, nextStep.fieldTransitions...)
 		transitions = traverseOneFAStep(nextStep.table, index, val, transitions)
@@ -101,66 +105,3 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState) *faS
 
 	return combined
 }
-
-/**************************************/
-/* debugging apparatus from here down */
-/**************************************/
-/*
-func (t *smallTable) dump() string {
-	return dump1(&faState{table: t}, 0, make(map[*smallTable]bool))
-}
-func dump1(fas *faState, indent int, already map[*smallTable]bool) string {
-	t := fas.table
-	s := " " + st2(t) + "\n"
-	for _, step := range t.steps {
-		if step != nil {
-			for _, state := range step.steps {
-				_, ok := already[state.table]
-				if !ok {
-					already[state.table] = true
-					s += dump1(state, indent+1, already)
-				}
-			}
-		}
-	}
-	return s
-}
-func (t *smallTable) shortDump() string {
-	return fmt.Sprintf("%d-%s", t.serial, t.label)
-}
-
-func (n *faNext) String() string {
-	var snames []string
-	for _, step := range n.steps {
-		snames = append(snames, fmt.Sprintf("%d %s", step.table.serial, step.table.label))
-	}
-	return "[" + strings.Join(snames, " · ") + "]"
-}
-
-func stString(t *smallTable) string {
-	var rows []string
-
-	for i := range t.ceilings {
-		c := t.ceilings[i]
-		if i == 0 {
-			c = 0
-		} else {
-			if c != valueTerminator && c != byte(byteCeiling) {
-				c = t.ceilings[i-1]
-			}
-		}
-		var trailer string
-		if i == len(t.ceilings)-1 && c != valueTerminator && c != byte(byteCeiling) {
-			trailer = "…"
-		} else {
-			trailer = ""
-		}
-		if t.steps[i] != nil {
-			rows = append(rows, fmt.Sprintf("%s%s:%s ", branchChar(c), trailer, t.steps[i].String()))
-		} else {
-			rows = append(rows, fmt.Sprintf("%s%s:nil ", branchChar(c), trailer))
-		}
-	}
-	return fmt.Sprintf("s%d [%s] ", t.serial, t.label) + strings.Join(rows, "/ ")
-}
-*/

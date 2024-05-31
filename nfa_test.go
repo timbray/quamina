@@ -58,7 +58,7 @@ func TestFocusedMerge(t *testing.T) {
 
 	for _, shellStyle := range shellStyles {
 		str := `"` + shellStyle + `"`
-		automaton, matcher := makeShellStyleAutomaton([]byte(str))
+		automaton, matcher := makeShellStyleAutomaton([]byte(str), &nullPrinter{})
 		automata = append(automata, automaton)
 		matchers = append(matchers, matcher)
 	}
@@ -76,7 +76,7 @@ func TestFocusedMerge(t *testing.T) {
 		s := statsAccum{
 			fmVisited: make(map[*fieldMatcher]bool),
 			vmVisited: make(map[*valueMatcher]bool),
-			stVisited: make(map[any]bool),
+			stVisited: make(map[*smallTable]bool),
 		}
 		faStats(merged, &s)
 		fmt.Println(s.stStats())
