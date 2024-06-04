@@ -46,8 +46,6 @@ const valueTerminator byte = 0xf5
 // more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
 // number of those has a good chance of minimizing memory fetches
 type smallTable struct {
-	//DEBUG label string
-	//DEBUG serial   uint64
 	ceilings []byte
 	steps    []*faNext
 }
@@ -56,7 +54,6 @@ type smallTable struct {
 // the end, which smallTable.step totally depends on.
 func newSmallTable() *smallTable {
 	return &smallTable{
-		//DEBUG serial:   rand.Uint64() % 1000,
 		ceilings: []byte{byte(byteCeiling)},
 		steps:    []*faNext{nil},
 	}

@@ -73,7 +73,7 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	}
 }
 
-func (m *valueMatcher) addTransition(val typedVal, _ printer) *fieldMatcher {
+func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatcher {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
 
@@ -87,7 +87,7 @@ func (m *valueMatcher) addTransition(val typedVal, _ printer) *fieldMatcher {
 		case anythingButType:
 			newFA, nextField = makeMultiAnythingButFA(val.list)
 		case shellStyleType:
-			newFA, nextField = makeShellStyleAutomaton(valBytes, &nullPrinter{})
+			newFA, nextField = makeShellStyleAutomaton(valBytes, printer)
 		case prefixType:
 			newFA, nextField = makePrefixAutomaton(valBytes)
 		default:

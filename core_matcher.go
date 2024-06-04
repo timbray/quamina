@@ -52,7 +52,7 @@ func (m *coreMatcher) fields() *coreFields {
 // addPattern - the patternBytes is a JSON text which must be an object. The X is what the matcher returns to indicate
 // that the provided pattern has been matched. In many applications it might be a string which is the pattern's name.
 func (m *coreMatcher) addPattern(x X, patternJSON string) error {
-	return m.addPatternWithPrinter(x, patternJSON, &nullPrinter{})
+	return m.addPatternWithPrinter(x, patternJSON, sharedNullPrinter)
 }
 
 // addPatternWithPrinter can be called from debugging and under-development code to allow viewing pretty-printed

@@ -2,6 +2,12 @@
 
 ## Basics
 
+Most of this document is concerned with the mechanics of raising issues
+and posting Pull Requests to offer improvements to Quamina. Following
+this, there is a section entitled **Developing** that describes
+technology issues that potential contributors will face
+and tools that might be helpful.
+
 Quamina is hosted in this GitHub repository 
 at `github.com/timbray/quamina` and welcomes 
 contributions.
@@ -12,7 +18,7 @@ This is important because possibly Quamina already
 does what you want, in which case perhaps what’s 
 needed is a documentation fix. Possibly the idea 
 has been raised before but failed to convince Quamina’s
-maintainers. (Doesn’t mean it won’t find favor now;
+maintainers. (Doesn't mean it won’t find favor now;
 times change.)
 
 Assuming there is agreement that a change in Quamina
@@ -27,7 +33,7 @@ The coding style suggested by the Go community is
 used in Quamina. See the
 [style doc](https://github.com/golang/go/wiki/CodeReviewComments) for details.
 
-Try to limit column width to 120 characters for both code and markdown documents
+Try to limit column width to 120 characters for both code and Markdown documents
 such as this one.
 
 ### Format of the Commit Message
@@ -64,7 +70,7 @@ is recommended to break up your commits using distinct prefixes.
 
 ### Signing commits
 
-Commits should be signed (not just the `-s` “signd off on”) with
+Commits should be signed (not just the `-s` “signed off on”) with
 any of the [styles GitHub supports](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 Note that you can use `git config` to arrange that your commits are
 automatically signed with the right key.
@@ -99,3 +105,52 @@ instructions for installing it.
 
 When opening a new issue, try to roughly follow the commit message format
 conventions above.
+
+## Developing
+
+Quamina works by compiling the Patterns together into a Nondeterministic
+Finite Automaton (NFA) which proceeds byte-at-a-time through the UTF-encoded
+fields and values. NFAs are nondeterministic in the sense that a byte value
+may cause multiple transitions to different states.
+
+The general workflow, for some specific pattern type, is to write code to build 
+an automaton that matches that type. Examples are the functions `makeStringFA` in
+`value_matcher.go` and `makeShellStyleAutomaton` in `shell_style.go`. Then, 
+insert calls to the automaton builder in `value_matcher.go`, which is reasonably
+straightforward code.  It takes care of merging new automata with existing ones
+as required.
+
+NFAs can be difficult to build and to debug.  For this reason, code 
+is provided in `prettyprinter.go` which produces human-readable NFA
+representations.
+
+For example, the `makeShellStyleAutomaton` code has `prettyprinter` call-outs to
+label the states and transitions it creates, and the `TestPP` test in 
+`prettyprinter_test.go` uses this.  The pattern being matched is `"x*9"` and 
+the prettyprinter output is:
+
+```
+ 758 [START HERE] '"' → [910 on " at 0]
+ 910 [on " at 0] 'x' → [821 gS at 2]
+ 821 [gS at 2] '9' → [551 gX on 9 at 3] / ★ → [821 gS at 2]
+ 551 [gX on 9 at 3] '"' → [937 on " at 4] / '9' → [551 gX on 9 at 3] / ★ → [821 gS at 2]
+ 937 [on " at 4] '9' → [551 gX on 9 at 3] / 'ℵ' → [820 last step at 5] / ★ → [821 gS at 2]
+ 820 [last step at 5]  [1 transition(s)]
+```
+
+Each line represents one state.
+
+Each step gets a 3-digit number and a text description. The construct `★ →` represents
+a default transition, which occurs in the case that none of the other transitions match. The
+symbol `ℵ` represents the end of the input value.
+
+In this particular NFA, the `makeShellStyleAutomaton` code labels states corresponding to
+the `*` "glob" character with text including `gS` for "glob spin" and states that escape the
+"glob spin" state with `gX` for "glob escape".
+
+Most of the NFA-building code does not exercise the prettyprinter. Normally, you would insert
+such code while debugging a particular builder and remove it after completion. Since the 
+shell-style builder is unusually complex, the prettyprinting code is un-removed in anticipation
+of future issues and progress to full regular-expression NFAs.
+
+

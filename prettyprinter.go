@@ -30,6 +30,8 @@ func (*nullPrinter) shortPrintNFA(_ *smallTable) string {
 	return noPP
 }
 
+var sharedNullPrinter = &nullPrinter{}
+
 // prettyPrinter makes a human-readable representation of a NFA; each smallTable may be
 // given a label and as a side effect will get a random 3-digit serial number. For an example
 // of the output, see the functions TestPP and TestNullPP in prettyprinter_test.go
