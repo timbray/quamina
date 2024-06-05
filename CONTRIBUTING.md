@@ -108,24 +108,50 @@ conventions above.
 
 ## Developing
 
+### Automata
+
 Quamina works by compiling the Patterns together into a Nondeterministic
 Finite Automaton (NFA) which proceeds byte-at-a-time through the UTF-encoded
 fields and values. NFAs are nondeterministic in the sense that a byte value
 may cause multiple transitions to different states.
 
 The general workflow, for some specific pattern type, is to write code to build 
-an automaton that matches that type. Examples are the functions `makeStringFA` in
-`value_matcher.go` and `makeShellStyleAutomaton` in `shell_style.go`. Then, 
+an automaton that matches that type. Examples are the functions `makeStringFA()` in
+`value_matcher.go` and `makeShellStyleAutomaton()` in `shell_style.go`. Then,
 insert calls to the automaton builder in `value_matcher.go`, which is reasonably
 straightforward code.  It takes care of merging new automata with existing ones
 as required.
+
+### Testing
+
+A straightforward way to test a new feature is exemplified by `TestLongCase()` in
+`shell_style_test.go`:
+
+1. Make a `coreMatcher` by calling `newCoreMatcher()`
+2. Add patterns to it by calling `addPattern()`
+3. Make test data and examine matching behavior by calling `matchesForJSONEvent()`
+
+### Prettyprinting NFAs
 
 NFAs can be difficult to build and to debug.  For this reason, code 
 is provided in `prettyprinter.go` which produces human-readable NFA
 representations.
 
-For example, the `makeShellStyleAutomaton` code has `prettyprinter` call-outs to
-label the states and transitions it creates, and the `TestPP` test in 
+To use the prettyprinter, make an instance with `newPrettyPrinter()` - the only
+argument is a seed used to generate state numbers. Then, instead of calling
+`addPattern()`, call `addPatternWithPrinter()`, passing your prettyprinter into
+the automaton-building code. New automata are created by `valueMatcher` calls,
+see `value_matcher.go`. Ensure that the prettyprinter is passed to your
+automaton-matching code; an example of this is in the `makeShellStyleAutomaton()`
+function.  Then, in your automaton-building code, use `prettyprinter.labelTable()`
+to attach meaningful labels to the states of your automaton. Then at
+some convenient point, call `prettyprinter.printNFA()` to generate the NFA printout;
+real programmers debug with Print statements.
+
+### Prettyprinter output
+
+`makeShellStyleAutomaton()` code has `prettyprinter` call-outs to
+label the states and transitions it creates, and the `TestPP()` test in
 `prettyprinter_test.go` uses this.  The pattern being matched is `"x*9"` and 
 the prettyprinter output is:
 
@@ -146,11 +172,11 @@ symbol `ℵ` represents the end of the input value.
 
 In this particular NFA, the `makeShellStyleAutomaton` code labels states corresponding to
 the `*` "glob" character with text including `gS` for "glob spin" and states that escape the
-"glob spin" state with `gX` for "glob escape".
+"glob spin" state with `gX` for "glob exit".
 
 Most of the NFA-building code does not exercise the prettyprinter. Normally, you would insert
 such code while debugging a particular builder and remove it after completion. Since the 
-shell-style builder is unusually complex, the prettyprinting code is un-removed in anticipation
+shell-style builder is unusually complex, the prettyprinting code is retained in anticipation
 of future issues and progress to full regular-expression NFAs.
 
 
