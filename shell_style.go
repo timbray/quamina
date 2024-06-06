@@ -51,7 +51,7 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 }
 
 // makeShellStyleAutomaton - recognize a "-delimited string containing one '*' glob.
-func makeShellStyleAutomaton(val []byte) (start *smallTable, nextField *fieldMatcher) {
+func makeShellStyleAutomaton(val []byte, printer printer) (start *smallTable, nextField *fieldMatcher) {
 	table := newSmallTable()
 	start = table
 	nextField = newFieldMatcher()
@@ -69,26 +69,26 @@ func makeShellStyleAutomaton(val []byte) (start *smallTable, nextField *fieldMat
 			if i == len(val)-2 {
 				step := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 				table.setDefault(&faNext{steps: []*faState{step}})
-				//DEBUG step.table.label = fmt.Sprintf("prefix escape at %d", i)
+				printer.labelTable(table, fmt.Sprintf("prefix escape at %d", i))
 				return
 			}
 
 			// loop back on everything
 			globStep = &faState{table: table}
-			//DEBUG table.label = fmt.Sprintf("gS at %d", i)
+			printer.labelTable(table, fmt.Sprintf("gS at %d", i))
 			table.setDefault(&faNext{steps: []*faState{globStep}})
 
 			// escape the glob on the next char from the pattern - remember the byte and the state escaped to
 			i++
 			globExitByte = val[i]
 			globExitStep = &faState{table: newSmallTable()}
-			//DEBUG globExitStep.table.label = fmt.Sprintf("gX on %c at %d", val[i], i)
+			printer.labelTable(globExitStep.table, fmt.Sprintf("gX on %c at %d", val[i], i))
 			// escape the glob
 			table.addByteStep(globExitByte, &faNext{steps: []*faState{globExitStep}})
 			table = globExitStep.table
 		} else {
 			nextStep := &faState{table: newSmallTable()}
-			//DEBUG nextStep.table.label = fmt.Sprintf("on %c at %d", val[i], i)
+			printer.labelTable(nextStep.table, fmt.Sprintf("on %c at %d", val[i], i))
 
 			// we're going to move forward on 'ch'.  On anything else, we leave it at nil or - if we've passed
 			//  a glob, loop back to the glob stae.  if 'ch' is also the glob exit byte, also put in a transfer
@@ -110,7 +110,7 @@ func makeShellStyleAutomaton(val []byte) (start *smallTable, nextField *fieldMat
 	}
 
 	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
-	//DEBUG lastStep.table.label = fmt.Sprintf("last step at %d", i)
+	printer.labelTable(lastStep.table, fmt.Sprintf("last step at %d", i))
 	if globExitStep != nil {
 		table.setDefault(&faNext{steps: []*faState{globStep}})
 		table.addByteStep(globExitByte, &faNext{steps: []*faState{globExitStep}})
@@ -118,6 +118,6 @@ func makeShellStyleAutomaton(val []byte) (start *smallTable, nextField *fieldMat
 	} else {
 		table.addByteStep(valueTerminator, &faNext{steps: []*faState{lastStep}})
 	}
-	// fmt.Printf("new for [%s]: %s\n", string(val), start.dump())
+	// fmt.Printf("new for [%s]: %s\n", string(val), printer.printNFA(start))
 	return
 }

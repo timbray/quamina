@@ -58,7 +58,7 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 	}
 
 	for i, pattern := range patterns {
-		a, wanted := makeShellStyleAutomaton([]byte(pattern))
+		a, wanted := makeShellStyleAutomaton([]byte(pattern), &nullPrinter{})
 		vm := newValueMatcher()
 		vmf := vmFields{startTable: a}
 		vm.update(&vmf)

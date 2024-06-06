@@ -93,7 +93,7 @@ func (m *fieldMatcher) addExists(exists bool, field *patternField) []*fieldMatch
 	return []*fieldMatcher{trans}
 }
 
-func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
+func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fieldMatcher {
 	// we build the new updateable state in freshStart so that we can blast it in atomically once computed
 	current := m.fields()
 	freshStart := &fmFields{
@@ -119,7 +119,7 @@ func (m *fieldMatcher) addTransition(field *patternField) []*fieldMatcher {
 	//  cases where this doesn't happen and reduce the number of fieldMatchStates
 	var nextFieldMatchers []*fieldMatcher
 	for _, val := range field.vals {
-		nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(val))
+		nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(val, printer))
 
 		// if the val is a number, let's add a transition on the canonicalized number
 		// TODO: Only do this if asked

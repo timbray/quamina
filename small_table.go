@@ -46,8 +46,6 @@ const valueTerminator byte = 0xf5
 // more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
 // number of those has a good chance of minimizing memory fetches
 type smallTable struct {
-	//DEBUG label string
-	//DEBUG serial   uint64
 	ceilings []byte
 	steps    []*faNext
 }
@@ -56,7 +54,6 @@ type smallTable struct {
 // the end, which smallTable.step totally depends on.
 func newSmallTable() *smallTable {
 	return &smallTable{
-		//DEBUG serial:   rand.Uint64() % 1000,
 		ceilings: []byte{byte(byteCeiling)},
 		steps:    []*faNext{nil},
 	}
@@ -157,62 +154,5 @@ func (t *smallTable) addRangeSteps(floor int, ceiling int, s *faNext) {
 		unpacked[i] = s
 	}
 	t.pack(unpacked)
-}
-
-func st2(t *smallTable) string {
-	// going to build a string rep of a smallTable based on the unpacked form
-	// each line is going to be a range like
-	// 'c' .. 'e' => %X
-	// lines where the *faNext is nil are omitted
-	var rows []string
-	unpacked := unpackTable(t)
-
-	var rangeStart int
-	var b int
-
-	defTrans := unpacked[0]
-
-	for {
-		for b < len(unpacked) && unpacked[b] == nil {
-			b++
-		}
-		if b == len(unpacked) {
-			break
-		}
-		rangeStart = b
-		lastN := unpacked[b]
-		for b < len(unpacked) && unpacked[b] == lastN {
-			b++
-		}
-		if lastN != defTrans {
-			row := ""
-			if b == rangeStart+1 {
-				row += fmt.Sprintf("'%s'", branchChar((byte(rangeStart))))
-			} else {
-				row += fmt.Sprintf("'%s'…'%s'", branchChar(byte(rangeStart)), branchChar(byte(b-1)))
-			}
-			row += " → " + lastN.String()
-			rows = append(rows, row)
-		}
-	}
-	if defTrans != nil {
-		dtString := "★ → " + defTrans.String()
-		return fmt.Sprintf("%d [%s] ", t.serial, t.label) + strings.Join(rows, " / ") + " / " + dtString
-	} else {
-		return fmt.Sprintf("%d [%s] ", t.serial%1000, t.label) + strings.Join(rows, " / ")
-	}
-}
-
-func branchChar(b byte) string {
-	switch b {
-	case 0:
-		return "∅"
-	case valueTerminator:
-		return "ℵ"
-	case byte(byteCeiling):
-		return "♾️"
-	default:
-		return fmt.Sprintf("%c", b)
-	}
 }
 */

@@ -34,9 +34,9 @@ func addInvalid(t *testing.T, before []typedVal) {
 		val:   "one",
 	}
 	for _, addBefore := range before {
-		m.addTransition(addBefore)
+		m.addTransition(addBefore, &nullPrinter{})
 	}
-	m.addTransition(invalidField)
+	m.addTransition(invalidField, &nullPrinter{})
 }
 
 func TestNoOpTransition(t *testing.T) {
@@ -53,7 +53,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "one",
 	}
-	t1 := m.addTransition(v1)
+	t1 := m.addTransition(v1, &nullPrinter{})
 	if t1 == nil {
 		t.Error("nil addTrans")
 	}
@@ -62,7 +62,7 @@ func TestAddTransition(t *testing.T) {
 		t.Error("Retrieve failed")
 	}
 
-	tXtra := m.addTransition(v1)
+	tXtra := m.addTransition(v1, &nullPrinter{})
 	if tXtra != t1 {
 		t.Error("dupe trans missed")
 	}
@@ -71,7 +71,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "two",
 	}
-	t2 := m.addTransition(v2)
+	t2 := m.addTransition(v2, &nullPrinter{})
 
 	t2x := m.transitionOn([]byte("two"))
 	if len(t2x) != 1 || t2x[0] != t2 {
@@ -85,7 +85,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "three",
 	}
-	t3 := m.addTransition(v3)
+	t3 := m.addTransition(v3, &nullPrinter{})
 	t3x := m.transitionOn([]byte("three"))
 	if len(t3x) != 1 || t3x[0] != t3 {
 		t.Error("Match failed T3")
