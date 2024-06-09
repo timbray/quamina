@@ -129,7 +129,7 @@ func (m *coreMatcher) deletePatterns(_ X) error {
 // matchesForJSONEvent calls the flattener to pull the fields out of the event and
 // hands over to MatchesForFields
 // This is a leftover from previous times, is only used by tests, but it's used by a *lot*
-// so removing it would require a lot of tedious work
+// and it's a convenient API for testing.
 func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 	fields, err := newJSONFlattener().Flatten(event, m.getSegmentsTreeTracker())
 	if err != nil {

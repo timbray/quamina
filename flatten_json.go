@@ -51,21 +51,21 @@ var errEarlyStop = errors.New("earlyStop")
 type fjState int
 
 const (
-	startState fjState = iota
-	inObjectState
-	seekingColonState
-	memberValueState
-	inArrayState
-	afterValueState
-	numberStartState
-	numberIntegralPartState
-	numberFracState
-	numberAfterEState
-	numberExpState
-	trailerState
-	startEscapeState
-	wantEscapeUState
-	readHexDigitState
+	fjStartState fjState = iota
+	fjInObjectState
+	fjSeekingColonState
+	fjMemberValueState
+	fjInArrayState
+	fjAfterValueState
+	fjNumberStartState
+	fjNumberIntegralPartState
+	fjNumberFracState
+	fjNumberAfterEState
+	fjNumberExpState
+	fjTrailerState
+	fjStartEscapeState
+	fjWantEscapeUState
+	fjReadHexDigitState
 )
 
 func newJSONFlattener() Flattener {
@@ -93,11 +93,11 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 	}
 	var err error
 	fj.event = event
-	state := startState
+	state := fjStartState
 	for {
 		ch := fj.ch()
 		switch state {
-		case startState:
+		case fjStartState:
 			switch {
 			// single top-level object
 			case ch == '{':
@@ -108,7 +108,7 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 					}
 					return nil, err
 				}
-				state = trailerState
+				state = fjTrailerState
 
 			case fj.isSpace[ch]:
 			// no-op
@@ -118,7 +118,7 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 			}
 
 		// eat trailing white space, if any
-		case trailerState:
+		case fjTrailerState:
 			if !fj.isSpace[ch] {
 				return nil, fj.error(fmt.Sprintf("garbage char '%c' after top-level object", ch))
 			}
@@ -138,7 +138,7 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 // minimize the cost of the Flatten call.
 func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	var err error
-	state := inObjectState
+	state := fjInObjectState
 
 	// eventIndex points at {
 	err = fj.step()
@@ -146,7 +146,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 		return err
 	}
 
-	// how many leaf steps (fieldsCount) and chidStructures (nodesCount) have been mentioned in patterns?
+	// how many leaf states (fieldsCount) and chidStructures (nodesCount) have been mentioned in patterns?
 	fieldsCount := pathNode.FieldsCount()
 	nodesCount := pathNode.NodesCount()
 
@@ -175,7 +175,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 		ch := fj.ch()
 
 		switch state {
-		case inObjectState:
+		case fjInObjectState:
 			switch {
 			case fj.isSpace[ch]:
 				// no-op
@@ -187,22 +187,22 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 
 				// we know the name of the next object member, use the pathNode to check if it's used
 				memberIsUsed = (fj.skipping == 0) && pathNode.IsSegmentUsed(memberName)
-				state = seekingColonState
+				state = fjSeekingColonState
 			case ch == '}':
 				return nil
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in JSON object", ch))
 			}
-		case seekingColonState:
+		case fjSeekingColonState:
 			switch {
 			case fj.isSpace[ch]:
 				// no-op
 			case ch == ':':
-				state = memberValueState
+				state = fjMemberValueState
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c while looking for colon", ch))
 			}
-		case memberValueState:
+		case fjMemberValueState:
 			// bypass space between colon and value. A bit klunky but allows for immense simplification
 			// TODO: Investigate if there's a more efficient way to say this, or should just trust Go compiler
 			for fj.isSpace[ch] {
@@ -302,13 +302,13 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 			if alt != nil {
 				alt = nil
 			}
-			state = afterValueState
-		case afterValueState:
+			state = fjAfterValueState
+		case fjAfterValueState:
 			switch {
 			case fj.isSpace[ch]:
 				// no-op
 			case ch == ',':
-				state = inObjectState
+				state = fjInObjectState
 			case ch == '}':
 				return nil
 			default:
@@ -337,14 +337,14 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 		defer fj.leaveArray()
 	}
 
-	state := inArrayState
+	state := fjInArrayState
 	isLeaf := false
 	for {
 		ch := fj.ch()
 		var val []byte // resets on each loop
 		var alt []byte
 		switch state {
-		case inArrayState:
+		case fjInArrayState:
 			// bypass space before element value. A bit klunky but allows for immense simplification
 			for fj.isSpace[ch] {
 				if fj.step() != nil {
@@ -406,15 +406,15 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 			if alt != nil {
 				alt = nil
 			}
-			state = afterValueState
-		case afterValueState:
+			state = fjAfterValueState
+		case fjAfterValueState:
 			switch {
 			case fj.isSpace[ch]:
 				// no-op
 			case ch == ']':
 				return nil
 			case ch == ',':
-				state = inArrayState
+				state = fjInArrayState
 			default:
 				return fj.error(fmt.Sprintf("illegal character %c in array", ch))
 			}
@@ -435,25 +435,25 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 	// points at the first character in the number
 	numStart := fj.eventIndex
-	state := numberStartState
+	state := fjNumberStartState
 	for {
 		ch := fj.ch()
 		switch state {
-		case numberStartState:
+		case fjNumberStartState:
 			switch ch {
 			case '-':
-				state = numberIntegralPartState
+				state = fjNumberIntegralPartState
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				state = numberIntegralPartState
+				state = fjNumberIntegralPartState
 			}
-		case numberIntegralPartState:
+		case fjNumberIntegralPartState:
 			switch ch {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			case '.':
-				state = numberFracState
+				state = fjNumberFracState
 			case 'e', 'E':
-				state = numberAfterEState
+				state = fjNumberAfterEState
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
 				// TODO: Too expensive; make it possible for people to ask for this
@@ -467,7 +467,7 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 			default:
 				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
-		case numberFracState:
+		case fjNumberFracState:
 			switch ch {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
@@ -482,20 +482,20 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				//}
 				return bytes, alt, nil
 			case 'e', 'E':
-				state = numberAfterEState
+				state = fjNumberAfterEState
 			default:
 				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
-		case numberAfterEState:
+		case fjNumberAfterEState:
 			switch ch {
 			case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			default:
 				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
 			}
-			state = numberExpState
+			state = fjNumberExpState
 
-		case numberExpState:
+		case fjNumberExpState:
 			switch ch {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
@@ -787,28 +787,28 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 	var runes []rune
 	from-- // point at the \ before the u
 	var hexDigitCount int
-	state := startEscapeState
+	state := fjStartEscapeState
 	for {
 		ch := fj.event[from]
 		switch state {
-		case startEscapeState:
+		case fjStartEscapeState:
 			switch ch {
 			case '\\':
-				state = wantEscapeUState
+				state = fjWantEscapeUState
 			default:
 				runes = utf16.Decode(codepoints)
 				return []byte(string(runes)), from - 1, nil
 			}
-		case wantEscapeUState:
+		case fjWantEscapeUState:
 			switch ch {
 			case 'u':
-				state = readHexDigitState
+				state = fjReadHexDigitState
 				hexDigitCount = 0
 			default:
 				runes = utf16.Decode(codepoints)
 				return []byte(string(runes)), from - 1, nil
 			}
-		case readHexDigitState:
+		case fjReadHexDigitState:
 			switch ch {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'A', 'b', 'B', 'c', 'C', 'd', 'D', 'e', 'E', 'f', 'F':
 				hexDigitCount++
@@ -816,7 +816,7 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 					hexString := string(fj.event[from-3 : from+1])
 					r, _ := strconv.ParseUint(hexString, 16, 16)
 					codepoints = append(codepoints, uint16(r))
-					state = startEscapeState
+					state = fjStartEscapeState
 				}
 			default:
 				fj.eventIndex = from

@@ -1,19 +1,5 @@
 package quamina
 
-// faState is used by the valueMatcher automaton - every step through the
-// automaton requires a smallTable and for some of them, taking the step means you've matched a value and can
-// transition to a new fieldMatcher, in which case the fieldTransitions slice will be non-nil
-type faState struct {
-	table            *smallTable
-	fieldTransitions []*fieldMatcher
-}
-
-// struct wrapper to make this comparable to help with pack/unpack
-type faNext struct {
-	// serial int // very useful in debugging table construction
-	steps []*faState
-}
-
 // byteCeiling - the automaton runs on UTF-8 bytes, which map nicely to Go's byte, which is uint8. The values
 // 0xF5-0xFF can't appear in UTF-8 strings. We use 0xF5 as a value terminator, so characters F6 and higher
 // can't appear.
@@ -34,7 +20,7 @@ const valueTerminator byte = 0xf5
 // byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
 //
 //	ceilings:--|3|----|5|-|0x34|--|x35|-|byteCeiling|
-//	steps:---|nil|-|&ss1|--|nil|-|&ss2|---------|nil|
+//	states:---|nil|-|&ss1|--|nil|-|&ss2|---------|nil|
 //	invariant: The last element of ceilings is always byteCeiling
 //
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
@@ -44,10 +30,13 @@ const valueTerminator byte = 0xf5
 // small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
 // or array construct. One could imagine making step() smarter and do a binary search in the case where there are
 // more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
-// number of those has a good chance of minimizing memory fetches
+// number of those has a good chance of minimizing memory fetches.
+// Since this is used to support nondeterministic finite automata (NFAs), it is possible for a state
+// to have epsilon transitions, i.e. a transition that is always taken whatever the next input symbol is.
 type smallTable struct {
 	ceilings []byte
 	steps    []*faNext
+	epsilon  []*faState
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
@@ -59,11 +48,26 @@ func newSmallTable() *smallTable {
 	}
 }
 
-// step finds the member of steps in the smallTable that corresponds to the utf8Byte argument. It may return nil.
-func (t *smallTable) step(utf8Byte byte) *faNext {
+type stepOut struct {
+	steps   []*faState
+	epsilon []*faState
+}
+
+// step finds the list of states that result from a transition on the utf8Byte argument. The states can come
+// as a result of looking in the table structure, and also the "epsilon" transitions that occur on every
+// input byte.  Since this is the white-hot center of Quamina's runtime CPU, we don't want to be merging
+// the two lists. So to avoid any memory allocation, the caller passes in a structure with the two lists
+// and step fills them in.
+func (t *smallTable) step(utf8Byte byte, out *stepOut) {
+	out.epsilon = t.epsilon
 	for index, ceiling := range t.ceilings {
 		if utf8Byte < ceiling {
-			return t.steps[index]
+			if t.steps[index] == nil {
+				out.steps = nil
+			} else {
+				out.steps = t.steps[index].states
+			}
+			return
 		}
 	}
 	panic("Malformed smallTable")
@@ -96,7 +100,7 @@ func makeSmallTable(defaultStep *faNext, indices []byte, steps []*faNext) *small
 	return &t
 }
 
-// unpackedTable replicates the data in the smallTable ceilings and steps arrays.  It's quite hard to
+// unpackedTable replicates the data in the smallTable ceilings and states arrays.  It's quite hard to
 // update the list structure in a smallTable, but trivial in an unpackedTable.  The idea is that to update
 // a smallTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
 // TODO: Figure out how to update a smallTable in place
@@ -137,22 +141,3 @@ func (t *smallTable) addByteStep(utf8Byte byte, step *faNext) {
 	unpacked[utf8Byte] = step
 	t.pack(unpacked)
 }
-
-// setDefault sets all the values of the table to the provided faNext pointer
-// TODO: Do we need this at all? Maybe just a variant of newSmallTable?
-func (t *smallTable) setDefault(s *faNext) {
-	t.steps = []*faNext{s}
-	t.ceilings = []byte{byte(byteCeiling)}
-}
-
-// Debugging from here down
-/*
-// addRangeSteps not currently used but think it will be useful in future regex-y work
-func (t *smallTable) addRangeSteps(floor int, ceiling int, s *faNext) {
-	unpacked := unpackTable(t)
-	for i := floor; i < ceiling; i++ {
-		unpacked[i] = s
-	}
-	t.pack(unpacked)
-}
-*/

@@ -5,6 +5,10 @@ import (
 	"sync/atomic"
 )
 
+type bufpair struct {
+	buf1, buf2 []*faState
+}
+
 // valueMatcher represents a byte-driven finite automaton (FA).  The table needs to be the
 // equivalent of a map[byte]nextState and is represented by smallTable.
 // In this implementation all the FAs are nondeterministic, which means each
@@ -25,9 +29,10 @@ type vmFields struct {
 	startTable          *smallTable
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
+	buffers             bufpair
 }
 
-func (m *valueMatcher) getFields() *vmFields {
+func (m *valueMatcher) fields() *vmFields {
 	return m.updateable.Load().(*vmFields)
 }
 
@@ -50,7 +55,7 @@ func newValueMatcher() *valueMatcher {
 func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 	var transitions []*fieldMatcher
 
-	fields := m.getFields()
+	fields := m.fields()
 
 	switch {
 	case fields.singletonMatch != nil:
@@ -64,7 +69,7 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		return transitions
 
 	case fields.startTable != nil:
-		return traverseFA(fields.startTable, val, transitions)
+		return traverseFA(fields.startTable, val, transitions, &fields.buffers)
 
 	default:
 		// no FA, no singleton, nothing to do, this probably can't happen because a flattener
@@ -87,13 +92,13 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		case anythingButType:
 			newFA, nextField = makeMultiAnythingButFA(val.list)
 		case shellStyleType:
-			newFA, nextField = makeShellStyleAutomaton(valBytes, printer)
+			newFA, nextField = makeShellStyleFA(valBytes, printer)
 		case prefixType:
-			newFA, nextField = makePrefixAutomaton(valBytes)
+			newFA, nextField = makePrefixFA(valBytes)
 		default:
 			panic("unknown value type")
 		}
-		fields.startTable = mergeFAs(fields.startTable, newFA)
+		fields.startTable = mergeFAs(fields.startTable, newFA, sharedNullPrinter)
 		m.update(fields)
 		return nextField
 	}
@@ -115,12 +120,12 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			m.update(fields)
 			return nextField
 		case shellStyleType:
-			newAutomaton, nextField := makeShellStyleAutomaton(valBytes, &nullPrinter{})
+			newAutomaton, nextField := makeShellStyleFA(valBytes, printer)
 			fields.startTable = newAutomaton
 			m.update(fields)
 			return nextField
 		case prefixType:
-			newFA, nextField := makePrefixAutomaton(valBytes)
+			newFA, nextField := makePrefixFA(valBytes)
 			fields.startTable = newFA
 			m.update(fields)
 			return nextField
@@ -147,28 +152,29 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	case anythingButType:
 		newFA, nextField = makeMultiAnythingButFA(val.list)
 	case shellStyleType:
-		newFA, nextField = makeShellStyleAutomaton(valBytes, &nullPrinter{})
+		newFA, nextField = makeShellStyleFA(valBytes, printer)
 	case prefixType:
-		newFA, nextField = makePrefixAutomaton(valBytes)
+		newFA, nextField = makePrefixFA(valBytes)
 	default:
 		panic("unknown value type")
 	}
 
 	// now table is ready for use, nuke singleton to signal threads to use it
-	fields.startTable = mergeFAs(singletonAutomaton, newFA)
-	// fmt.Println("Merged: " + fields.startTable.dump())
+	fields.startTable = mergeFAs(singletonAutomaton, newFA, sharedNullPrinter)
 	fields.singletonMatch = nil
 	fields.singletonTransition = nil
 	m.update(fields)
 	return nextField
 }
 
-func makePrefixAutomaton(val []byte) (*smallTable, *fieldMatcher) {
+// TODO: make these simple FA builders iterative not recursive, this will recurse as deep as the longest string match
+
+func makePrefixFA(val []byte) (*smallTable, *fieldMatcher) {
 	nextField := newFieldMatcher()
-	return onePrefixStep(val, 0, nextField), nextField
+	return makeOnePrefixFAStep(val, 0, nextField), nextField
 }
 
-func onePrefixStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
+func makeOnePrefixFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
 	var nextStep *faNext
 
 	// have to stop one short to skip the closing "
@@ -177,9 +183,9 @@ func onePrefixStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
 	if index == len(val)-2 {
 		nextState = &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 	} else {
-		nextState = &faState{table: onePrefixStep(val, index+1, nextField)}
+		nextState = &faState{table: makeOnePrefixFAStep(val, index+1, nextField)}
 	}
-	nextStep = &faNext{steps: []*faState{nextState}}
+	nextStep = &faNext{states: []*faState{nextState}}
 	return makeSmallTable(nil, []byte{val[index]}, []*faNext{nextStep})
 }
 
@@ -196,27 +202,26 @@ func makeStringFA(val []byte, useThisTransition *fieldMatcher) (*smallTable, *fi
 		nextField = newFieldMatcher()
 	}
 
-	return makeOneFAStep(val, 0, nextField), nextField
+	return makeOneStringFAStep(val, 0, nextField), nextField
 }
 
-func makeOneFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
+func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
 	var nextStepList *faNext
 	if index == len(val)-1 {
 		lastStep := &faState{
 			table:            newSmallTable(),
 			fieldTransitions: []*fieldMatcher{nextField},
 		}
-		lastStepList := &faNext{steps: []*faState{lastStep}}
+		lastStepList := &faNext{states: []*faState{lastStep}}
 		nextStep := &faState{
 			table: makeSmallTable(nil, []byte{valueTerminator}, []*faNext{lastStepList}),
 		}
-		nextStepList = &faNext{steps: []*faState{nextStep}}
+		nextStepList = &faNext{states: []*faState{nextStep}}
 	} else {
-		nextStep := &faState{table: makeOneFAStep(val, index+1, nextField)}
-		nextStepList = &faNext{steps: []*faState{nextStep}}
+		nextStep := &faState{table: makeOneStringFAStep(val, index+1, nextField)}
+		nextStepList = &faNext{states: []*faState{nextStep}}
 	}
 	var u unpackedTable
 	u[val[index]] = nextStepList
-	// return stepper.buildTable(&u)
 	return makeSmallTable(nil, []byte{val[index]}, []*faNext{nextStepList})
 }
