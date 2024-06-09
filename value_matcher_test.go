@@ -41,7 +41,7 @@ func addInvalid(t *testing.T, before []typedVal) {
 
 func TestNoOpTransition(t *testing.T) {
 	vm := newValueMatcher()
-	tr := vm.transitionOn([]byte("foo"))
+	tr := vm.transitionOn([]byte("foo"), &bufpair{})
 	if len(tr) != 0 {
 		t.Error("matched on empty valuematcher")
 	}
@@ -57,7 +57,7 @@ func TestAddTransition(t *testing.T) {
 	if t1 == nil {
 		t.Error("nil addTrans")
 	}
-	t1x := m.transitionOn([]byte("one"))
+	t1x := m.transitionOn([]byte("one"), &bufpair{})
 	if len(t1x) != 1 || t1x[0] != t1 {
 		t.Error("Retrieve failed")
 	}
@@ -73,11 +73,11 @@ func TestAddTransition(t *testing.T) {
 	}
 	t2 := m.addTransition(v2, &nullPrinter{})
 
-	t2x := m.transitionOn([]byte("two"))
+	t2x := m.transitionOn([]byte("two"), &bufpair{})
 	if len(t2x) != 1 || t2x[0] != t2 {
 		t.Error("trans failed T2")
 	}
-	t1x = m.transitionOn([]byte("one"))
+	t1x = m.transitionOn([]byte("one"), &bufpair{})
 	if len(t1x) != 1 || t1x[0] != t1 {
 		t.Error("Retrieve failed")
 	}
@@ -86,15 +86,15 @@ func TestAddTransition(t *testing.T) {
 		val:   "three",
 	}
 	t3 := m.addTransition(v3, &nullPrinter{})
-	t3x := m.transitionOn([]byte("three"))
+	t3x := m.transitionOn([]byte("three"), &bufpair{})
 	if len(t3x) != 1 || t3x[0] != t3 {
 		t.Error("Match failed T3")
 	}
-	t2x = m.transitionOn([]byte("two"))
+	t2x = m.transitionOn([]byte("two"), &bufpair{})
 	if len(t2x) != 1 || t2x[0] != t2 {
 		t.Error("trans failed T2")
 	}
-	t1x = m.transitionOn([]byte("one"))
+	t1x = m.transitionOn([]byte("one"), &bufpair{})
 	if len(t1x) != 1 || t1x[0] != t1 {
 		t.Error("Retrieve failed")
 	}

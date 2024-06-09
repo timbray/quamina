@@ -178,12 +178,19 @@ func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	}
 	matches := newMatchSet()
 
+	// pre-allocate a pair of buffers that will be used several levels down the call stack for efficiently
+	// transversing NFAs
+	bufs := &bufpair{
+		buf1: make([]*faState, 0, 3072),
+		buf2: make([]*faState, 0, 3072),
+	}
+
 	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch
 	// routine will, in the case that there's a match, call itself to see if subsequent fields after the
 	// first matched will transition through the machine and eventually achieve a match
 	s := m.fields()
 	for i := 0; i < len(fields); i++ {
-		tryToMatch(fields, i, s.state, matches)
+		tryToMatch(fields, i, s.state, matches, bufs)
 	}
 	return matches.matches(), nil
 }
@@ -191,7 +198,7 @@ func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 // tryToMatch tries to match the field at fields[index] to the provided state. If it does match and generate
 // 1 or more transitions to other states, it calls itself recursively to see if any of the remaining fields
 // can continue the process by matching that state.
-func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSet) {
+func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSet, bufs *bufpair) {
 	stateFields := state.fields()
 
 	// transition on exists:true?
@@ -200,16 +207,16 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 		matches = matches.addXSingleThreaded(existsTrans.fields().matches...)
 		for nextIndex := index + 1; nextIndex < len(fields); nextIndex++ {
 			if noArrayTrailConflict(fields[index].ArrayTrail, fields[nextIndex].ArrayTrail) {
-				tryToMatch(fields, nextIndex, existsTrans, matches)
+				tryToMatch(fields, nextIndex, existsTrans, matches, bufs)
 			}
 		}
 	}
 
 	// an exists:false transition is possible if there is no matching field in the event
-	checkExistsFalse(stateFields, fields, index, matches)
+	checkExistsFalse(stateFields, fields, index, matches, bufs)
 
 	// try to transition through the machine
-	nextStates := state.transitionOn(&fields[index])
+	nextStates := state.transitionOn(&fields[index], bufs)
 
 	// for each state in the possibly-empty list of transitions from this state on fields[index]
 	for _, nextState := range nextStates {
@@ -221,17 +228,17 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 		//  of the same array
 		for nextIndex := index + 1; nextIndex < len(fields); nextIndex++ {
 			if noArrayTrailConflict(fields[index].ArrayTrail, fields[nextIndex].ArrayTrail) {
-				tryToMatch(fields, nextIndex, nextState, matches)
+				tryToMatch(fields, nextIndex, nextState, matches, bufs)
 			}
 		}
 		// now we've run out of fields to match this state against. But suppose it has an exists:false
 		// transition, and it so happens that the exists:false pattern field is lexically larger than the other
 		// fields and that in fact such a field does not exist. That state would be left hanging. So…
-		checkExistsFalse(nextStateFields, fields, index, matches)
+		checkExistsFalse(nextStateFields, fields, index, matches, bufs)
 	}
 }
 
-func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet) {
+func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet, bufs *bufpair) {
 	for existsFalsePath, existsFalseTrans := range stateFields.existsFalse {
 		// it seems like there ought to be a more state-machine-idiomatic way to do this, but
 		// I thought of a few and none of them worked.  Quite likely someone will figure it out eventually.
@@ -250,9 +257,9 @@ func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches 
 		if i == len(fields) {
 			matches = matches.addXSingleThreaded(existsFalseTrans.fields().matches...)
 			if thisFieldIsAnExistsFalse {
-				tryToMatch(fields, index+1, existsFalseTrans, matches)
+				tryToMatch(fields, index+1, existsFalseTrans, matches, bufs)
 			} else {
-				tryToMatch(fields, index, existsFalseTrans, matches)
+				tryToMatch(fields, index, existsFalseTrans, matches, bufs)
 			}
 		}
 	}

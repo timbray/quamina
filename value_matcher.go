@@ -29,7 +29,6 @@ type vmFields struct {
 	startTable          *smallTable
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
-	buffers             bufpair
 }
 
 func (m *valueMatcher) fields() *vmFields {
@@ -52,7 +51,7 @@ func newValueMatcher() *valueMatcher {
 	return &vm
 }
 
-func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
+func (m *valueMatcher) transitionOn(val []byte, bufs *bufpair) []*fieldMatcher {
 	var transitions []*fieldMatcher
 
 	fields := m.fields()
@@ -69,7 +68,7 @@ func (m *valueMatcher) transitionOn(val []byte) []*fieldMatcher {
 		return transitions
 
 	case fields.startTable != nil:
-		return traverseFA(fields.startTable, val, transitions, &fields.buffers)
+		return traverseFA(fields.startTable, val, transitions, bufs)
 
 	default:
 		// no FA, no singleton, nothing to do, this probably can't happen because a flattener
