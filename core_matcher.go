@@ -181,8 +181,8 @@ func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	// pre-allocate a pair of buffers that will be used several levels down the call stack for efficiently
 	// transversing NFAs
 	bufs := &bufpair{
-		buf1: make([]*faState, 0, 3072),
-		buf2: make([]*faState, 0, 3072),
+		buf1: make([]*faState, 0),
+		buf2: make([]*faState, 0),
 	}
 
 	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch
