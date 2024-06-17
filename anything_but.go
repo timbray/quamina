@@ -73,20 +73,19 @@ func readAnythingButSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typ
 func makeMultiAnythingButFA(vals [][]byte) (*smallTable, *fieldMatcher) {
 	nextField := newFieldMatcher()
 	successStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
-	//DEBUG successStep.table.label = "(success)"
-	success := &faNext{steps: []*faState{successStep}}
+	success := &faNext{states: []*faState{successStep}}
 
-	ret, _ := oneMultiAnythingButStep(vals, 0, success), nextField
+	ret, _ := makeOneMultiAnythingButStep(vals, 0, success), nextField
 	return ret, nextField
 }
 
-// oneMultiAnythingButStep - spookeh. The idea is that there will be N smallTables in this FA, where N is
+// makeOneMultiAnythingButStep - spookeh. The idea is that there will be N smallTables in this FA, where N is
 // the longest among the vals. So for each value from 0 through N, we make a smallTable whose default is
 // success but transfers to the next step on whatever the current byte in each of the vals that have not
 // yet been exhausted. We notice when we get to the end of each val and put in a valueTerminator transition
 // to a step with no nextField entry, i.e. failure because we've exactly matched one of the anything-but
 // strings.
-func oneMultiAnythingButStep(vals [][]byte, index int, success *faNext) *smallTable {
+func makeOneMultiAnythingButStep(vals [][]byte, index int, success *faNext) *smallTable {
 	// this will be the default transition in all the anything-but tables.
 	var u unpackedTable
 	for i := range u {
@@ -115,18 +114,18 @@ func oneMultiAnythingButStep(vals [][]byte, index int, success *faNext) *smallTa
 
 	// for each val that still has bytes to process, recurse to process the next one
 	for utf8Byte, val := range valsWithBytesRemaining {
-		nextTable := oneMultiAnythingButStep(val, index+1, success)
+		nextTable := makeOneMultiAnythingButStep(val, index+1, success)
 		nextStep := &faState{table: nextTable}
-		u[utf8Byte] = &faNext{steps: []*faState{nextStep}}
+		u[utf8Byte] = &faNext{states: []*faState{nextStep}}
 	}
 
 	// for each val that ends at 'index', put a failure-transition for this anything-but
 	// if you hit the valueTerminator, success for everything else
 	for utf8Byte := range valsEndingHere {
 		failState := &faState{table: newSmallTable()} // note no transitions
-		lastStep := &faNext{steps: []*faState{failState}}
+		lastStep := &faNext{states: []*faState{failState}}
 		lastTable := makeSmallTable(success, []byte{valueTerminator}, []*faNext{lastStep})
-		u[utf8Byte] = &faNext{steps: []*faState{{table: lastTable}}}
+		u[utf8Byte] = &faNext{states: []*faState{{table: lastTable}}}
 	}
 
 	table := newSmallTable()

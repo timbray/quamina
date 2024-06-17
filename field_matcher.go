@@ -6,7 +6,7 @@ import (
 
 // fieldMatcher represents a state in the matching automaton, which matches field names and dispatches to
 // valueMatcher to complete matching of field values.
-// the fields that hold state are segregated in updateable so they can be replaced atomically and make the coreMatcher
+// the fields that hold state are segregated in updateable, so they can be replaced atomically and make the coreMatcher
 // thread-safe.
 type fieldMatcher struct {
 	updateable atomic.Value // always holds an *fmFields
@@ -112,7 +112,7 @@ func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fi
 	}
 	freshStart.transitions[field.path] = vm
 
-	// suppose I'm adding the first pattern to a matcher and it has "x": [1, 2]. In principle the branches on
+	// suppose I'm adding the first pattern to a matcher, and it has "x": [1, 2]. In principle the branches on
 	//  "x": 1 and "x": 2 could go to tne same next state. But we have to make a unique next state for each of them
 	//  because some future other pattern might have "x": [2, 3] and thus we need a separate branch to potentially
 	//  match two patterns on "x": 2 but not "x": 1. If you were optimizing the automaton for size you might detect
@@ -144,12 +144,12 @@ func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fi
 // or nil if no transitions are possible.  An example of name/value that could produce multiple next states
 // would be if you had the pattern { "a": [ "foo" ] } and another pattern that matched any value with
 // a prefix of "f".
-func (m *fieldMatcher) transitionOn(field *Field) []*fieldMatcher {
+func (m *fieldMatcher) transitionOn(field *Field, bufs *bufpair) []*fieldMatcher {
 	// are there transitions on this field name?
 	valMatcher, ok := m.fields().transitions[string(field.Path)]
 	if !ok {
 		return nil
 	}
 
-	return valMatcher.transitionOn(field.Val)
+	return valMatcher.transitionOn(field.Val, bufs)
 }
