@@ -187,20 +187,20 @@ func TestRulerCl2(t *testing.T) {
 
 	// initial run to stabilize memory
 	bm := newBenchmarker()
-	bm.addRules(exactRules, exactMatches)
+	bm.addRules(exactRules, exactMatches, false)
 
 	bm.run(t, lines)
 
 	bm = newBenchmarker()
-	bm.addRules(exactRules, exactMatches)
+	bm.addRules(exactRules, exactMatches, true)
 	fmt.Printf("EXACT events/sec: %.1f\n", bm.run(t, lines))
 
 	bm = newBenchmarker()
-	bm.addRules(prefixRules, prefixMatches)
+	bm.addRules(prefixRules, prefixMatches, true)
 	fmt.Printf("PREFIX events/sec: %.1f\n", bm.run(t, lines))
 
 	bm = newBenchmarker()
-	bm.addRules(anythingButRules, anythingButMatches)
+	bm.addRules(anythingButRules, anythingButMatches, true)
 	fmt.Printf("ANYTHING-BUT events/sec: %.1f\n", bm.run(t, lines))
 }
 
@@ -214,13 +214,15 @@ func newBenchmarker() *benchmarker {
 	return &benchmarker{q: q, wanted: make(map[X]int)}
 }
 
-func (bm *benchmarker) addRules(rules []string, wanted []int) {
+func (bm *benchmarker) addRules(rules []string, wanted []int, report bool) {
 	for i, rule := range rules {
 		rname := fmt.Sprintf("r%d", i)
 		_ = bm.q.AddPattern(rname, rule)
 		bm.wanted[rname] = wanted[i]
 	}
-	fmt.Println(matcherStats(bm.q.matcher.(*coreMatcher)))
+	if report {
+		fmt.Println(matcherStats(bm.q.matcher.(*coreMatcher)))
+	}
 }
 
 func (bm *benchmarker) run(t *testing.T, events [][]byte) float64 {

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLongCase(t *testing.T) {
@@ -30,8 +31,7 @@ func TestLongCase(t *testing.T) {
 		}
 	}
 }
-
-func TestMakeShellStyleAutomaton(t *testing.T) {
+func TestMakeShellStyleFA(t *testing.T) {
 	patterns := []string{
 		`"*ST"`,
 		`"foo*"`,
@@ -58,20 +58,25 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 	}
 
 	for i, pattern := range patterns {
-		a, wanted := makeShellStyleAutomaton([]byte(pattern), &nullPrinter{})
+		a, wanted := makeShellStyleFA([]byte(pattern), sharedNullPrinter)
 		vm := newValueMatcher()
 		vmf := vmFields{startTable: a}
 		vm.update(&vmf)
+		var bufs bufpair
 		for _, should := range shouldsForPatterns[i] {
+			fmt.Println("for: " + should)
 			var transitions []*fieldMatcher
-			gotTrans := traverseFA(a, []byte(should), transitions)
+			gotTrans := traverseFA(a, []byte(should), transitions, &bufs)
+			if len(gotTrans) != 0 {
+				fmt.Println("FOO")
+			}
 			if len(gotTrans) != 1 || gotTrans[0] != wanted {
 				t.Errorf("Failure for %s on %s", pattern, should)
 			}
 		}
 		for _, shouldNot := range shouldNotForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := traverseFA(a, []byte(shouldNot), transitions)
+			gotTrans := traverseFA(a, []byte(shouldNot), transitions, &bufs)
 			if gotTrans != nil {
 				t.Errorf("bogus match for %s on %s", pattern, shouldNot)
 			}
@@ -81,6 +86,7 @@ func TestMakeShellStyleAutomaton(t *testing.T) {
 
 func TestShellStyleBuildTime(t *testing.T) {
 	words := readWWords(t)
+	fmt.Printf("WC %d\n", len(words))
 	starWords := make([]string, 0, len(words))
 	patterns := make([]string, 0, len(words))
 	source := rand.NewSource(293591)
@@ -93,13 +99,31 @@ func TestShellStyleBuildTime(t *testing.T) {
 		patterns = append(patterns, pattern)
 	}
 	q, _ := New()
-	for i := 0; i < 21; i++ {
+	for i := range words {
 		err := q.AddPattern(starWords[i], patterns[i])
 		if err != nil {
 			t.Error("AddP: " + err.Error())
 		}
 	}
 	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
+	// make sure that all the words actually are matched
+	before := time.Now()
+	for _, word := range words {
+		record := fmt.Sprintf(`{"x": "%s"}`, word)
+		matches, err := q.MatchesForEvent([]byte(record))
+		if err != nil {
+			t.Error("M4E on " + string(word))
+		}
+		if len(matches) == 0 {
+			t.Error("no matches for " + string(word))
+		}
+		if len(matches) > 1 {
+			fmt.Printf("%d matches for %s\n", len(matches), word)
+		}
+	}
+	elapsed := float64(time.Since(before).Milliseconds())
+	eps := float64(len(words)) / (elapsed / 1000.0)
+	fmt.Printf("Huge-machine events/sec: %.1f\n", eps)
 }
 
 func TestMixedPatterns(t *testing.T) {

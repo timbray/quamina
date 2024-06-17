@@ -58,7 +58,7 @@ func TestFocusedMerge(t *testing.T) {
 
 	for _, shellStyle := range shellStyles {
 		str := `"` + shellStyle + `"`
-		automaton, matcher := makeShellStyleAutomaton([]byte(str), &nullPrinter{})
+		automaton, matcher := makeShellStyleFA([]byte(str), &nullPrinter{})
 		automata = append(automata, automaton)
 		matchers = append(matchers, matcher)
 	}
@@ -71,7 +71,7 @@ func TestFocusedMerge(t *testing.T) {
 
 	merged := newSmallTable()
 	for _, automaton := range automata {
-		merged = mergeFAs(merged, automaton)
+		merged = mergeFAs(merged, automaton, sharedNullPrinter)
 
 		s := statsAccum{
 			fmVisited: make(map[*fieldMatcher]bool),
@@ -80,28 +80,5 @@ func TestFocusedMerge(t *testing.T) {
 		}
 		faStats(merged, &s)
 		fmt.Println(s.stStats())
-	}
-}
-
-func TestNFABasics(t *testing.T) {
-	aFoo, fFoo := makeStringFA([]byte("foo"), nil)
-	var matches []*fieldMatcher
-
-	matches = traverseOneFAStep(aFoo, 0, []byte("foo"), nil)
-	if len(matches) != 1 || matches[0] != fFoo {
-		t.Error("ouch no foo")
-	}
-	matches = traverseOneFAStep(aFoo, 0, []byte("foot"), nil)
-	if len(matches) != 0 {
-		t.Error("ouch yes foot")
-	}
-
-	aNotFoot, fNotFoot := makeMultiAnythingButFA([][]byte{[]byte("foot")})
-	notFeet := []string{"foo", "footy", "afoot", "xyz"}
-	for _, notFoot := range notFeet {
-		matches = traverseOneFAStep(aNotFoot, 0, []byte(notFoot), nil)
-		if len(matches) != 1 || matches[0] != fNotFoot {
-			t.Error("!foot miss: " + notFoot)
-		}
 	}
 }
