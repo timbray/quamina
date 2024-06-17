@@ -74,7 +74,7 @@ func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already map[*sma
 	s := " " + pp.printTable(t) + trailer
 	for _, step := range t.steps {
 		if step != nil {
-			for _, state := range step.steps {
+			for _, state := range step.states {
 				_, ok := already[state.table]
 				if !ok {
 					already[state.table] = true
@@ -91,6 +91,7 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 	// each line is going to be a range like
 	// 'c' .. 'e' => %X
 	// lines where the *faNext is nil are omitted
+	// TODO: Post-nfa-rationalization, I don't think the whole defTrans thing is necessary any more?
 	var rows []string
 	unpacked := unpackTable(t)
 
@@ -99,6 +100,18 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 
 	defTrans := unpacked[0]
 
+	// TODO: Try to generate an NFA with a state with multiple epsilons
+	if len(t.epsilon) != 0 {
+		fas := ""
+		for i, eps := range t.epsilon {
+			ep := &faNext{states: []*faState{eps}}
+			if i != 0 {
+				fas += ", "
+			}
+			fas += pp.nextString(ep)
+		}
+		rows = append(rows, "ε → "+fas)
+	}
 	for {
 		for b < len(unpacked) && unpacked[b] == nil {
 			b++
@@ -126,35 +139,33 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 	label := pp.tableLabel(t)
 	if defTrans != nil {
 		dtString := "★ → " + pp.nextString(defTrans)
-		return fmt.Sprintf("%d [%s] ", serial, label) + strings.Join(rows, " / ") + " / " + dtString
+		return fmt.Sprintf("%d[%s] ", serial, label) + strings.Join(rows, " / ") + " / " + dtString
 	} else {
-		return fmt.Sprintf("%d [%s] ", serial, label) + strings.Join(rows, " / ")
+		return fmt.Sprintf("%d[%s] ", serial, label) + strings.Join(rows, " / ")
 	}
 }
 
 func (pp *prettyPrinter) nextString(n *faNext) string {
 	var snames []string
-	for _, step := range n.steps {
-		snames = append(snames, fmt.Sprintf("%d %s",
+	for _, step := range n.states {
+		snames = append(snames, fmt.Sprintf("%d[%s]",
 			pp.tableSerial(step.table), pp.tableLabel(step.table)))
 	}
-	return "[" + strings.Join(snames, " · ") + "]"
+	return strings.Join(snames, " · ")
 }
 
 func branchChar(b byte) string {
 	switch b {
 	// TODO: Figure out how to test commented-out cases
-	// case 0:
-	// 	return "∅"
+	case 0:
+		return "∅"
 	case valueTerminator:
 		return "ℵ"
-	// case byte(byteCeiling):
-	// 	return "♾️"
 	default:
 		return fmt.Sprintf("%c", b)
 	}
 }
 
 func (pp *prettyPrinter) shortPrintNFA(table *smallTable) string {
-	return fmt.Sprintf("%d-%s", pp.tableSerials[table], pp.tableLabels[table])
+	return fmt.Sprintf("%d[%s]", pp.tableSerials[table], pp.tableLabels[table])
 }

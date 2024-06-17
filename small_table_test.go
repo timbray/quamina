@@ -43,7 +43,7 @@ func TestUnpack(t *testing.T) {
 		table:            st1,
 		fieldTransitions: nil,
 	}
-	nextStep := faNext{steps: []*faState{&nextState}}
+	nextStep := faNext{states: []*faState{&nextState}}
 
 	st := smallTable{
 		ceilings: []uint8{2, 3, byte(byteCeiling)},
@@ -127,7 +127,7 @@ func fuzzPack(t *testing.T, seed int64) {
 		if c != packed.ceilings[i] {
 			t.Errorf("seed %d ceilings differ at %d wanted %d got %d", seed, i, c, packed.ceilings[i])
 		}
-		if packed.steps[i] != rePacked.steps[i] {
+		if packed.states[i] != rePacked.states[i] {
 			t.Errorf("seed %d ssteps differ at %d", seed, i)
 		}
 	}

@@ -14,7 +14,9 @@
 create an instance and add multiple **Patterns** to it,
 and then query data objects called **Events** to
 discover which of the Patterns match
-the fields in the Event.
+the fields in the Event. In typical cases, Quamina
+can match millions of Events per second, even with
+many Patterns added to the instance.
 
 Quamina has no run-time dependencies beyond built-in Go libraries.
 
@@ -292,33 +294,20 @@ Events through it as is practical.
 
 ### `AddPattern()` Performance
 
-In **most** cases, tens of thousands of Patterns per second can
+Tens of thousands of Patterns per second can
 be added to a Quamina instance; the in-memory data structure will
-become larger, but not unreasonably so. The amount of of
+become larger, but not unreasonably so. The amount of
 available memory is the only significant limit to the
 number of patterns an instance can carry.
-
-The exception is `shellstyle` Patterns. Adding many of these
-can rapidly lead to degradation in elapsed time and memory
-consumption, at a rate which is uneven but at worst
-O(2<sup>N</sup>) in the number of patterns. A fuzz test
-which adds random 5-letter words with a `*` at a random
-location slows to a crawl after 30 or so `AddPattern()`
-calls, with the Quamina instance having many millions of
-states. Note that such instances, once built, can still
-match Events at high speeds.
-
-This is after some optimization. It is possible there is a
-bug such that automaton-building is unduly wasteful but it
-may remain the case that adding this flavor of Pattern is
-simply not something that can be done at large scale.
 
 ### `MatchesForEvent()` Performance
 
 I used to say that the performance of
 `MatchesForEvent` was O(1) in the number of
 Patterns. That’s probably a reasonable way to think
-about it, because it’s *almost* right.
+about it, because it’s *almost* right, except in the
+case where a very large number of `shellstyle` patterns
+have been added; this is discussed in the next section.
 
 To be correct, the performance is a little worse than
 O(N) where N is the average number of unique fields in an
@@ -360,6 +349,23 @@ is at most N, the number of fields left after discarding.
 So, adding a new Pattern that only mentions fields which are
 already mentioned in previous Patterns is effectively free,
 i.e. O(1) in terms of run-time performance.
+
+### Quamina instances with large numbers of `shellstyle` Patterns
+
+A study of the theory of finite automata reveals that processing 
+regular-expression constructs such as `*` increases the complexity of
+the automaton necessary to match it. It develops that when 
+a large number of such automata are compiled together, the merged
+output can contain a high degree of nondeterminism which can result
+in a drastic slowdown.
+
+A fuzz test which adds a pattern for each of 12,959 5-letter words with
+one `*` embedded in each at a random offset slows matching speed down to 
+below 10,000/second, in stark contrast to most Quamina instances, which 
+can achieve millions of matches/second.
+
+This slowdown is under active investigation and it is possible that the
+situation will improve.
 
 ### Further documentation
 
