@@ -60,6 +60,8 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"xxx": [ { "exists": true, "a": 3 }] }`,
 		`{"xxx": [ { "exists": false, "x": ["a", 3 ] }] }`,
 		`{"abc": [ {"shellstyle":15} ] }`,
+		`{"abc": [ {"shellstyle":"15"] ] }`,
+		`{"abc": [ {"shellstyle":"15", "x", 1} ] }`,
 		`{"abc": [ {"shellstyle":"a**b"}, "foo" ] }`,
 		`{"abc": [ {"prefix":23}, "foo" ] }`,
 		`{"abc": [ {"prefix":["a", "b"]}, "foo" ] }`,
@@ -82,6 +84,7 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"x": { "y": [ {"exists": false} ] } }`,
 		`{"abc": [ 3, {"shellstyle":"a*b"} ] }`,
 		`{"abc": [ {"shellstyle":"a*b"}, "foo" ] }`,
+		`{"abc": [ {"shellstyle":"a*b*c"} ] }`,
 	}
 	w1 := []*patternField{{path: "x", vals: []typedVal{{vType: numberType, val: "2"}}}}
 	w2 := []*patternField{{path: "x", vals: []typedVal{
@@ -131,7 +134,14 @@ func TestPatternFromJSON(t *testing.T) {
 			},
 		},
 	}
-	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7}
+	w8 := []*patternField{
+		{
+			path: "abc", vals: []typedVal{
+				{vType: shellStyleType, val: `"a*b*c"`},
+			},
+		},
+	}
+	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7, w8}
 
 	for i, good := range goods {
 		fields, err := patternFromJSON([]byte(good))

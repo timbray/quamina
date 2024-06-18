@@ -1,3 +1,3 @@
 module quamina.net/go/quamina
 
-go 1.18
+go 1.22

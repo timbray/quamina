@@ -139,11 +139,6 @@ be assumed to match, but all fields mentioned must match. So the
 semantics are effectively an OR on each field's values,
 but an AND on the field names.
 
-Note that the `shellstyle` Patterns can include only
-one `*` character. The architecture probably allows
-support for a larger subset of regular expressions,
-eventually.
-
 The `"exists":true` and `"exists":false` patterns
 have corner cases; details are covered in
 [Patterns in Quamina](PATTERNS.md).
@@ -352,9 +347,9 @@ i.e. O(1) in terms of run-time performance.
 
 ### Quamina instances with large numbers of `shellstyle` Patterns
 
-A study of the theory of finite automata reveals that processing 
+A study of the theory of finite automata reveals that processing
 regular-expression constructs such as `*` increases the complexity of
-the automaton necessary to match it. It develops that when 
+the automata necessary to match them. It develops that when
 a large number of such automata are compiled together, the merged
 output can contain a high degree of nondeterminism which can result
 in a drastic slowdown.

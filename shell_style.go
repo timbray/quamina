@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
-
-// TODO: remove the limitation of only one "*" in the pattern
 
 // readShellStyleSpecial parses a shellStyle object in a Pattern
 func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal, err error) {
@@ -22,15 +21,8 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 	}
 
 	// no adjacent wildcards
-	valBytes := []byte(shellString)
-	globs := 0
-	for _, ch := range valBytes {
-		if ch == '*' {
-			globs++
-		}
-	}
-	if globs > 1 {
-		err = errors.New("only one '*' character allowed in a shellstyle pattern")
+	if strings.Contains(shellString, "**") {
+		err = fmt.Errorf("Adjacent '*' characters not allowed")
 		return
 	}
 
@@ -40,11 +32,9 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 	if err != nil {
 		return
 	}
-	switch tt := t.(type) {
+	switch t.(type) {
 	case json.Delim:
-		if tt != '}' {
-			err = fmt.Errorf("invalid character %v in 'shellstyle' pattern", tt)
-		}
+		// } is all that will be returned
 	default:
 		err = errors.New("trailing garbage in shellstyle pattern")
 	}

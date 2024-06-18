@@ -3,6 +3,7 @@ package quamina
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -64,12 +65,8 @@ func TestMakeShellStyleFA(t *testing.T) {
 		vm.update(&vmf)
 		var bufs bufpair
 		for _, should := range shouldsForPatterns[i] {
-			fmt.Println("for: " + should)
 			var transitions []*fieldMatcher
 			gotTrans := traverseFA(a, []byte(should), transitions, &bufs)
-			if len(gotTrans) != 0 {
-				fmt.Println("FOO")
-			}
 			if len(gotTrans) != 1 || gotTrans[0] != wanted {
 				t.Errorf("Failure for %s on %s", pattern, should)
 			}
@@ -82,6 +79,65 @@ func TestMakeShellStyleFA(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestWildCardRuler(t *testing.T) {
+	rule1 := "{ \"a\" : [ { \"shellstyle\": \"*bc\" } ] }"
+	rule2 := "{ \"b\" : [ { \"shellstyle\": \"d*f\" } ] }"
+	rule3 := "{ \"b\" : [ { \"shellstyle\": \"d*ff\" } ] }"
+	rule4 := "{ \"c\" : [ { \"shellstyle\": \"xy*\" } ] }"
+	rule5 := "{ \"c\" : [ { \"shellstyle\": \"xy*\" } ] }"
+	rule6 := "{ \"d\" : [ { \"shellstyle\": \"12*4*\" } ] }"
+
+	cm := newCoreMatcher()
+	_ = cm.addPattern("r1", rule1)
+	_ = cm.addPattern("r2", rule2)
+	_ = cm.addPattern("r3", rule3)
+	_ = cm.addPattern("r4", rule4)
+	_ = cm.addPattern("r5", rule5)
+	_ = cm.addPattern("r6", rule6)
+
+	var matches []X
+	matches, _ = cm.matchesForJSONEvent([]byte("{\"a\" : \"bc\"}"))
+	if len(matches) != 1 || matches[0] != "r1" {
+		t.Error("Missed on r1")
+	}
+	matches, _ = cm.matchesForJSONEvent([]byte("{\"a\" : \"abc\"}"))
+	if len(matches) != 1 || matches[0] != "r1" {
+		t.Error("Missed on r1")
+	}
+	matches, _ = cm.matchesForJSONEvent([]byte("{\"b\" : \"dexef\"}"))
+	if len(matches) != 1 || matches[0] != "r2" {
+		t.Error("Missed on r2")
+	}
+	matches, _ = cm.matchesForJSONEvent([]byte("{\"b\" : \"dexeff\"}"))
+	if len(matches) != 2 || (!slices.Contains(matches, "r2")) || !slices.Contains(matches, "r3") {
+		t.Error("Missed on r2/r3")
+	}
+	matches, _ = cm.matchesForJSONEvent([]byte("{\"c\" : \"xyzzz\"}"))
+	if len(matches) != 2 || (!slices.Contains(matches, "r4")) || !slices.Contains(matches, "r5") {
+		t.Error("Missed on r4/r5")
+	}
+	matches, _ = cm.matchesForJSONEvent([]byte("{\"d\" : \"12345\"}"))
+	if len(matches) != 1 || matches[0] != "r6" {
+		t.Error("Missed on r6")
+	}
+
+	shouldNots := []string{
+		"{\"c\" : \"abc\"}",
+		"{\"a\" : \"xyz\"}",
+		"{\"c\" : \"abcxyz\"}",
+		"{\"b\" : \"ef\"}",
+		"{\"b\" : \"de\"}",
+		"{\"d\" : \"1235\"}",
+	}
+	for _, shouldNot := range shouldNots {
+		matches, _ := cm.matchesForJSONEvent([]byte(shouldNot))
+		if len(matches) != 0 {
+			t.Error("shouldn't have matched: " + shouldNot)
+		}
+	}
+
 }
 
 func TestShellStyleBuildTime(t *testing.T) {
