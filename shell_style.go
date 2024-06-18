@@ -22,7 +22,7 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 
 	// no adjacent wildcards
 	if strings.Contains(shellString, "**") {
-		err = fmt.Errorf("Adjacent '*' characters not allowed")
+		err = fmt.Errorf("adjacent '*' characters not allowed")
 		return
 	}
 
