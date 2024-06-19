@@ -3,7 +3,6 @@ package quamina
 import (
 	"fmt"
 	"math/rand"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -111,11 +110,11 @@ func TestWildCardRuler(t *testing.T) {
 		t.Error("Missed on r2")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"b\" : \"dexeff\"}"))
-	if len(matches) != 2 || (!matchesContains(matches, "r2")) || !matchesContains(matches, "r3") {
+	if len(matches) != 2 || (!containsX(matches, "r2")) || !containsX(matches, "r3") {
 		t.Error("Missed on r2/r3")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"c\" : \"xyzzz\"}"))
-	if len(matches) != 2 || (!matchesContains(matches, "r4")) || !matchesContains(matches, "r5") {
+	if len(matches) != 2 || (!containsX(matches, "r4")) || !containsX(matches, "r5") {
 		t.Error("Missed on r4/r5")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"d\" : \"12345\"}"))
@@ -139,12 +138,19 @@ func TestWildCardRuler(t *testing.T) {
 	}
 }
 
-func matchesContains(matches []X, s string) bool {
-	var ms []string
-	for _, match := range matches {
-		ms = append(ms, match.(string))
+func containsX(matches []X, wanteds ...string) bool {
+	var sMatches []string
+	for _, x := range matches {
+		sMatches = append(sMatches, x.(string))
 	}
-	return slices.Contains(ms, s)
+	for _, wanted := range wanteds {
+		for _, sMatch := range sMatches {
+			if wanted == sMatch {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestShellStyleBuildTime(t *testing.T) {
