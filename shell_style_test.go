@@ -111,11 +111,11 @@ func TestWildCardRuler(t *testing.T) {
 		t.Error("Missed on r2")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"b\" : \"dexeff\"}"))
-	if len(matches) != 2 || (!slices.Contains(matches, "r2")) || !slices.Contains(matches, "r3") {
+	if len(matches) != 2 || (!matchesContains(matches, "r2")) || !matchesContains(matches, "r3") {
 		t.Error("Missed on r2/r3")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"c\" : \"xyzzz\"}"))
-	if len(matches) != 2 || (!slices.Contains(matches, "r4")) || !slices.Contains(matches, "r5") {
+	if len(matches) != 2 || (!matchesContains(matches, "r4")) || !matchesContains(matches, "r5") {
 		t.Error("Missed on r4/r5")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"d\" : \"12345\"}"))
@@ -137,7 +137,14 @@ func TestWildCardRuler(t *testing.T) {
 			t.Error("shouldn't have matched: " + shouldNot)
 		}
 	}
+}
 
+func matchesContains(matches []X, s string) bool {
+	var ms []string
+	for _, match := range matches {
+		ms = append(ms, match.(string))
+	}
+	return slices.Contains(ms, s)
 }
 
 func TestShellStyleBuildTime(t *testing.T) {
