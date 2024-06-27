@@ -136,6 +136,35 @@ func TestRulerCl2(t *testing.T) {
 	}
 	anythingButMatches := []int{211158, 210411, 96682, 120, 210615}
 
+	shellstyleRules := []string{
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ { \"shellstyle\": \"143*\" } ]\n" +
+			"  }" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ { \"shellstyle\": \"2*0*1*7\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ { \"shellstyle\": \"*218\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ { \"shellstyle\": \"3*5*2\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ { \"shellstyle\": \"VA*IL\" } ]\n" +
+			"  }\n" +
+			"}",
+	}
+	shellstyleMatches := []int{490, 713, 43, 2540, 1}
+
 	/* will add when we have numeric
 	complexArraysRules := []string{
 		"{\n" +
@@ -202,6 +231,10 @@ func TestRulerCl2(t *testing.T) {
 	bm = newBenchmarker()
 	bm.addRules(anythingButRules, anythingButMatches, true)
 	fmt.Printf("ANYTHING-BUT events/sec: %.1f\n", bm.run(t, lines))
+
+	bm = newBenchmarker()
+	bm.addRules(shellstyleRules, shellstyleMatches, true)
+	fmt.Printf("SHELLSTYLE events/sec: %.1f\n", bm.run(t, lines))
 }
 
 type benchmarker struct {

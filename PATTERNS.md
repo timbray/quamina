@@ -148,10 +148,12 @@ it **MUST NOT** contain any other values.
 
 The Pattern Type of a Shellstyle Pattern is `shellstyle`
 and its value **MUST** be a string which **MAY** contain
-a single `*` (“star”) character. The star character
+`*` (“star”) characters. The star character
 functions exactly as the same character does in
 command-line processors which descend from Unix’s
 shell; i.e., matches the regular expression `.*`
+
+Adjacent `*` characters are not allowed.
 
 Consider the following Event:
 ```json
@@ -162,6 +164,7 @@ The following Shellstyle Patterns would match it:
 {"img": [ {"shellstyle": "*.jpg"} ] }
 {"img": [ {"shellstyle": "https://example.com/*"} ] }
 {"img": [ {"shellstyle": "https://example.com/*.jpg"} ] }
+{"img": [ {"shellstyle": "https://example.*/*.jpg"} ] }
 ```
 ## EventBridge Patterns
 
