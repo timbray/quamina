@@ -86,8 +86,6 @@ func TestCRANLEIGH(t *testing.T) {
 	}
 }
 
-// - restore when we've got multi-glob working
-/*
 func TestMySoftwareHatesMe(t *testing.T) {
 	line := `{ "type": "Feature", "properties": { "STREET": "BELVEDERE" }  }`
 	m := newCoreMatcher()
@@ -97,7 +95,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 	if m.addPattern("EEE", EEEpat) != nil {
 		t.Error("Huh add?")
 	}
-	matches, err := m.MatchesForEvent([]byte(line))
+	matches, _ := m.matchesForJSONEvent([]byte(line))
 	if len(matches) != 1 || matches[0] != "EEE" {
 		t.Error("Failed to match EEE")
 	}
@@ -106,10 +104,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 	_ = m.addPattern("B", Bpat)
 	_ = m.addPattern("EEE", EEEpat)
 
-	matches, err = m.MatchesForEvent([]byte(line))
-	if err != nil {
-		t.Error("Huh? " + err.Error())
-	}
+	matches, _ = m.matchesForJSONEvent([]byte(line))
 	if !containsX(matches, "B") {
 		t.Error("no match for B")
 	}
@@ -117,7 +112,6 @@ func TestMySoftwareHatesMe(t *testing.T) {
 		t.Error("no match for EEE")
 	}
 }
-*/
 
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
@@ -131,12 +125,10 @@ func TestBigShellStyle(t *testing.T) {
 		"V": 4322, "W": 4162, "X": 0, "Y": 721, "Z": 25,
 	}
 
-	/* - restore when we've got multi-glob working
 	funky := map[X]int{
 		`{"properties": {"STREET":[ {"shellstyle": "N*P*"} ] } }`:    927,
 		`{"properties": {"STREET":[ {"shellstyle": "*E*E*E*"} ] } }`: 1212,
 	}
-	*/
 
 	for letter := range wanted {
 		pat := fmt.Sprintf(`{"properties": {"STREET":[ {"shellstyle": "%s*"} ] } }`, letter)
@@ -146,14 +138,12 @@ func TestBigShellStyle(t *testing.T) {
 		}
 	}
 
-	/*
-		for funk := range funky {
-			err := m.addPattern(funk, funk.(string))
-			if err != nil {
-				t.Errorf("err on %s: %s", funk, err.Error())
-			}
+	for funk := range funky {
+		err := m.addPattern(funk, funk.(string))
+		if err != nil {
+			t.Errorf("err on %s: %s", funk, err.Error())
 		}
-	*/
+	}
 	fmt.Println(matcherStats(m))
 
 	lCounts := make(map[X]int)
@@ -187,14 +177,11 @@ func TestBigShellStyle(t *testing.T) {
 			t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
 		}
 	}
-	/*
-		for k, wc := range funky {
-			if lCounts[k] != wc {
-				t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
-			}
+	for k, wc := range funky {
+		if lCounts[k] != wc {
+			t.Errorf("for %s wanted %d got %d", k, wc, lCounts[k])
 		}
-
-	*/
+	}
 }
 
 // TestPatternAddition adds a whole lot of string-only rules as fast as possible  The profiler says that the
