@@ -10,6 +10,7 @@
 
 ### Fast pattern-matching library
 
+\
 **Quamina** implements a data type with APIs to
 create an instance and add multiple **Patterns** to it,
 and then query data objects called **Events** to
@@ -24,8 +25,7 @@ Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
 
-This is Quamina's first stable release, v1.0.0. Starting now,
-we plan to change APIs only additively.
+This is version 1.1.0 of Quamina. In future, the API will be changed only additively.
 
 Note that we have documented more APIs than are actually
 fully implemented, with the intent of showing direction.
@@ -104,7 +104,7 @@ The following Patterns would match it:
 {
   "Image": {
     "Thumbnail": { "Url":
-      [ { "shellstyle": "http://www.example.com/*9943" } ] }
+      [ { "shellstyle": "http://www.example.*/*9943" } ] }
   }
 }
 ```
@@ -150,9 +150,6 @@ same number. There's a fix for this in the code which
 is not yet activated because it causes a
 significant performance penalty, so the API needs to
 be enhanced to only ask for it when you need it.
-
-The syntax and semantics of Patterns is described
-more fully in [Patterns in Quamina](PATTERNS.md).
 
 ## Flattening and Matching
 
