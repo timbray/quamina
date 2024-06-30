@@ -100,6 +100,20 @@ func makeSmallTable(defaultStep *faNext, indices []byte, steps []*faNext) *small
 	return &t
 }
 
+func (t *smallTable) gatherMetadata(meta *nfaMetadata) {
+	eps := len(t.epsilon)
+	for _, step := range t.steps {
+		if step != nil {
+			if (eps + len(step.states)) > meta.maxOutDegree {
+				meta.maxOutDegree = eps + len(step.states)
+			}
+			for _, state := range step.states {
+				state.table.gatherMetadata(meta)
+			}
+		}
+	}
+}
+
 // unpackedTable replicates the data in the smallTable ceilings and states arrays.  It's quite hard to
 // update the list structure in a smallTable, but trivial in an unpackedTable.  The idea is that to update
 // a smallTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…

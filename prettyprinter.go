@@ -157,8 +157,6 @@ func (pp *prettyPrinter) nextString(n *faNext) string {
 func branchChar(b byte) string {
 	switch b {
 	// TODO: Figure out how to test commented-out cases
-	case 0:
-		return "∅"
 	case valueTerminator:
 		return "ℵ"
 	default:

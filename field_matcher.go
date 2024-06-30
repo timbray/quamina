@@ -35,6 +35,18 @@ func (m *fieldMatcher) update(fields *fmFields) {
 	m.updateable.Store(fields)
 }
 
+func (m *fieldMatcher) gatherMetadata(meta *nfaMetadata) {
+	for _, vm := range m.fields().transitions {
+		vm.gatherMetadata(meta)
+	}
+	for _, fm := range m.fields().existsTrue {
+		fm.gatherMetadata(meta)
+	}
+	for _, fm := range m.fields().existsFalse {
+		fm.gatherMetadata(meta)
+	}
+}
+
 func (m *fieldMatcher) addMatch(x X) {
 	current := m.fields()
 	newFields := &fmFields{
