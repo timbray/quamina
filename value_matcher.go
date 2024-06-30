@@ -166,6 +166,13 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	return nextField
 }
 
+func (m *valueMatcher) gatherMetadata(meta *nfaMetadata) {
+	start := m.fields().startTable
+	if start != nil {
+		start.gatherMetadata(meta)
+	}
+}
+
 // TODO: make these simple FA builders iterative not recursive, this will recurse as deep as the longest string match
 
 func makePrefixFA(val []byte) (*smallTable, *fieldMatcher) {

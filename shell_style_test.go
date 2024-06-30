@@ -110,11 +110,11 @@ func TestWildCardRuler(t *testing.T) {
 		t.Error("Missed on r2")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"b\" : \"dexeff\"}"))
-	if len(matches) != 2 || (!containsX(matches, "r2")) || !containsX(matches, "r3") {
+	if len(matches) != 2 || (!containsX(matches, "r2", "r3")) {
 		t.Error("Missed on r2/r3")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"c\" : \"xyzzz\"}"))
-	if len(matches) != 2 || (!containsX(matches, "r4")) || !containsX(matches, "r5") {
+	if len(matches) != 2 || (!containsX(matches, "r4", "r5")) {
 		t.Error("Missed on r4/r5")
 	}
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"d\" : \"12345\"}"))
@@ -174,7 +174,12 @@ func TestShellStyleBuildTime(t *testing.T) {
 			t.Error("AddP: " + err.Error())
 		}
 	}
-	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
+	cm := q.matcher.(*coreMatcher)
+
+	fmt.Println(matcherStats(cm))
+	cm.analyze()
+	fmt.Printf("MaxP: %d\n", cm.fields().nfaMeta.maxOutDegree)
+
 	// make sure that all the words actually are matched
 	before := time.Now()
 	for _, word := range words {

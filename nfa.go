@@ -17,6 +17,10 @@ type faNext struct {
 	states []*faState
 }
 
+type nfaMetadata struct {
+	maxOutDegree int
+}
+
 type transmap struct {
 	set map[*fieldMatcher]bool
 }
@@ -99,15 +103,13 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, prin
 		return combined
 	}
 
-	newTable := newSmallTable()
-
 	fieldTransitions := append(state1.fieldTransitions, state2.fieldTransitions...)
-	combined = &faState{table: newTable, fieldTransitions: fieldTransitions}
+	combined = &faState{table: newSmallTable(), fieldTransitions: fieldTransitions}
 
 	pretty, ok := printer.(*prettyPrinter)
 	if ok {
-		printer.labelTable(combined.table, fmt.Sprintf("%d∎%d", pretty.tableSerial(state1.table),
-			pretty.tableSerial(state2.table)))
+		printer.labelTable(combined.table, fmt.Sprintf("%d∎%d",
+			pretty.tableSerial(state1.table), pretty.tableSerial(state2.table)))
 	}
 
 	keyMemo[mKey] = combined
@@ -120,13 +122,13 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, prin
 		switch {
 		case next1 == next2:
 			uComb[i] = next1
-		case next1 != nil && next2 == nil:
-			uComb[i] = u1[i]
-		case next1 == nil && next2 != nil:
-			uComb[i] = u2[i]
-		case next1 != nil && next2 != nil:
+		case next2 == nil: // u1 must be non-nil
+			uComb[i] = next1
+		case next1 == nil: // u2 must be non-nil
+			uComb[i] = next2
+		default: // neither is nil, have to merge
 			if i > 0 && next1 == u1[i-1] && next2 == u2[i-1] {
-				uComb[i] = uComb[i-1]
+				uComb[i] = uComb[i-1] // dupe of previous step - this happens a lot
 			} else {
 				var comboNext []*faState
 				for _, nextStep1 := range next1.states {
