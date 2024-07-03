@@ -26,7 +26,8 @@ type flattenJSON struct {
 	isSpace    [256]bool
 }
 
-// Reset an flattenJSON struct so it can be re-used and won't need to be reconstructed for each event to be flattened
+// Reset a flattenJSON struct so  that it can be re-used and won't need to be reconstructed for each event
+// to be flattened
 func (fj *flattenJSON) reset() {
 	fj.eventIndex = 0
 	fj.fields = fj.fields[:0]
@@ -43,7 +44,7 @@ var (
 )
 
 // errEarlyStop is used to signal the case when we've detected that we've read all the fields that appear in any pattern
-// and so we don't need to read any more
+// and so that we don't need to read any more
 var errEarlyStop = errors.New("earlyStop")
 
 // fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
@@ -232,7 +233,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 				val, err = fj.readLiteral(nullBytes)
 				isLeaf = true
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				val, alt, err = fj.readNumber()
+				val, err = fj.readNumber()
 				isLeaf = true
 			case '[':
 				if !pathNode.IsSegmentUsed(memberName) {
@@ -367,7 +368,7 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 				val, err = fj.readLiteral(nullBytes)
 				isLeaf = true
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				val, alt, err = fj.readNumber()
+				val, err = fj.readNumber()
 				isLeaf = true
 			case '{':
 				if fj.skipping == 0 {
@@ -432,7 +433,7 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
  *  these higher-level funcs are going to advance the pointer after each invocation
  */
 
-func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
+func (fj *flattenJSON) readNumber() ([]byte, error) {
 	// points at the first character in the number
 	numStart := fj.eventIndex
 	state := fjNumberStartState
@@ -456,16 +457,9 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				state = fjNumberAfterEState
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
-				// TODO: Too expensive; make it possible for people to ask for this
-				// bytes := fj.event[numStart : fj.eventIndex+1]
-				// c, err := canonicalize(bytes)
-				var alt []byte
-				//if err == nil {
-				//	alt = []byte(c)
-				//}
-				return fj.event[numStart : fj.eventIndex+1], alt, nil
+				return fj.event[numStart : fj.eventIndex+1], nil
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case fjNumberFracState:
 			switch ch {
@@ -474,24 +468,18 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
 				bytes := fj.event[numStart : fj.eventIndex+1]
-				// TODO: Too expensive; make it possible for people to ask for this
-				// c, err := canonicalize(bytes)
-				var alt []byte
-				//if err == nil {
-				//	alt = []byte(c)
-				//}
-				return bytes, alt, nil
+				return bytes, nil
 			case 'e', 'E':
 				state = fjNumberAfterEState
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case fjNumberAfterEState:
 			switch ch {
 			case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
+				return nil, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
 			}
 			state = fjNumberExpState
 
@@ -501,20 +489,13 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				// no-op
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
-				// bytes := fj.event[numStart : fj.eventIndex+1]
-				// TODO: Too expensive; make it possible for people to ask for this
-				// c, err := canonicalize(bytes)
-				var alt []byte
-				// if err == nil {
-				//	alt = []byte(c)
-				// }
-				return fj.event[numStart : fj.eventIndex+1], alt, nil
+				return fj.event[numStart : fj.eventIndex+1], nil
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in exponent", ch))
+				return nil, fj.error(fmt.Sprintf("illegal char '%c' in exponent", ch))
 			}
 		}
 		if fj.step() != nil {
-			return nil, nil, fj.error("event truncated in number")
+			return nil, fj.error("event truncated in number")
 		}
 	}
 }
