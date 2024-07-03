@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"math/rand/v2"
+	"math/rand"
 	"sort"
 	"testing"
 )
