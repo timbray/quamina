@@ -10,11 +10,11 @@ type bufpair struct {
 }
 
 // valueMatcher represents a byte-driven finite automaton (FA).  The table needs to be the
-// equivalent of a map[byte]nextState and is represented by smallTable.
+// equivalent of a map[byte][]nextState and is represented by smallTable.
 // In this implementation all the FAs are nondeterministic, which means each
 // byte can cause transfers to multiple other states. The basic algorithm is to compute the FA
 // for a pattern and merge with any existing FA.
-// In some (common) cases there is only one byte sequence forward from a state,
+// In some (common) cases there is only one value byte sequence forward for a field
 // i.e. a string-valued field with only one string match. In this case, the FA
 // will be null and the value being matched has to exactly equal the singletonMatch
 // field; if so, the singletonTransition is the return value. This is to avoid
@@ -29,7 +29,7 @@ type vmFields struct {
 	startTable          *smallTable
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
-	hasNumbers          bool
+	hasQNumbers         bool
 }
 
 func (m *valueMatcher) fields() *vmFields {
@@ -38,7 +38,7 @@ func (m *valueMatcher) fields() *vmFields {
 
 func (m *valueMatcher) getFieldsForUpdate() *vmFields {
 	current := m.updateable.Load().(*vmFields)
-	freshState := *current
+	freshState := *current // struct copy
 	return &freshState
 }
 
@@ -69,15 +69,15 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *bufpair) []*fieldMa
 		return transitions
 
 	case vmFields.startTable != nil:
-		// if there is a potential for a numeric match, try canonicalizing the number from the event
-		if vmFields.hasNumbers && eventField.IsNumber {
-			canonical, err := canonicalFromBytes(val)
+		// if there is a potential for a numeric match, try making a Q number from the event
+		if vmFields.hasQNumbers && eventField.IsQNumber {
+			qNumber, err := qNumFromBytes(val)
 			if err == nil {
-				return traverseFA(vmFields.startTable, canonical, transitions, bufs)
+				return traverseFA(vmFields.startTable, qNumber, transitions, bufs)
 			}
 		}
 
-		// if the canonicalization didn't work for some reason, go ahead and compare the string values
+		// if it doesn't work as a Q number for some reason, go ahead and compare the string values
 		return traverseFA(vmFields.startTable, val, transitions, bufs)
 
 	default:
@@ -91,19 +91,19 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
 
-	if val.vType == numberType {
-		fields.hasNumbers = true
-	}
-
 	// there's already a table, thus an out-degree > 1
 	if fields.startTable != nil {
 		var newFA *smallTable
 		var nextField *fieldMatcher
 		switch val.vType {
 		case stringType, literalType:
-			newFA, nextField = makeStringFA(valBytes, nil, false)
+			newFA, nextField, _ = makeStringFA(valBytes, nil, false)
 		case numberType:
-			newFA, nextField = makeStringFA(valBytes, nil, true)
+			isQNumber := false
+			newFA, nextField, isQNumber = makeStringFA(valBytes, nil, true)
+			if isQNumber {
+				fields.hasQNumbers = true
+			}
 		case anythingButType:
 			newFA, nextField = makeMultiAnythingButFA(val.list)
 		case shellStyleType:
@@ -130,10 +130,18 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			m.update(fields)
 			return fields.singletonTransition
 		case numberType:
-			newFA, nextField := makeStringFA(valBytes, nil, true)
-			fields.startTable = newFA
-			m.update(fields)
-			return nextField
+			newFA, nextField, isQNumber := makeStringFA(valBytes, nil, true)
+			if isQNumber {
+				fields.hasQNumbers = true
+				fields.startTable = newFA
+				m.update(fields)
+				return nextField
+			} else {
+				fields.singletonMatch = valBytes
+				fields.singletonTransition = newFieldMatcher()
+				m.update(fields)
+				return fields.singletonTransition
+			}
 		case anythingButType:
 			newFA, nextField := makeMultiAnythingButFA(val.list)
 			fields.startTable = newFA
@@ -155,7 +163,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	}
 
 	// singleton match is here and this value matches it
-	if val.vType == stringType || val.vType == literalType {
+	if val.vType == stringType || val.vType == literalType || val.vType == numberType {
 		if bytes.Equal(fields.singletonMatch, valBytes) {
 			return fields.singletonTransition
 		}
@@ -163,14 +171,18 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have
 	// to build an automaton with two values in it
-	singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
+	singletonAutomaton, _, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
 	var nextField *fieldMatcher
 	var newFA *smallTable
 	switch val.vType {
 	case stringType, literalType:
-		newFA, nextField = makeStringFA(valBytes, nil, false)
+		newFA, nextField, _ = makeStringFA(valBytes, nil, false)
 	case numberType:
-		newFA, nextField = makeStringFA(valBytes, nil, true)
+		isQNumber := false
+		newFA, nextField, isQNumber = makeStringFA(valBytes, nil, true)
+		if isQNumber {
+			fields.hasQNumbers = true
+		}
 	case anythingButType:
 		newFA, nextField = makeMultiAnythingButFA(val.list)
 	case shellStyleType:
@@ -223,7 +235,7 @@ func makeOnePrefixFAStep(val []byte, index int, nextField *fieldMatcher) *smallT
 // is recursive because this allows the use of the makeSmallTable call, which
 // reduces memory churn. Converting from a straightforward implementation to
 // this approximately doubled the fields/second rate in addPattern
-func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*smallTable, *fieldMatcher) {
+func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*smallTable, *fieldMatcher, bool) {
 	var nextField *fieldMatcher
 	if useThisTransition != nil {
 		nextField = useThisTransition
@@ -234,17 +246,17 @@ func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*
 	stringFA := makeOneStringFAStep(val, 0, nextField)
 
 	// if the field is numeric, *and* if it can be converted to a float, *and* can be
-	// made canonical, equip the NFA with the canonical form
+	// made into a Q number, equip the NFA with the Q number form
+	isQNumber := false
 	if isNumber {
-		canonical, err := canonicalFromBytes(val)
+		qNum, err := qNumFromBytes(val)
 		if err == nil {
-			if err == nil {
-				numberFA := makeOneStringFAStep(canonical, 0, nextField)
-				stringFA = mergeFAs(stringFA, numberFA, sharedNullPrinter)
-			}
+			isQNumber = true
+			numberFA := makeOneStringFAStep(qNum, 0, nextField)
+			stringFA = mergeFAs(stringFA, numberFA, sharedNullPrinter)
 		}
 	}
-	return stringFA, nextField
+	return stringFA, nextField, isQNumber
 }
 
 func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {

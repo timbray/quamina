@@ -3,7 +3,6 @@ package quamina
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -27,55 +26,80 @@ import (
 // Examples of numbers that do NOT meet these criteria include AWS account numbers, some telephone
 // numbers, and cryptographic keys/signatures. For these, treatment as strings seems to produce
 // satisfactory results for equality testing.
+// In Quamina these are called "Q numbers".
+// How It's Done
+// There is considerable effort to track, at the NFA level, which NFAs are built to match field values
+// that are Q numbers; see vmFields.hasQNumbers. Similarly, the JSONFlattener, since it has to
+// look at all the digits in a number in order to parse it, can keep track of whether it can be made
+// a Q number. The key benefit of this is in valueMatcher.transitionOn, which incurs the cost of
+// making a Q number only if it is known that the valueMatcher's NFA can benefit from it and
+// that the number in the incoming event can in fact be made a Q number.
 
 const (
 	TenE6               = 1e6
 	FiveBillion         = 5e9
 	Hexes               = "0123456789ABCDEF"
 	MaxFractionalDigits = 5
-	ASCII0              = 48
-	ASCII9              = 57
 )
 
-type canonicalNumber []byte
+type qNumber []byte
 
-func canonicalFromBytes(bytes []byte) (canonicalNumber, error) {
-	// compute number of fractional digits
-	seenDot := false
+// qNumFromBytes works out whether a string representing a number falls within the
+// limits imposed for Q numbers. It is heavily optimized and relies on  the form
+// of the number already having been validated, e.g. by flattenJSON().
+func qNumFromBytes(bytes []byte) (qNumber, error) {
+	// shortcut: The shorest number with more than 5 fractional digits is like 0.123456
+	if len(bytes) < 8 {
+		numeric, err := strconv.ParseFloat(string(bytes), 64)
+		if err != nil {
+			return nil, errors.New("not a float") // should never happen, json parser upstream
+		}
+		return qNumFromFloat(numeric)
+	}
+	// compute number of fractional digits. The loop below relies on the fact that anything between '.' and either
+	// 'e' or the end of the string must be a digit, as must anything between 'e' and the end of the string.
+	//. NOTE: This will be fooled by "35.000000"
+	fracStart := 0
 	expStart := 0
-	var fractionalDigits int64 = 0
+	index := 0
+	var utf8Byte byte
+	fractionalDigits := 0
 ForEachByte:
-	for i, utf8Byte := range bytes {
-		switch {
-		case seenDot && utf8Byte >= ASCII0 && utf8Byte <= ASCII9:
-			fractionalDigits++
-		case utf8Byte == '.':
-			seenDot = true
-		case utf8Byte == 'e' || utf8Byte == 'E':
-			// TODO: Test this bit
-			expStart = i + 1
+	for index, utf8Byte = range bytes {
+		switch utf8Byte {
+		case '.':
+			fracStart = index + 1
+		case 'e', 'E':
+			expStart = index + 1
 			break ForEachByte
 		}
 	}
-	if expStart != 0 {
-		exp, err := strconv.ParseInt(string(bytes[expStart:]), 10, 32)
-		if err == nil {
-			fractionalDigits -= exp
+	if fracStart != 0 {
+		fractionalDigits = index - fracStart
+	}
+	// if too many fractional digits, perhaps the exponent will push the '.' to the right
+	if fractionalDigits > MaxFractionalDigits {
+		if expStart != 0 {
+			exp, err := strconv.ParseInt(string(bytes[expStart:]), 10, 32)
+			if err == nil {
+				fractionalDigits -= int(exp)
+			}
 		}
 	}
 	if fractionalDigits > MaxFractionalDigits {
-		return nil, fmt.Errorf("more than %d fractional digits", MaxFractionalDigits)
+		return nil, errors.New("more than 5 fractional digits")
 	}
 
 	numeric, err := strconv.ParseFloat(string(bytes), 64)
 	if err != nil {
-		return nil, errors.New("not a float")
+		return nil, errors.New("not a float") // shouldn't happen, upstream parser should prvent
 	}
-	return canonicalFromFloat(numeric)
+	return qNumFromFloat(numeric)
 }
-func canonicalFromFloat(f float64) (canonicalNumber, error) {
+
+func qNumFromFloat(f float64) (qNumber, error) {
 	if f < -FiveBillion || f > FiveBillion {
-		return nil, fmt.Errorf("value must be between %.0f and %.0f inclusive", -FiveBillion, FiveBillion)
+		return nil, errors.New("value must be between -5e9 and +5e9 inclusive")
 	}
 	value := uint64(TenE6 * (FiveBillion + f))
 	return toHexStringSkippingFirstByte(value), nil
