@@ -41,7 +41,7 @@ func addInvalid(t *testing.T, before []typedVal) {
 
 func TestNoOpTransition(t *testing.T) {
 	vm := newValueMatcher()
-	tr := vm.transitionOn([]byte("foo"), &bufpair{})
+	tr := vm.transitionOn(&Field{Val: []byte("foo")}, &bufpair{})
 	if len(tr) != 0 {
 		t.Error("matched on empty valuematcher")
 	}
@@ -57,7 +57,7 @@ func TestAddTransition(t *testing.T) {
 	if t1 == nil {
 		t.Error("nil addTrans")
 	}
-	t1x := m.transitionOn([]byte("one"), &bufpair{})
+	t1x := m.transitionOn(&Field{Val: []byte("one")}, &bufpair{})
 	if len(t1x) != 1 || t1x[0] != t1 {
 		t.Error("Retrieve failed")
 	}
@@ -73,11 +73,11 @@ func TestAddTransition(t *testing.T) {
 	}
 	t2 := m.addTransition(v2, &nullPrinter{})
 
-	t2x := m.transitionOn([]byte("two"), &bufpair{})
+	t2x := m.transitionOn(&Field{Val: []byte("two")}, &bufpair{})
 	if len(t2x) != 1 || t2x[0] != t2 {
 		t.Error("trans failed T2")
 	}
-	t1x = m.transitionOn([]byte("one"), &bufpair{})
+	t1x = m.transitionOn(&Field{Val: []byte("one")}, &bufpair{})
 	if len(t1x) != 1 || t1x[0] != t1 {
 		t.Error("Retrieve failed")
 	}
@@ -86,21 +86,20 @@ func TestAddTransition(t *testing.T) {
 		val:   "three",
 	}
 	t3 := m.addTransition(v3, &nullPrinter{})
-	t3x := m.transitionOn([]byte("three"), &bufpair{})
+	t3x := m.transitionOn(&Field{Val: []byte("three")}, &bufpair{})
 	if len(t3x) != 1 || t3x[0] != t3 {
 		t.Error("Match failed T3")
 	}
-	t2x = m.transitionOn([]byte("two"), &bufpair{})
+	t2x = m.transitionOn(&Field{Val: []byte("two")}, &bufpair{})
 	if len(t2x) != 1 || t2x[0] != t2 {
 		t.Error("trans failed T2")
 	}
-	t1x = m.transitionOn([]byte("one"), &bufpair{})
+	t1x = m.transitionOn(&Field{Val: []byte("one")}, &bufpair{})
 	if len(t1x) != 1 || t1x[0] != t1 {
 		t.Error("Retrieve failed")
 	}
 }
 
-/* - restore this one when we get multi-glob working
 func TestMultiTransitions(t *testing.T) {
 	patX := `{"foo": [ { "shellstyle": "*x*b" } ]}`
 	patY := `{"foo": [ { "shellstyle": "*y*b" } ]}`
@@ -113,7 +112,7 @@ func TestMultiTransitions(t *testing.T) {
 		t.Error("add patY")
 	}
 	e := `{"foo": "axyb"}`
-	matches, err := m.MatchesForEvent([]byte(e))
+	matches, err := m.matchesForJSONEvent([]byte(e))
 	if err != nil {
 		t.Error("m4: " + err.Error())
 	}
@@ -133,7 +132,7 @@ func TestAY(t *testing.T) {
 	e := `{"x": "X"}`
 	for _, sm := range shouldMatch {
 		p := strings.ReplaceAll(e, "X", sm)
-		matches, err := m.MatchesForEvent([]byte(p))
+		matches, err := m.matchesForJSONEvent([]byte(p))
 		if err != nil {
 			t.Error("bad JSON: " + err.Error())
 		}
@@ -142,7 +141,6 @@ func TestAY(t *testing.T) {
 		}
 	}
 }
-*/
 
 func TestOverlappingValues(t *testing.T) {
 	m := newCoreMatcher()

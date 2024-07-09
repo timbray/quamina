@@ -16,98 +16,9 @@ var (
 	cl2LineCount int
 )
 
-/* This test adopted, with thanks, from aws/event-ruler */
-
-func getCL2Lines(t *testing.T) [][]byte {
-	t.Helper()
-
-	cl2Lock.Lock()
-	defer cl2Lock.Unlock()
-	if cl2Lines != nil {
-		return cl2Lines
-	}
-	file, err := os.Open("testdata/citylots2.json.gz")
-	if err != nil {
-		t.Fatalf("Can't open citylots2.json.gz: %v", err.Error())
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-	zr, err := gzip.NewReader(file)
-	if err != nil {
-		t.Fatalf("Can't open zip reader: %v", err.Error())
-	}
-
-	scanner := bufio.NewScanner(zr)
-	buf := make([]byte, oneMeg)
-	scanner.Buffer(buf, oneMeg)
-	for scanner.Scan() {
-		cl2LineCount++
-		cl2Lines = append(cl2Lines, []byte(scanner.Text()))
-	}
-	return cl2Lines
-}
-
-func TestRulerCl2(t *testing.T) {
-	exactRules := []string{
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"MAPBLKLOT\": [ \"1430022\" ]\n" +
-			"  }" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"MAPBLKLOT\": [ \"2607117\" ]\n" +
-			"  }\n" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"MAPBLKLOT\": [ \"2607218\" ]\n" +
-			"  }\n" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"MAPBLKLOT\": [ \"3745012\" ]\n" +
-			"  }\n" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"MAPBLKLOT\": [ \"VACSTWIL\" ]\n" +
-			"  }\n" +
-			"}",
-	}
-	exactMatches := []int{1, 101, 35, 655, 1}
-
-	prefixRules := []string{
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"STREET\": [ { \"prefix\": \"AC\" } ]\n" +
-			"  }\n" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"STREET\": [ { \"prefix\": \"BL\" } ]\n" +
-			"  }\n" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"STREET\": [ { \"prefix\": \"DR\" } ]\n" +
-			"  }\n" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"STREET\": [ { \"prefix\": \"FU\" } ]\n" +
-			"  }\n" +
-			"}",
-		"{\n" +
-			"  \"properties\": {\n" +
-			"    \"STREET\": [ { \"prefix\": \"RH\" } ]\n" +
-			"  }\n" +
-			"}",
-	}
-	prefixMatches := []int{24, 442, 38, 2387, 328}
-
-	anythingButRules := []string{
+// test rules pulled out so that it's easy to write test funcs focusing in on one set of htem.
+var (
+	anythingButRules = []string{
 		"{\n" +
 			"  \"properties\": {\n" +
 			"    \"STREET\": [ { \"anything-but\": [ \"FULTON\" ] } ]\n" +
@@ -134,9 +45,64 @@ func TestRulerCl2(t *testing.T) {
 			"  }\n" +
 			"}",
 	}
-	anythingButMatches := []int{211158, 210411, 96682, 120, 210615}
-
-	shellstyleRules := []string{
+	anythingButMatches = []int{211158, 210411, 96682, 120, 210615}
+	exactRules         = []string{
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ \"1430022\" ]\n" +
+			"  }" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ \"2607117\" ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ \"2607218\" ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ \"3745012\" ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"MAPBLKLOT\": [ \"VACSTWIL\" ]\n" +
+			"  }\n" +
+			"}",
+	}
+	exactMatches = []int{1, 101, 35, 655, 1}
+	prefixRules  = []string{
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"AC\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"BL\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"DR\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"FU\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"prefix\": \"RH\" } ]\n" +
+			"  }\n" +
+			"}",
+	}
+	prefixMatches   = []int{24, 442, 38, 2387, 328}
+	shellstyleRules = []string{
 		"{\n" +
 			"  \"properties\": {\n" +
 			"    \"MAPBLKLOT\": [ { \"shellstyle\": \"143*\" } ]\n" +
@@ -163,8 +129,7 @@ func TestRulerCl2(t *testing.T) {
 			"  }\n" +
 			"}",
 	}
-	shellstyleMatches := []int{490, 713, 43, 2540, 1}
-
+	shellstyleMatches = []int{490, 713, 43, 2540, 1}
 	/* will add when we have numeric
 	complexArraysRules := []string{
 		"{\n" +
@@ -211,6 +176,41 @@ func TestRulerCl2(t *testing.T) {
 	complexArraysMatches := []int{227, 2, 149444, 64368, 127485}
 	*/
 
+)
+
+/* This test adopted, with thanks, from aws/event-ruler */
+
+func getCL2Lines(t *testing.T) [][]byte {
+	t.Helper()
+
+	cl2Lock.Lock()
+	defer cl2Lock.Unlock()
+	if cl2Lines != nil {
+		return cl2Lines
+	}
+	file, err := os.Open("testdata/citylots2.json.gz")
+	if err != nil {
+		t.Fatalf("Can't open citylots2.json.gz: %v", err.Error())
+	}
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
+	zr, err := gzip.NewReader(file)
+	if err != nil {
+		t.Fatalf("Can't open zip reader: %v", err.Error())
+	}
+
+	scanner := bufio.NewScanner(zr)
+	buf := make([]byte, oneMeg)
+	scanner.Buffer(buf, oneMeg)
+	for scanner.Scan() {
+		cl2LineCount++
+		cl2Lines = append(cl2Lines, []byte(scanner.Text()))
+	}
+	return cl2Lines
+}
+
+func TestRulerCl2(t *testing.T) {
 	lines := getCL2Lines(t)
 	fmt.Printf("lines: %d\n", len(lines))
 

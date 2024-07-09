@@ -56,6 +56,19 @@ Thus, the following Pattern would match both JSON events above:
 {"alpha": {"beta": [1]}}
 ```
 
+### Numeric Values
+
+It would be convenient if Quamina knew, for matching purposes, that 35,
+35.00, and 3.5e1 were all the same number.
+
+In many cases, Quamina can manage this. Specifically, for numbers that:
+
+* are between -5.0e9 and 5.0e9 inclusive.
+* have five or fewer fractional digits.
+
+Numbers which do not meet these criteria will be treated as strings, which
+usually produces good results.
+
 ## Extended Patterns
 An **Extended Pattern** **MUST** be a JSON object containing
 a single field whose name is called the **Pattern Type**.

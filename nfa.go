@@ -96,7 +96,7 @@ func mergeFAs(table1, table2 *smallTable, printer printer) *smallTable {
 }
 
 func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, printer printer) *faState {
-	var combined *faState
+	// try to memo-ize
 	mKey := faStepKey{state1, state2}
 	combined, ok := keyMemo[mKey]
 	if ok {
@@ -116,28 +116,25 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, prin
 	u1 := unpackTable(state1.table)
 	u2 := unpackTable(state2.table)
 	var uComb unpackedTable
-
 	for i, next1 := range u1 {
 		next2 := u2[i]
 		switch {
-		case next1 == next2:
+		case next1 == next2: // no need to merge
 			uComb[i] = next1
 		case next2 == nil: // u1 must be non-nil
 			uComb[i] = next1
 		case next1 == nil: // u2 must be non-nil
 			uComb[i] = next2
-		default: // neither is nil, have to merge
-			if i > 0 && next1 == u1[i-1] && next2 == u2[i-1] {
-				uComb[i] = uComb[i-1] // dupe of previous step - this happens a lot
-			} else {
-				var comboNext []*faState
-				for _, nextStep1 := range next1.states {
-					for _, nextStep2 := range next2.states {
-						comboNext = append(comboNext, mergeFAStates(nextStep1, nextStep2, keyMemo, printer))
-					}
+		case i > 0 && next1 == u1[i-1] && next2 == u2[i-1]: // dupe of previous step - happens a lot
+			uComb[i] = uComb[i-1]
+		default: // have to recurse & merge
+			var comboNext []*faState
+			for _, nextStep1 := range next1.states {
+				for _, nextStep2 := range next2.states {
+					comboNext = append(comboNext, mergeFAStates(nextStep1, nextStep2, keyMemo, printer))
 				}
-				uComb[i] = &faNext{states: comboNext}
 			}
+			uComb[i] = &faNext{states: comboNext}
 		}
 	}
 	combined.table.pack(&uComb)

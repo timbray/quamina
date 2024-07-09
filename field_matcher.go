@@ -132,21 +132,6 @@ func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fi
 	var nextFieldMatchers []*fieldMatcher
 	for _, val := range field.vals {
 		nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(val, printer))
-
-		// if the val is a number, let's add a transition on the canonicalized number
-		// TODO: Only do this if asked
-		/*
-			if val.vType == numberType {
-				c, err := canonicalize([]byte(val.val))
-				if err == nil {
-					number := typedVal{
-						vType: literalType,
-						val:   c,
-					}
-					nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(number))
-				}
-			}
-		*/
 	}
 	m.update(freshStart)
 	return nextFieldMatchers
@@ -162,6 +147,5 @@ func (m *fieldMatcher) transitionOn(field *Field, bufs *bufpair) []*fieldMatcher
 	if !ok {
 		return nil
 	}
-
-	return valMatcher.transitionOn(field.Val, bufs)
+	return valMatcher.transitionOn(field, bufs)
 }

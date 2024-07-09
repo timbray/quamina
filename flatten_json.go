@@ -26,7 +26,8 @@ type flattenJSON struct {
 	isSpace    [256]bool
 }
 
-// Reset an flattenJSON struct so it can be re-used and won't need to be reconstructed for each event to be flattened
+// Reset a flattenJSON struct so  that it can be re-used and won't need to be reconstructed for each event
+// to be flattened
 func (fj *flattenJSON) reset() {
 	fj.eventIndex = 0
 	fj.fields = fj.fields[:0]
@@ -43,7 +44,7 @@ var (
 )
 
 // errEarlyStop is used to signal the case when we've detected that we've read all the fields that appear in any pattern
-// and so we don't need to read any more
+// and so that we don't need to read any more
 var errEarlyStop = errors.New("earlyStop")
 
 // fjState - this is a finite state machine parser, or rather a collection of smaller FSM parsers. Some of these
@@ -213,7 +214,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 			}
 
 			var val []byte
-			var alt []byte
+			isQNumber := false
 			switch ch {
 			case '"':
 				if fj.skipping > 0 || !memberIsUsed {
@@ -232,7 +233,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 				val, err = fj.readLiteral(nullBytes)
 				isLeaf = true
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				val, alt, err = fj.readNumber()
+				val, isQNumber, err = fj.readNumber()
 				isLeaf = true
 			case '[':
 				if !pathNode.IsSegmentUsed(memberName) {
@@ -295,12 +296,9 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 			}
 			if val != nil {
 				if memberIsUsed {
-					fj.storeObjectMemberField(pathNode.PathForSegment(memberName), arrayTrail, val)
+					fj.storeObjectMemberField(pathNode.PathForSegment(memberName), arrayTrail, val, isQNumber)
 					fieldsCount--
 				}
-			}
-			if alt != nil {
-				alt = nil
 			}
 			state = fjAfterValueState
 		case fjAfterValueState:
@@ -342,7 +340,7 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 	for {
 		ch := fj.ch()
 		var val []byte // resets on each loop
-		var alt []byte
+		isQNumber := false
 		switch state {
 		case fjInArrayState:
 			// bypass space before element value. A bit klunky but allows for immense simplification
@@ -367,7 +365,7 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 				val, err = fj.readLiteral(nullBytes)
 				isLeaf = true
 			case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				val, alt, err = fj.readNumber()
+				val, isQNumber, err = fj.readNumber()
 				isLeaf = true
 			case '{':
 				if fj.skipping == 0 {
@@ -400,11 +398,8 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
 			if val != nil {
 				if fj.skipping == 0 {
 					fj.stepOneArrayElement()
-					fj.storeArrayElementField(pathName, val)
+					fj.storeArrayElementField(pathName, val, isQNumber)
 				}
-			}
-			if alt != nil {
-				alt = nil
 			}
 			state = fjAfterValueState
 		case fjAfterValueState:
@@ -432,10 +427,13 @@ func (fj *flattenJSON) readArray(pathName []byte, pathNode SegmentsTreeTracker) 
  *  these higher-level funcs are going to advance the pointer after each invocation
  */
 
-func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
+func (fj *flattenJSON) readNumber() ([]byte, bool, error) {
 	// points at the first character in the number
 	numStart := fj.eventIndex
 	state := fjNumberStartState
+	isQNumber := false
+	fracStart := 0
+	expStart := 0
 	for {
 		ch := fj.ch()
 		switch state {
@@ -452,46 +450,38 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 				// no-op
 			case '.':
 				state = fjNumberFracState
+				fracStart = fj.eventIndex + 1
 			case 'e', 'E':
 				state = fjNumberAfterEState
+				expStart = fj.eventIndex + 1
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
 				fj.eventIndex--
-				// TODO: Too expensive; make it possible for people to ask for this
-				// bytes := fj.event[numStart : fj.eventIndex+1]
-				// c, err := canonicalize(bytes)
-				var alt []byte
-				//if err == nil {
-				//	alt = []byte(c)
-				//}
-				return fj.event[numStart : fj.eventIndex+1], alt, nil
+				return fj.event[numStart : fj.eventIndex+1], true, nil
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+				return nil, false, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case fjNumberFracState:
 			switch ch {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
+				fractionalDigits := (expStart - 1) - fracStart
+				isQNumber = fractionalDigits <= MaxFractionalDigits
 				fj.eventIndex--
 				bytes := fj.event[numStart : fj.eventIndex+1]
-				// TODO: Too expensive; make it possible for people to ask for this
-				// c, err := canonicalize(bytes)
-				var alt []byte
-				//if err == nil {
-				//	alt = []byte(c)
-				//}
-				return bytes, alt, nil
+				return bytes, isQNumber, nil
 			case 'e', 'E':
 				state = fjNumberAfterEState
+				expStart = fj.eventIndex + 1
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+				return nil, false, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case fjNumberAfterEState:
 			switch ch {
 			case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
+				return nil, false, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
 			}
 			state = fjNumberExpState
 
@@ -500,21 +490,27 @@ func (fj *flattenJSON) readNumber() ([]byte, []byte, error) {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
+				fractionalDigits := 0
+				if fracStart != 0 {
+					fractionalDigits = (expStart - 1) - fracStart
+					if fractionalDigits > MaxFractionalDigits {
+						if expStart != 0 {
+							exp, err := strconv.ParseInt(string(fj.event[expStart:fj.eventIndex]), 10, 32)
+							if err == nil {
+								fractionalDigits -= int(exp)
+							}
+						}
+					}
+				}
+				isQNumber = fractionalDigits <= MaxFractionalDigits
 				fj.eventIndex--
-				// bytes := fj.event[numStart : fj.eventIndex+1]
-				// TODO: Too expensive; make it possible for people to ask for this
-				// c, err := canonicalize(bytes)
-				var alt []byte
-				// if err == nil {
-				//	alt = []byte(c)
-				// }
-				return fj.event[numStart : fj.eventIndex+1], alt, nil
+				return fj.event[numStart : fj.eventIndex+1], isQNumber, nil
 			default:
-				return nil, nil, fj.error(fmt.Sprintf("illegal char '%c' in exponent", ch))
+				return nil, false, fj.error(fmt.Sprintf("illegal char '%c' in exponent", ch))
 			}
 		}
 		if fj.step() != nil {
-			return nil, nil, fj.error("event truncated in number")
+			return nil, false, fj.error("event truncated in number")
 		}
 	}
 }
@@ -835,14 +831,14 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 // its own snapshot of the array-trail data, because it'll be different for each array element
 // NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
 // because of the necessity to construct a new arrayTrail for each element.
-func (fj *flattenJSON) storeArrayElementField(path []byte, val []byte) {
-	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val}
+func (fj *flattenJSON) storeArrayElementField(path []byte, val []byte, isQNumber bool) {
+	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val, IsQNumber: isQNumber}
 	copy(f.ArrayTrail, fj.arrayTrail)
 	fj.fields = append(fj.fields, f)
 }
 
-func (fj *flattenJSON) storeObjectMemberField(path []byte, arrayTrail []ArrayPos, val []byte) {
-	fj.fields = append(fj.fields, Field{Path: path, ArrayTrail: arrayTrail, Val: val})
+func (fj *flattenJSON) storeObjectMemberField(path []byte, arrayTrail []ArrayPos, val []byte, isQNumber bool) {
+	fj.fields = append(fj.fields, Field{Path: path, ArrayTrail: arrayTrail, Val: val, IsQNumber: isQNumber})
 }
 
 func (fj *flattenJSON) enterArray() {

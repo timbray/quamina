@@ -143,13 +143,8 @@ The `"exists":true` and `"exists":false` patterns
 have corner cases; details are covered in
 [Patterns in Quamina](PATTERNS.md).
 
-Number matching is weak - the number has to appear
-exactly the same in the Pattern and the Event. I.e.,
-Quamina doesn't know that 35, 35.000, and 3.5e1 are the
-same number. There's a fix for this in the code which
-is not yet activated because it causes a
-significant performance penalty, so the API needs to
-be enhanced to only ask for it when you need it.
+Quamina can match numeric values correctly, subject to 
+certain limits; details are in [Patterns in Quamina](PATTERNS.md).
 
 ## Flattening and Matching
 
