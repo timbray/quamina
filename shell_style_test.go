@@ -65,14 +65,14 @@ func TestMakeShellStyleFA(t *testing.T) {
 		var bufs bufpair
 		for _, should := range shouldsForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := traverseFA(a, []byte(should), transitions, &bufs)
+			gotTrans := traverseNFA(a, []byte(should), transitions, &bufs)
 			if len(gotTrans) != 1 || gotTrans[0] != wanted {
 				t.Errorf("Failure for %s on %s", pattern, should)
 			}
 		}
 		for _, shouldNot := range shouldNotForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := traverseFA(a, []byte(shouldNot), transitions, &bufs)
+			gotTrans := traverseNFA(a, []byte(shouldNot), transitions, &bufs)
 			if gotTrans != nil {
 				t.Errorf("bogus match for %s on %s", pattern, shouldNot)
 			}

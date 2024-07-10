@@ -34,11 +34,6 @@ func (m *matchSet) addXSingleThreaded(exes ...X) *matchSet {
 	return m
 }
 
-func (m *matchSet) contains(x X) bool {
-	_, ok := m.set[x]
-	return ok
-}
-
 func (m *matchSet) matches() []X {
 	matches := make([]X, 0, len(m.set))
 	for x := range m.set {

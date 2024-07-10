@@ -39,7 +39,29 @@ func (tm *transmap) all() []*fieldMatcher {
 	return all
 }
 
-func traverseFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *bufpair) []*fieldMatcher {
+// While some Quamina patterns require the use of NFAs, many (most?) don't, and while we're still using a
+// NFA-capable data structure, we can traverse it deterministically if we know in advance that every
+// combination of an faState with a byte will transition to at most one other faState.
+
+func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
+	for index := 0; index <= len(val); index++ {
+		var utf8Byte byte
+		if index < len(val) {
+			utf8Byte = val[index]
+		} else {
+			utf8Byte = valueTerminator
+		}
+		next := table.dStep(utf8Byte)
+		if next == nil {
+			break
+		}
+		transitions = append(transitions, next.fieldTransitions...)
+		table = next.table
+	}
+	return transitions
+}
+
+func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *bufpair) []*fieldMatcher {
 	currentStates := bufs.buf1
 	currentStates = append(currentStates, &faState{table: table})
 	nextStates := bufs.buf2

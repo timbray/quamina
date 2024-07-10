@@ -30,6 +30,7 @@ type vmFields struct {
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
 	hasQNumbers         bool
+	isNondeterministic  bool
 }
 
 func (m *valueMatcher) fields() *vmFields {
@@ -71,14 +72,22 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *bufpair) []*fieldMa
 	case vmFields.startTable != nil:
 		// if there is a potential for a numeric match, try making a Q number from the event
 		if vmFields.hasQNumbers && eventField.IsQNumber {
-			qNumber, err := qNumFromBytes(val)
+			qNum, err := qNumFromBytes(val)
 			if err == nil {
-				return traverseFA(vmFields.startTable, qNumber, transitions, bufs)
+				if vmFields.isNondeterministic {
+					return traverseNFA(vmFields.startTable, qNum, transitions, bufs)
+				} else {
+					return traverseDFA(vmFields.startTable, qNum, transitions)
+				}
 			}
 		}
 
 		// if it doesn't work as a Q number for some reason, go ahead and compare the string values
-		return traverseFA(vmFields.startTable, val, transitions, bufs)
+		if vmFields.isNondeterministic {
+			return traverseNFA(vmFields.startTable, val, transitions, bufs)
+		} else {
+			return traverseDFA(vmFields.startTable, val, transitions)
+		}
 
 	default:
 		// no FA, no singleton, nothing to do, this probably can't happen because a flattener
@@ -108,6 +117,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			newFA, nextField = makeMultiAnythingButFA(val.list)
 		case shellStyleType:
 			newFA, nextField = makeShellStyleFA(valBytes, printer)
+			fields.isNondeterministic = true
 		case prefixType:
 			newFA, nextField = makePrefixFA(valBytes)
 		default:
@@ -150,6 +160,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		case shellStyleType:
 			newAutomaton, nextField := makeShellStyleFA(valBytes, printer)
 			fields.startTable = newAutomaton
+			fields.isNondeterministic = true
 			m.update(fields)
 			return nextField
 		case prefixType:
@@ -187,6 +198,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		newFA, nextField = makeMultiAnythingButFA(val.list)
 	case shellStyleType:
 		newFA, nextField = makeShellStyleFA(valBytes, printer)
+		fields.isNondeterministic = true
 	case prefixType:
 		newFA, nextField = makePrefixFA(valBytes)
 	default:

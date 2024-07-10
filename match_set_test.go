@@ -51,6 +51,11 @@ func TestAddXSingleThreaded(t *testing.T) {
 	}
 }
 
+func (m *matchSet) contains(x X) bool {
+	_, ok := m.set[x]
+	return ok
+}
+
 func isSameMatches(matchSet *matchSet, exes ...X) bool {
 	if len(exes) == 0 && len(matchSet.matches()) == 0 {
 		return true
