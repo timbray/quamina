@@ -73,6 +73,22 @@ func (t *smallTable) step(utf8Byte byte, out *stepOut) {
 	panic("Malformed smallTable")
 }
 
+// dStep takes a step through an NFA in the case where it is known that the NFA in question
+// is deterministic, i.e. each combination of an faState and a byte value transitions to at
+// most one other byte value.
+func (t *smallTable) dStep(utf8Byte byte) *faState {
+	for index, ceiling := range t.ceilings {
+		if utf8Byte < ceiling {
+			if t.steps[index] == nil {
+				return nil
+			} else {
+				return t.steps[index].states[0]
+			}
+		}
+	}
+	panic("Malformed smallTable")
+}
+
 // makeSmallTable creates a pre-loaded small table, with all bytes not otherwise specified having the defaultStep
 // value, and then a few other values with their indexes and values specified in the other two arguments. The
 // goal is to reduce memory churn
