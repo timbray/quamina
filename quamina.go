@@ -11,7 +11,6 @@ import (
 type Quamina struct {
 	flattener          Flattener
 	matcher            matcher
-	flattenerSpecified bool
 	mediaTypeSpecified bool
 	deletionSpecified  bool
 }
@@ -25,7 +24,7 @@ type Option func(q *Quamina) error
 // invocation of quamina.New() with the WithFlattener() option.
 func WithMediaType(mediaType string) Option {
 	return func(q *Quamina) error {
-		if q.flattenerSpecified {
+		if q.flattener != nil {
 			return errors.New("flattener already specified")
 		}
 		if q.mediaTypeSpecified {
@@ -50,14 +49,13 @@ func WithFlattener(f Flattener) Option {
 		if q.mediaTypeSpecified {
 			return errors.New("media-type already specified")
 		}
-		if q.flattenerSpecified {
+		if q.flattener != nil {
 			return errors.New("flattener specified more than once")
 		}
 		if f == nil {
 			return errors.New("nil Flattener")
 		}
 		q.flattener = f
-		q.flattenerSpecified = true
 		return nil
 	}
 }
@@ -101,7 +99,7 @@ func New(opts ...Option) (*Quamina, error) {
 			return nil, err
 		}
 	}
-	if !(q.mediaTypeSpecified || q.flattenerSpecified) {
+	if (!q.mediaTypeSpecified) && (q.flattener == nil) {
 		q.flattener = newJSONFlattener()
 	}
 	if !q.deletionSpecified {
