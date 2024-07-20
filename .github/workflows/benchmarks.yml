@@ -42,6 +42,7 @@ jobs:
         with:
           name: Go Benchmark
           tool: "go"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
           # Compare results against json from cache
           output-file-path: output.txt
