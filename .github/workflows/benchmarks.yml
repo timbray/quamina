@@ -52,7 +52,7 @@ jobs:
 
           # Alert on regression
           alert-threshold: "120%"
-          fail-on-alert: false
+          fail-on-alert: true
           comment-on-alert: false
 
           # Disable github pages, for now.

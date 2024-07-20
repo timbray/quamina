@@ -86,7 +86,7 @@ all the available tests with race-detection enabled, and
 is an essential step before submitting any changes:
 
 ```shell
-go test -race -v -count 1 ./...
+go test -race -v -count 1
 ```
 
 The following command runs the Go linter; submissions 
@@ -100,6 +100,24 @@ At the moment we don’t have a script for running this
 in all the Quamina subdirectories so you’ll have to do
 this by hand.  `golangci-lint` has a home page with
 instructions for installing it.
+
+### Rebuilding the Case-folding Table
+
+Quamina's `ignore-case` patterns rely on mappings found
+in the generated source file `case_folding.go`. Quamina
+includes a program called `code_gen` in the `code_gen/`
+directory. There is a `Makefile` whose only function is
+to check the mapping file and rebuild it if it is older
+than three months, because a Unicode version release may
+have added mappings.
+
+As a result, it is a good practice, sometime in the process
+of building and submitting a PR, to type `make` at some
+point, which will rebuild and re-run `code_gen`; that program
+will display a message saying whether or not it rebuilt the
+case-folding mappings. If it did rebuild those mappings, please
+include the generated `case_folding.go` source in your commmit
+and PR.
 
 ## Reporting Bugs and Creating Issues
 

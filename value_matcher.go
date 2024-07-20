@@ -2,6 +2,7 @@ package quamina
 
 import (
 	"bytes"
+	"fmt"
 	"sync/atomic"
 )
 
@@ -120,6 +121,8 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			fields.isNondeterministic = true
 		case prefixType:
 			newFA, nextField = makePrefixFA(valBytes)
+		case monocaseType:
+			newFA, nextField = makeMonocaseFA(valBytes, printer)
 		default:
 			panic("unknown value type")
 		}
@@ -168,6 +171,11 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			fields.startTable = newFA
 			m.update(fields)
 			return nextField
+		case monocaseType:
+			newFA, nextField := makeMonocaseFA(valBytes, printer)
+			fields.startTable = newFA
+			m.update(fields)
+			return nextField
 		default:
 			panic("unknown value type")
 		}
@@ -201,6 +209,8 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		fields.isNondeterministic = true
 	case prefixType:
 		newFA, nextField = makePrefixFA(valBytes)
+	case monocaseType:
+		newFA, nextField = makeMonocaseFA(valBytes, printer)
 	default:
 		panic("unknown value type")
 	}
@@ -271,6 +281,35 @@ func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*
 	return stringFA, nextField, isQNumber
 }
 
+// makeFAFragment makes the simplest possible byte-chain FA with its last transition being to the provided
+// endAt value. It is designed to help higher-level automaton builders.
+// suppose you need a few steps to match "cat". You call makeFAFragment and it'll make two *faState instances, one
+// which matches 'a' and transitions to the second, which matches 't' and transitions to the provided endAt
+// argument. Then you transition to what makeFAFragment returns on 'c' from your current faState.
+func makeFAFragment(val []byte, endAt *faNext, pp printer) *faNext {
+	firstStep := &faNext{}
+	step := firstStep
+	// no-op on one-byte values, but should still work so caller can just call this without worrying
+	// about slice length
+	if len(val) == 1 {
+		return endAt
+	}
+	for index := 1; index < len(val); index++ {
+		if index == len(val)-1 {
+			table := makeSmallTable(nil, []byte{val[index]}, []*faNext{endAt})
+			pp.labelTable(table, fmt.Sprintf("exiting on %v", val[index]))
+			step.states = []*faState{{table: table}}
+		} else {
+			nextState := &faNext{}
+			table := makeSmallTable(nil, []byte{val[index]}, []*faNext{nextState})
+			pp.labelTable(table, fmt.Sprintf("stepping on %c", val[index]))
+			step.states = []*faState{{table: table}}
+			step = nextState
+		}
+	}
+	return firstStep
+}
+
 func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
 	var nextStepList *faNext
 	if index == len(val)-1 {
@@ -287,7 +326,5 @@ func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher) *smallT
 		nextStep := &faState{table: makeOneStringFAStep(val, index+1, nextField)}
 		nextStepList = &faNext{states: []*faState{nextStep}}
 	}
-	var u unpackedTable
-	u[val[index]] = nextStepList
 	return makeSmallTable(nil, []byte{val[index]}, []*faNext{nextStepList})
 }

@@ -213,7 +213,7 @@ func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	// over-equipped M2 MBPro, but probably not on some miserable cloud event-handling worker.
 	// Conclusion: I dunno. I left the analyze() func in but for now, don't use its results in
 	// production.
-	var bufs *bufpair = &bufpair{}
+	var bufs = &bufpair{}
 	/*
 		if cmFields.nfaMeta.maxOutDegree < 2 {
 			bufs = &bufpair{}

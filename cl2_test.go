@@ -129,7 +129,35 @@ var (
 			"  }\n" +
 			"}",
 	}
-	shellstyleMatches = []int{490, 713, 43, 2540, 1}
+	shellstyleMatches     = []int{490, 713, 43, 2540, 1}
+	equalsIgnoreCaseRules = []string{
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"equals-ignore-case\": \"jefferson\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"equals-ignore-case\": \"bEaCh\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"equals-ignore-case\": \"HyDe\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"equals-ignore-case\": \"CHESTNUT\" } ]\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"ST_TYPE\": [ { \"equals-ignore-case\": \"st\" } ]\n" +
+			"  }\n" +
+			"}",
+	}
+	equalsIgnoreCaseMatches = []int{131, 211, 1758, 825, 116386}
 	/* will add when we have numeric
 	complexArraysRules := []string{
 		"{\n" +
@@ -235,6 +263,10 @@ func TestRulerCl2(t *testing.T) {
 	bm = newBenchmarker()
 	bm.addRules(shellstyleRules, shellstyleMatches, true)
 	fmt.Printf("SHELLSTYLE events/sec: %.1f\n", bm.run(t, lines))
+
+	bm = newBenchmarker()
+	bm.addRules(equalsIgnoreCaseRules, equalsIgnoreCaseMatches, true)
+	fmt.Printf("EQUALS_IGNORE-CASE events/sec: %.1f\n", bm.run(t, lines))
 }
 
 type benchmarker struct {
