@@ -19,10 +19,10 @@ import (
 // There are two levels of concurrency here. First, the lock field in this struct must be held by any goroutine
 // that is executing addPattern(), i.e. only one thread may be updating the state machine at one time.
 // However, any number of goroutines may in parallel be executing matchesForFields while the addPattern
-// update is in progress. The updateable atomic.Value allows the addPattern thread to change the maps and
+// update is in progress. The updateable atomic.Pointer allows the addPattern thread to change the maps and
 // slices in the structure atomically with atomic.Load() while matchesForFields threads are reading them.
 type coreMatcher struct {
-	updateable atomic.Value // always holds a *coreFields
+	updateable atomic.Pointer[coreFields]
 	lock       sync.Mutex
 }
 
@@ -48,7 +48,7 @@ func newCoreMatcher() *coreMatcher {
 }
 
 func (m *coreMatcher) fields() *coreFields {
-	return m.updateable.Load().(*coreFields)
+	return m.updateable.Load()
 }
 
 // analyze traverses all the different per-field NFAs and gathers metadata that can be
