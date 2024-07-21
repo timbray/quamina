@@ -9,7 +9,7 @@ import (
 // the fields that hold state are segregated in updateable, so they can be replaced atomically and make the coreMatcher
 // thread-safe.
 type fieldMatcher struct {
-	updateable atomic.Value // always holds an *fmFields
+	updateable atomic.Pointer[fmFields]
 }
 
 // fmFields contains the updateable fields in fieldMatcher.
@@ -28,7 +28,7 @@ type fmFields struct {
 // fields / update / addExistsFalseFailure / addMatch exist to insulate callers from dealing with
 // the atomic Load/Store business
 func (m *fieldMatcher) fields() *fmFields {
-	return m.updateable.Load().(*fmFields)
+	return m.updateable.Load()
 }
 
 func (m *fieldMatcher) update(fields *fmFields) {

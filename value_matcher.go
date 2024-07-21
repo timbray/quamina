@@ -21,9 +21,9 @@ type bufpair struct {
 // having a long chain of smallTables each with only one entry.
 // To allow for concurrent access between one thread running AddPattern and many
 // others running MatchesForEvent, the valueMatcher payload is stored in an
-// atomic.Value
+// atomic.Pointer
 type valueMatcher struct {
-	updateable atomic.Value // always contains *vmFields
+	updateable atomic.Pointer[vmFields]
 }
 type vmFields struct {
 	startTable          *smallTable
@@ -34,11 +34,11 @@ type vmFields struct {
 }
 
 func (m *valueMatcher) fields() *vmFields {
-	return m.updateable.Load().(*vmFields)
+	return m.updateable.Load()
 }
 
 func (m *valueMatcher) getFieldsForUpdate() *vmFields {
-	current := m.updateable.Load().(*vmFields)
+	current := m.updateable.Load()
 	freshState := *current // struct copy
 	return &freshState
 }
