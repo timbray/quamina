@@ -179,6 +179,18 @@ The following Shellstyle Patterns would match it:
 {"img": [ {"shellstyle": "https://example.com/*.jpg"} ] }
 {"img": [ {"shellstyle": "https://example.*/*.jpg"} ] }
 ```
+### Equals-Ignore-Case Pattern
+
+The Pattern Type of an Equals-Ignore-Case pattern is `equals-ignore-case`
+and its value **MUST** be a string. Quamina attempts to match with
+case folding in effect, as discussed in Section 3.13 of the Unicode
+Standard. Quamina uses the case-folding mappings provided in the file
+CaseFolding.txt in the Unicode Character Database to generate its mappings.
+Note that case-folding is highly dependent on the specifics of the language
+in use and in certain locales, this default mapping may not produce satisfactory
+results, although results are good for ASCII and "simple" characters from
+other alphabets.
+
 ## EventBridge Patterns
 
 Quamina’s Patterns are inspired by those offered by

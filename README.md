@@ -123,6 +123,13 @@ The following Patterns would match it:
   }
 } 
 ```
+```json
+{
+  "Image": {
+    "Title": [ { "equals-ignore-case": "VIEW FROM 15th FLOOR" } ] 
+  }
+}
+```
 The syntax and semantics of Patterns are fully specified
 in [Patterns in Quamina](PATTERNS.md).
 

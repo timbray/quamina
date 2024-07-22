@@ -219,6 +219,7 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ]  } }`,
 		`{"Image": { "Thumbnail": { "Url": [ { "prefix": "https:" } ] } } }`,
 		`{"Image": { "Thumbnail": { "Url": [ "a", { "prefix": "https:" } ] } } }`,
+		`{"Image": { "Title": [ { "equals-ignore-case": "VIEW FROM 15th FLOOR" } ] } }`,
 	}
 
 	var err error
@@ -276,6 +277,7 @@ func TestExerciseMatching(t *testing.T) {
 			t.Error("add one of many: " + err.Error())
 		}
 	}
+	fmt.Println("MS: " + matcherStats(m))
 	matches, err := m.matchesForJSONEvent([]byte(j))
 	if err != nil {
 		t.Error("m4J on all: " + err.Error())
