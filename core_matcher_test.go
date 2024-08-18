@@ -99,7 +99,7 @@ func TestExistsFalseOrder(t *testing.T) {
 		for _, match := range matches {
 			msg += fmt.Sprintf(" %s\n", match)
 		}
-		t.Errorf(msg)
+		t.Error(msg)
 	}
 }
 
