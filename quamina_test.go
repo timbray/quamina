@@ -166,7 +166,7 @@ func TestCityLots(t *testing.T) {
 			that is slower than the one the software was developed on, in which case you might want to readjust the
 			"thresholdPerformance" constant. However, it may be that you made a change that reduced the throughput of the
 			library, which would be unacceptable.`
-		t.Errorf(message1 + message2)
+		t.Error(message1 + message2)
 	}
 
 	if len(results) != len(wanted) {
