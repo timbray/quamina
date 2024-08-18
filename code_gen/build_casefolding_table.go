@@ -43,21 +43,21 @@ func main() {
 	}
 	resp, err := http.Get(CaseFoldingURL)
 	if err != nil {
-		fatalF("Can't fetch CaseFolding.txt: " + err.Error())
+		fatal("Can't fetch CaseFolding.txt: " + err.Error())
 	}
 	defer func() { _ = resp.Body.Close() }()
 	cff, err := os.Create(CaseFoldingDB + ".tmp")
 	if err != nil {
-		fatalF("Opening CaseFolding.txt: " + err.Error())
+		fatal("Opening CaseFolding.txt: " + err.Error())
 	}
 	_, err = cff.Write([]byte(CFFheader))
 	if err != nil {
-		fatalF("Write CFF header: " + err.Error())
+		fatal("Write CFF header: " + err.Error())
 	}
 	lines := bufio.NewReader(resp.Body)
 	re, err := regexp.Compile(reString)
 	if err != nil {
-		fatalF("RE compile: " + err.Error())
+		fatal("RE compile: " + err.Error())
 	}
 	mappings := make(map[string]string)
 
@@ -66,7 +66,7 @@ func main() {
 		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
-			fatalF("Error reading CaseFolding.txt: " + err.Error())
+			fatal("Error reading CaseFolding.txt: " + err.Error())
 		}
 		if line[0] == '#' || len(line) == 1 {
 			continue
@@ -97,13 +97,13 @@ func main() {
 		if onLine == PairsPerLine {
 			_, err = cff.WriteString("\n\t")
 			if err != nil {
-				fatalF("failed to write line-end: " + err.Error())
+				fatal("failed to write line-end: " + err.Error())
 			}
 			onLine = 0
 		}
 		_, err = fmt.Fprintf(cff, "0x%s: 0x%s, ", lhs, rhs)
 		if err != nil {
-			fatalF("failed to write pair: " + err.Error())
+			fatal("failed to write pair: " + err.Error())
 		}
 		onLine++
 	}
@@ -116,6 +116,10 @@ func main() {
 	}
 }
 
+func fatal(message string) {
+	_, _ = fmt.Fprintln(os.Stderr, message)
+	os.Exit(1)
+}
 func fatalF(format string, args ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, format, args...)
 	os.Exit(1)
