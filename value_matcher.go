@@ -30,7 +30,7 @@ type vmFields struct {
 	startTable          *smallTable
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
-	hasQNumbers         bool
+	hasNumbers          bool
 	isNondeterministic  bool
 }
 
@@ -72,7 +72,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *bufpair) []*fieldMa
 
 	case vmFields.startTable != nil:
 		// if there is a potential for a numeric match, try making a Q number from the event
-		if vmFields.hasQNumbers && eventField.IsQNumber {
+		if vmFields.hasNumbers && eventField.isNumber {
 			qNum, err := qNumFromBytes(val)
 			if err == nil {
 				if vmFields.isNondeterministic {
@@ -107,13 +107,10 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		var nextField *fieldMatcher
 		switch val.vType {
 		case stringType, literalType:
-			newFA, nextField, _ = makeStringFA(valBytes, nil, false)
+			newFA, nextField = makeStringFA(valBytes, nil, false)
 		case numberType:
-			isQNumber := false
-			newFA, nextField, isQNumber = makeStringFA(valBytes, nil, true)
-			if isQNumber {
-				fields.hasQNumbers = true
-			}
+			newFA, nextField = makeStringFA(valBytes, nil, true)
+			fields.hasNumbers = true
 		case anythingButType:
 			newFA, nextField = makeMultiAnythingButFA(val.list)
 		case shellStyleType:
@@ -143,18 +140,11 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			m.update(fields)
 			return fields.singletonTransition
 		case numberType:
-			newFA, nextField, isQNumber := makeStringFA(valBytes, nil, true)
-			if isQNumber {
-				fields.hasQNumbers = true
-				fields.startTable = newFA
-				m.update(fields)
-				return nextField
-			} else {
-				fields.singletonMatch = valBytes
-				fields.singletonTransition = newFieldMatcher()
-				m.update(fields)
-				return fields.singletonTransition
-			}
+			newFA, nextField := makeStringFA(valBytes, nil, true)
+			fields.hasNumbers = true
+			fields.startTable = newFA
+			m.update(fields)
+			return nextField
 		case anythingButType:
 			newFA, nextField := makeMultiAnythingButFA(val.list)
 			fields.startTable = newFA
@@ -190,18 +180,15 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 
 	// singleton is here, we don't match, so our outdegree becomes 2, so we have
 	// to build an automaton with two values in it
-	singletonAutomaton, _, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
+	singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
 	var nextField *fieldMatcher
 	var newFA *smallTable
 	switch val.vType {
 	case stringType, literalType:
-		newFA, nextField, _ = makeStringFA(valBytes, nil, false)
+		newFA, nextField = makeStringFA(valBytes, nil, false)
 	case numberType:
-		isQNumber := false
-		newFA, nextField, isQNumber = makeStringFA(valBytes, nil, true)
-		if isQNumber {
-			fields.hasQNumbers = true
-		}
+		newFA, nextField = makeStringFA(valBytes, nil, true)
+		fields.hasNumbers = true
 	case anythingButType:
 		newFA, nextField = makeMultiAnythingButFA(val.list)
 	case shellStyleType:
@@ -257,7 +244,7 @@ func makeOnePrefixFAStep(val []byte, index int, nextField *fieldMatcher) *smallT
 // is recursive because this allows the use of the makeSmallTable call, which
 // reduces memory churn. Converting from a straightforward implementation to
 // this approximately doubled the fields/second rate in addPattern
-func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*smallTable, *fieldMatcher, bool) {
+func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*smallTable, *fieldMatcher) {
 	var nextField *fieldMatcher
 	if useThisTransition != nil {
 		nextField = useThisTransition
@@ -269,16 +256,14 @@ func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*
 
 	// if the field is numeric, *and* if it can be converted to a float, *and* can be
 	// made into a Q number, equip the NFA with the Q number form
-	isQNumber := false
 	if isNumber {
 		qNum, err := qNumFromBytes(val)
 		if err == nil {
-			isQNumber = true
 			numberFA := makeOneStringFAStep(qNum, 0, nextField)
 			stringFA = mergeFAs(stringFA, numberFA, sharedNullPrinter)
 		}
 	}
-	return stringFA, nextField, isQNumber
+	return stringFA, nextField
 }
 
 // makeFAFragment makes the simplest possible byte-chain FA with its last transition being to the provided

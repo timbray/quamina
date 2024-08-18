@@ -58,16 +58,8 @@ Thus, the following Pattern would match both JSON events above:
 
 ### Numeric Values
 
-It would be convenient if Quamina knew, for matching purposes, that 35,
-35.00, and 3.5e1 were all the same number.
-
-In many cases, Quamina can manage this. Specifically, for numbers that:
-
-* are between -5.0e9 and 5.0e9 inclusive.
-* have five or fewer fractional digits.
-
-Numbers which do not meet these criteria will be treated as strings, which
-usually produces good results.
+Quamina can match numeric values with precision and range exactly the same as that provided by 
+Go's `float64` data type, which is said to conform to IEE 754 `binary64`.
 
 ## Extended Patterns
 An **Extended Pattern** **MUST** be a JSON object containing

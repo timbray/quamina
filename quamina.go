@@ -144,6 +144,5 @@ func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	if err != nil {
 		return nil, err
 	}
-	matches, err := q.matcher.matchesForFields(fields)
-	return matches, err
+	return q.matcher.matchesForFields(fields)
 }
