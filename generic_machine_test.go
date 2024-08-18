@@ -91,7 +91,7 @@ func TestRulerNestedArrays(t *testing.T) {
 
 	r3, err := q.MatchesForEvent(event3)
 	if err != nil {
-		t.Errorf("Matches " + err.Error())
+		t.Error("Matches " + err.Error())
 	}
 	if len(r3) != 0 {
 		t.Errorf("r3 matchd %d", len(r2))

@@ -112,7 +112,7 @@ func main() {
 	fmt.Printf("Rebuilt case_folding.go with %d codepoint pairs.\n", len(mappings))
 	err = os.Rename(CaseFoldingDB+".tmp", CaseFoldingDB)
 	if err != nil {
-		fatalF("Error switching in %s: " + err.Error())
+		fatalF("Error switching in %s: ", err.Error())
 	}
 }
 

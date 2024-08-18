@@ -98,10 +98,10 @@ type tooMuchFiltering struct {
 	MinAction         int64
 }
 
-func newTooMuchFiltering(ratio float64, min int64) *tooMuchFiltering {
+func newTooMuchFiltering(ratio float64, minimum int64) *tooMuchFiltering {
 	return &tooMuchFiltering{
 		FilteredToEmitted: ratio,
-		MinAction:         min,
+		MinAction:         minimum,
 	}
 }
 
