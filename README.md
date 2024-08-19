@@ -386,3 +386,5 @@ colonies before slavery was abolished.
 @embano1: CI/CD and project structure.
 
 @yosiat: Flattening optimization.
+
+@arnehormann: compact high-precision number representation.

@@ -4,18 +4,16 @@ import (
 	"math"
 )
 
+// numbits is an alternative binary representation of float64 numbers.
 // float64 are stored as (sign | exponent | mantissa)
 // with 1 bit sign, 11 bits exponent, 52 bits mantissa
-const ()
-
-// numbits is an alternative binary representation of float64 numbers.
 // They can be represented as [8]byte or as string and can be created from
 // these representations.
 // All possible float64 values are representable as numbits.
 // numbits were implemented by Arne Hormann for Quamina; he later discovered
 // that an equivalent representation was used long ago in the disk format of DB2.
 //
-// Arne's implementation carefully handled NaN, +/-0, and infinities, but
+// Arne's implementation carefully handled NaN, -0, and infinities, but
 // Quamina ignores those issues because a combination of JSON rules and
 // Quamina's parsers prevent those values from occurring.
 type numbits uint64
