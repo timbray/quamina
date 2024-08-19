@@ -63,7 +63,7 @@ jobs:
         env:
           COVER_OPTS: ${{ matrix.coveropts }}
           GOFLAGS: ${{ matrix.goflags }}
-        run: go test $COVER_OPTS ./... | tparse -all -notests -format markdown >> $GITHUB_STEP_SUMMARY
+        run: go test $COVER_OPTS | tparse -all -notests -format markdown >> $GITHUB_STEP_SUMMARY
 
       - if: steps.codecov-enabled.outputs.files_exists == 'true'
         name: Upload Codecov Report

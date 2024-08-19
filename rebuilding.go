@@ -15,10 +15,10 @@ type liveRatioTrigger struct {
 	MinLive int
 }
 
-func newLiveRatioTrigger(ratio float64, min int) *liveRatioTrigger {
+func newLiveRatioTrigger(ratio float64, minimum int) *liveRatioTrigger {
 	return &liveRatioTrigger{
 		Ratio:   ratio,
-		MinLive: min,
+		MinLive: minimum,
 	}
 }
 

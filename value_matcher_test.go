@@ -330,3 +330,20 @@ func TestFuzzWithNumbers(t *testing.T) {
 		}
 	}
 }
+
+func TestMakeFAFragment(t *testing.T) {
+	data := []string{"ca", "cat", "longer"}
+	targetFA := &fieldMatcher{}
+	targetState := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{targetFA}}
+	targetStep := &faNext{states: []*faState{targetState}}
+	pp := newPrettyPrinter(3234)
+	for _, datum := range data {
+		frag := makeFAFragment([]byte(datum), targetStep, pp)
+		startTable := frag.states[0].table
+		var transIn []*fieldMatcher
+		transOut := traverseDFA(startTable, []byte(datum)[1:], transIn)
+		if len(transOut) != 1 || transOut[0] != targetFA {
+			t.Error("fail on ", datum)
+		}
+	}
+}

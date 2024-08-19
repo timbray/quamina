@@ -68,6 +68,13 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"abc": [ {"prefix": - }, "foo" ] }`,
 		`{"abc": [ {"prefix":  - "a" }, "foo" ] }`,
 		`{"abc": [ {"prefix":  "a" {, "foo" ] }`,
+		`{"abc": [ {"equals-ignore-case":23}, "foo" ] }`,
+		"{\"a\": [ { \"anything-but\": { \"equals-ignore-case\": [\"1\", \"2\" \"3\"] } } ] }", // missing ,
+		"{\"a\": [ { \"anything-but\": { \"equals-ignore-case\": [1, 2, 3] } } ] }",            // no numbers
+		"{\"a\": [ { \"anything-but\": { \"equals-ignore-case\": [\"1\", \"2\" } } ] }",        // missing ]
+		"{\"a\": [ { \"anything-but\": { \"equals-ignore-case\": [\"1\", \"2\" ] } ] }",        // missing }
+		"{\"a\": [ { \"equals-ignore-case\": 5 } ] }",
+		"{\"a\": [ { \"equals-ignore-case\": [ \"abc\" ] } ] }",
 	}
 	for _, b := range bads {
 		_, err := patternFromJSON([]byte(b))
@@ -85,6 +92,7 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"abc": [ 3, {"shellstyle":"a*b"} ] }`,
 		`{"abc": [ {"shellstyle":"a*b"}, "foo" ] }`,
 		`{"abc": [ {"shellstyle":"a*b*c"} ] }`,
+		`{"x": [ {"equals-ignore-case":"a*b*c"} ] }`,
 	}
 	w1 := []*patternField{{path: "x", vals: []typedVal{{vType: numberType, val: "2"}}}}
 	w2 := []*patternField{{path: "x", vals: []typedVal{
@@ -141,7 +149,14 @@ func TestPatternFromJSON(t *testing.T) {
 			},
 		},
 	}
-	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7, w8}
+	w9 := []*patternField{
+		{
+			path: "x", vals: []typedVal{
+				{vType: monocaseType, val: `"a*b*c"`},
+			},
+		},
+	}
+	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7, w8, w9}
 
 	for i, good := range goods {
 		fields, err := patternFromJSON([]byte(good))

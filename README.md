@@ -25,7 +25,7 @@ Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
 
-This is version 1.2.0 of Quamina. In future, the API will be changed only additively.
+This is version 1.3.0 of Quamina. In future, the API will be changed only additively.
 
 Note that we have documented more APIs than are actually
 fully implemented, with the intent of showing direction.
@@ -122,6 +122,13 @@ The following Patterns would match it:
       "Url": [ "a", { "prefix": "https:" } ] }
   }
 } 
+```
+```json
+{
+  "Image": {
+    "Title": [ { "equals-ignore-case": "VIEW FROM 15th FLOOR" } ] 
+  }
+}
 ```
 The syntax and semantics of Patterns are fully specified
 in [Patterns in Quamina](PATTERNS.md).
