@@ -171,11 +171,6 @@ func TestOrdering(t *testing.T) {
 	if !sort.StringsAreSorted(out) {
 		t.Errorf("Not sorted")
 	}
-	for i, c := range out {
-		if len(c) != 10 {
-			t.Errorf("%s: %d at %d", c, len(c), i)
-		}
-	}
 }
 
 func TestMatcherNumerics(t *testing.T) {

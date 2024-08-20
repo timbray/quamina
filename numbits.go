@@ -35,5 +35,11 @@ func (nb numbits) toUTF8() []byte {
 		b[i] = byte(nb & 0x7f)
 		nb >>= 7
 	}
-	return b[:]
+	var k int
+	for k = len(b) - 1; k > 0; k-- {
+		if b[k] != 0 {
+			break
+		}
+	}
+	return b[:k+1]
 }

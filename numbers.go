@@ -37,6 +37,20 @@ func qNumFromBytes(bytes []byte) (qNumber, error) {
 }
 
 // qNumFromFLoat is here mostly to support testing
-func qNumFromFloat(f float64) []byte {
+func qNumFromFloat(f float64) qNumber {
 	return numbitsFromFloat64(f).toUTF8()
 }
+
+/*
+// for debugging
+func (q qNumber) String() string {
+	ret := ""
+	for i, b := range q {
+		if i != 0 {
+			ret += "-"
+		}
+		ret += fmt.Sprintf("%02x", b)
+	}
+	return ret
+}
+*/
