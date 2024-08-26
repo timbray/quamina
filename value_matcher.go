@@ -13,10 +13,10 @@ type bufpair struct {
 // valueMatcher represents a byte-driven finite automaton (FA).  The table needs to be the
 // equivalent of a map[byte][]nextState and is represented by smallTable.
 // In this implementation all the FAs are nondeterministic, which means each
-// byte can cause transfers to multiple other states. The basic algorithm is to compute the FA
+// byte can cause transfers to multiple other states. We compute the FA
 // for a pattern and merge with any existing FA.
-// In some (common) cases there is only one value byte sequence forward for a field
-// i.e. a string-valued field with only one string match. In this case, the FA
+// In some (common) cases there is only one matching value present for some field,
+// e.g. a string-valued field with only one string match. In this case, the FA
 // will be null and the value being matched has to exactly equal the singletonMatch
 // field; if so, the singletonTransition is the return value. This is to avoid
 // having a long chain of smallTables each with only one entry.
@@ -72,7 +72,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *bufpair) []*fieldMa
 
 	case vmFields.startTable != nil:
 		// if there is a potential for a numeric match, try making a Q number from the event
-		if vmFields.hasNumbers && eventField.isNumber {
+		if vmFields.hasNumbers && eventField.IsNumber {
 			qNum, err := qNumFromBytes(val)
 			if err == nil {
 				if vmFields.isNondeterministic {

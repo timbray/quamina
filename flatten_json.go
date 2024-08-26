@@ -817,13 +817,13 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 // NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
 // because of the necessity to construct a new arrayTrail for each element.
 func (fj *flattenJSON) storeArrayElementField(path []byte, val []byte, isNumber bool) {
-	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val, isNumber: isNumber}
+	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val, IsNumber: isNumber}
 	copy(f.ArrayTrail, fj.arrayTrail)
 	fj.fields = append(fj.fields, f)
 }
 
 func (fj *flattenJSON) storeObjectMemberField(path []byte, arrayTrail []ArrayPos, val []byte, isNumber bool) {
-	fj.fields = append(fj.fields, Field{Path: path, ArrayTrail: arrayTrail, Val: val, isNumber: isNumber})
+	fj.fields = append(fj.fields, Field{Path: path, ArrayTrail: arrayTrail, Val: val, IsNumber: isNumber})
 }
 
 func (fj *flattenJSON) enterArray() {

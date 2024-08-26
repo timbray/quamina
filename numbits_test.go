@@ -10,14 +10,14 @@ import (
 	"unicode/utf8"
 )
 
-func TestToUTF8(t *testing.T) {
+func TestToQNumber(t *testing.T) {
 	rand.Seed(230948)
 	var nbs []numbits
 	var utf8s [][]byte
 	for i := 0; i < 10000; i++ {
 		nb := numbits(rand.Uint64())
 		nbs = append(nbs, nb)
-		nbu := nb.toUTF8()
+		nbu := nb.toQNumber()
 		if !utf8.Valid(nbu) {
 			t.Error("Invalid UTF8!")
 		}

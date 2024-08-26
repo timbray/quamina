@@ -71,7 +71,7 @@ func TestWildlyVaryingNumbersAreComparable(t *testing.T) {
 		s1 := qNumFromFloat(data[i])
 		if bytes.Compare(s0, s1) >= 0 {
 			t.Errorf("FOO %d / %f - %f", i, data[i-1], data[i])
-			fmt.Printf("lo %s0\nhi %s\n", s0, s1)
+			fmt.Printf("lo %s %f\nhi %s %f\n", s0, data[i-1], s1, data[i])
 		}
 	}
 }

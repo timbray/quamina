@@ -2,20 +2,20 @@ package quamina
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
 // You can't easily build automata to compare numbers based on either the decimal notation found
 // in text data or the internal floating-point bits. Therefore, we map floating-point numbers
-// (which is what JSON numbers basically are) to comparable strings which preserve the ordering
+// (which is what JSON numbers basically are) to comparable slices of 7-bit bytes which preserve the
 // numbers' ordering. Versions of Quamina up to 1.3 used a home-grown format which used 14 hex digits
 // to represent a subset of numbers. This has now been replaced by Arne Hormann's "numbits"
-// construct, see numbits.go. It uses 10 base128 bytes to represent the entire range of float64 numbers.
+// construct, see numbits.go. It uses up to 10 base128 bytes to represent the entire range of float64 numbers.
 // Both this file and numbits.go are very short, but I'm keeping them separated because someone might
 // figure out a still-better serialization of numbers and then this part wouldn't have to change.
-
 // In Quamina these are called "Q numbers".
-// How It's Done
+
 // There is considerable effort to track, at the NFA level, which NFAs are built to match field values
 // that are Q numbers; see vmFields.hasNumbers. Similarly, the JSONFlattener, since it has to
 // look at all the digits in a number in order to parse it, can keep track of whether it can be made
@@ -38,10 +38,9 @@ func qNumFromBytes(bytes []byte) (qNumber, error) {
 
 // qNumFromFLoat is here mostly to support testing
 func qNumFromFloat(f float64) qNumber {
-	return numbitsFromFloat64(f).toUTF8()
+	return numbitsFromFloat64(f).toQNumber()
 }
 
-/*
 // for debugging
 func (q qNumber) String() string {
 	ret := ""
@@ -53,4 +52,3 @@ func (q qNumber) String() string {
 	}
 	return ret
 }
-*/

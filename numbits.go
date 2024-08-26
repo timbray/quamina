@@ -27,9 +27,9 @@ func numbitsFromFloat64(f float64) numbits {
 	return numbits(u ^ mask)
 }
 
-// toUTF8 turns a numbits into 10 bytes of UTF-8 encoded via Base-256
+// toQNumber turns a numbits into 10 bytes of UTF-8 encoded via Base-256
 // code copied with thanks from a sample by Axel Wagner
-func (nb numbits) toUTF8() []byte {
+func (nb numbits) toQNumber() qNumber {
 	var b [10]byte
 	for i := len(b) - 1; i >= 0; i-- {
 		b[i] = byte(nb & 0x7f)
