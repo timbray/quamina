@@ -796,6 +796,8 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 				if hexDigitCount == 4 {
 					hexString := string(fj.event[from-3 : from+1])
 					r, _ := strconv.ParseUint(hexString, 16, 16)
+					// parsing 4 hex digits can't overflow a uint16
+					//nolint:gosec
 					codepoints = append(codepoints, uint16(r))
 					state = fjStartEscapeState
 				}

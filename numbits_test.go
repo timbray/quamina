@@ -2,7 +2,6 @@ package quamina
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"math/rand"
 	"sort"
@@ -22,9 +21,6 @@ func TestToQNumber(t *testing.T) {
 			t.Error("Invalid UTF8!")
 		}
 		utf8s = append(utf8s, nbu)
-		if i%1000 == 0 {
-			fmt.Printf("%d => <%s>\n", nb, nbu)
-		}
 	}
 	for i := 1; i < len(nbs); i++ {
 		uCompare := bytes.Compare(utf8s[i], utf8s[i-1])

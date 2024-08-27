@@ -27,19 +27,32 @@ func numbitsFromFloat64(f float64) numbits {
 	return numbits(u ^ mask)
 }
 
-// toQNumber turns a numbits into 10 bytes of UTF-8 encoded via Base-256
-// code copied with thanks from a sample by Axel Wagner
-func (nb numbits) toQNumber() qNumber {
-	var b [10]byte
-	for i := len(b) - 1; i >= 0; i-- {
-		b[i] = byte(nb & 0x7f)
-		nb >>= 7
-	}
-	var k int
-	for k = len(b) - 1; k > 0; k-- {
-		if b[k] != 0 {
+const MaxBytesInEncoding = 10
+
+// toQNumber turns a numbits into a minimal variable-width encoding that preservers equality and ordering.
+// Storing 8 bytes of data in base-128 would in principle require 10 bytes, but it turns out that since
+// the byte-string encoding is big-endian, trailing zeroes don't count, so the encoding can be as short as
+// one byte.
+// Idea and some code by Axel Wagner
+func (nb numbits) toQNumber() []byte {
+	// Iterate through the numbits 7 bits at a time, right to left, first bypassing bits that generate
+	// trailing zeroes in the encoded form. Note that index could go to 0 if the numbits value was uint(0)
+	// but that value represents NaN and can't appear in JSON
+	trailingZeroes := 0
+	var index int
+	for index = MaxBytesInEncoding - 1; index >= 0; index-- {
+		if nb&0x7f != 0 {
 			break
 		}
+		trailingZeroes++
+		nb >>= 7
 	}
-	return b[:k+1]
+
+	// now we fill in the byte encoding for the digits up to the last non-zero
+	b := make([]byte, MaxBytesInEncoding-trailingZeroes)
+	for ; index >= 0; index-- {
+		b[index] = byte(nb & 0x7f)
+		nb >>= 7
+	}
+	return b[:]
 }
