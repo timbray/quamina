@@ -149,7 +149,13 @@ func (m *coreMatcher) deletePatterns(_ X) error {
 // This is a leftover from previous times, is only used by tests, but it's used by a *lot*
 // and it's a convenient API for testing.
 func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
-	fields, _ := newJSONFlattener().Flatten(event, m.getSegmentsTreeTracker())
+	return m.matchesForJSONWithFlattener(event, newJSONFlattener())
+}
+
+// if your test is a benchmark, call newJSONFlattener and pass it to this routine, matchesForJSONWithFlattener
+// because newJSONFlattener() is fairly heavyweight and you want it out of the benchmark loop
+func (m *coreMatcher) matchesForJSONWithFlattener(event []byte, f Flattener) ([]X, error) {
+	fields, _ := f.Flatten(event, m.getSegmentsTreeTracker())
 	return m.matchesForFields(fields)
 }
 

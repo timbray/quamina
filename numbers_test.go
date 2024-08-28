@@ -6,29 +6,72 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
 
+func BenchmarkNumberMatching(b *testing.B) {
+	// we’re going to have a pattern that matches one of ten random floats, then we're going to throw
+	// 10K random events at it, 10% of which will match the pattern
+	rand.Seed(2325)
+	pattern := `{"x": [`
+	var targets []string
+	for i := 0; i < 10; i++ {
+		numString := fmt.Sprintf("%.6f", rand.Float64())
+		targets = append(targets, numString)
+		if i != 0 {
+			pattern += ", "
+		}
+		pattern += numString
+	}
+	pattern += `]}`
+	cm := newCoreMatcher()
+	flattener := newJSONFlattener()
+	err := cm.addPattern("P", pattern)
+	if err != nil {
+		b.Error("addP")
+	}
+	b.ResetTimer()
+	b.ReportAllocs()
+	targetInd := 0
+	calls := 0
+	for i := 0; i < b.N; i++ {
+		if i%2 == 0 {
+			val := targets[targetInd]
+			event := `{"x":` + val + "}"
+			matches, err := cm.matchesForJSONWithFlattener([]byte(event), flattener)
+			calls++
+			if err != nil {
+				b.Error("match target")
+			}
+			if len(matches) == 0 {
+				b.Error("Missed target")
+			}
+			targetInd = (targetInd + 1) % len(targets)
+		} else {
+			event := `{"x":` + fmt.Sprintf("%.6f", rand.Float64()) + "}"
+			_, err := cm.matchesForJSONEvent([]byte(event))
+			if err != nil {
+				b.Error("match non-target")
+			}
+		}
+	}
+}
+
 func TestWildlyVaryingNumbersAreComparable(t *testing.T) {
 	data := []float64{
-		-FiveBillion, -4_999_999_999.99999, -4_999_999_999.99998, -4_999_999_999.99997,
+		-5_000_000_000, -4_999_999_999.99999, -4_999_999_999.99998, -4_999_999_999.99997,
 		-999999999.99999, -999999999.99, -10000, -122.413496, -0.000002,
 		0, 0.000001, 3.8, 3.9, 11, 12, 122.415028, 2.5e4, 999999999.999998, 999999999.999999,
-		4_999_999_999.99997, 4_999_999_999.99998, 4_999_999_999.99999, FiveBillion,
+		4_999_999_999.99997, 4_999_999_999.99998, 4_999_999_999.99999, 5_000_000_000,
 	}
 	for i := 1; i < len(data); i++ {
-		s0, err := qNumFromFloat(data[i-1])
-		if err != nil {
-			t.Error("s0")
-		}
-		s1, err := qNumFromFloat(data[i])
-		if err != nil {
-			t.Error("s1")
-		}
+		s0 := qNumFromFloat(data[i-1])
+		s1 := qNumFromFloat(data[i])
 		if bytes.Compare(s0, s1) >= 0 {
 			t.Errorf("FOO %d / %f - %f", i, data[i-1], data[i])
-			fmt.Printf("lo %s0\nhi %s\n", s0, s1)
+			fmt.Printf("lo %s %f\nhi %s %f\n", s0, data[i-1], s1, data[i])
 		}
 	}
 }
@@ -57,32 +100,21 @@ func TestShowBigSmall(t *testing.T) {
 		if err != nil {
 			t.Errorf("Problem with %s: %s", low, err.Error())
 		}
-		fmt.Printf("%s %s\n", low, c)
+		fmt.Printf("%s <%s>\n", low, c)
 	}
 	for _, high := range highs {
 		c, err := qNumFromBytes([]byte(high))
 		if err != nil {
 			t.Errorf("Problem with %s: %s", high, err.Error())
 		}
-		fmt.Printf("%s %s\n", high, c)
+		fmt.Printf("%s <%s>\n", high, c)
 	}
 }
 
 func TestBadNumbers(t *testing.T) {
 	var err error
-	_, err = qNumFromFloat(9999999999999999999)
-	if err == nil {
-		t.Error("took 20 9's")
-	}
-	_, err = qNumFromFloat(9000000000000)
-	if err == nil {
-		t.Error("took huge number")
-	}
 	bads := []string{
-		"5_000_000_001", "-5_000_000_001",
-		"5_000_000_000.001", "-5_000_000_000.001",
-		"3.1234567", "-5.1234567890",
-		"0.0000001", "-0.0000001", "124x",
+		"xy", "- 53", "124x", "1.5ee7",
 	}
 	for _, bad := range bads {
 		_, err = qNumFromBytes([]byte(bad))
@@ -92,27 +124,11 @@ func TestBadNumbers(t *testing.T) {
 	}
 }
 
-func TestExponentialDigits(t *testing.T) {
-	goods := []string{
-		"3.1234567e3", "-.123456789012345e10",
-		"0.0000001e3", "-0.0000001e2",
-	}
-	for _, good := range goods {
-		_, err := qNumFromBytes([]byte(good))
-		if err != nil {
-			t.Error("Rejected: " + good + ": " + err.Error())
-		}
-	}
-}
-
 func TestFloatVariants(t *testing.T) {
 	f := []float64{350, 350.0, 350.0000000000, 3.5e2}
 	var o []qNumber
 	for _, s := range f {
-		c, err := qNumFromFloat(s)
-		if err != nil {
-			t.Errorf("qnum err on %f: %s", s, err.Error())
-		}
+		c := qNumFromFloat(s)
 		o = append(o, c)
 	}
 	for i := 1; i < len(o); i++ {
@@ -149,19 +165,11 @@ func TestOrdering(t *testing.T) {
 	sort.Float64s(in)
 	var out []string
 	for _, f := range in {
-		c, err := qNumFromFloat(f)
-		if err != nil {
-			t.Errorf("failed on %f", f)
-		}
+		c := qNumFromFloat(f)
 		out = append(out, string(c))
 	}
 	if !sort.StringsAreSorted(out) {
 		t.Errorf("Not sorted")
-	}
-	for i, c := range out {
-		if len(c) != 14 {
-			t.Errorf("%s: %d at %d", c, len(c), i)
-		}
 	}
 }
 
@@ -170,6 +178,21 @@ func TestMatcherNumerics(t *testing.T) {
 	shoulds := []string{
 		"35", "3.5e1", "35.000", "0.000035e6",
 	}
+	for _, should := range shoulds {
+		f, err := strconv.ParseFloat(should, 64)
+		if err != nil {
+			t.Error("Parse? " + err.Error())
+		}
+		q, err := qNumFromBytes([]byte(should))
+		if err != nil {
+			t.Error("QF: " + err.Error())
+		}
+		fmt.Printf("%f <%s>\n", f, q)
+		if f != 35.0 {
+			t.Error("Not 35!")
+		}
+	}
+
 	template := `{"x": NUM}`
 	m := newCoreMatcher()
 	err := m.addPattern("35", p)

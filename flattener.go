@@ -58,5 +58,5 @@ type Field struct {
 	Path       []byte
 	Val        []byte
 	ArrayTrail []ArrayPos
-	IsQNumber  bool
+	IsNumber   bool
 }
