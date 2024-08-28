@@ -150,9 +150,6 @@ The `"exists":true` and `"exists":false` patterns
 have corner cases; details are covered in
 [Patterns in Quamina](PATTERNS.md).
 
-Quamina can match numeric values correctly, subject to 
-certain limits; details are in [Patterns in Quamina](PATTERNS.md).
-
 ## Flattening and Matching
 
 The first step in finding matches for an Event is
@@ -386,3 +383,5 @@ colonies before slavery was abolished.
 @embano1: CI/CD and project structure.
 
 @yosiat: Flattening optimization.
+
+@arnehormann: compact high-precision number representation.
