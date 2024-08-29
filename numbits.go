@@ -34,7 +34,7 @@ const MaxBytesInEncoding = 10
 // the byte-string encoding is big-endian, trailing zeroes don't count, so the encoding can be as short as
 // one byte.
 // Idea and some code by Axel Wagner
-func (nb numbits) toQNumber() []byte {
+func (nb numbits) toQNumber() qNumber {
 	// Iterate through the numbits 7 bits at a time, right to left, first bypassing bits that generate
 	// trailing zeroes in the encoded form. Note that index could go to 0 if the numbits value was uint(0)
 	// but that value represents NaN and can't appear in JSON
@@ -54,5 +54,5 @@ func (nb numbits) toQNumber() []byte {
 		b[index] = byte(nb & 0x7f)
 		nb >>= 7
 	}
-	return b[:]
+	return b
 }
