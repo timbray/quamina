@@ -7,6 +7,7 @@
 [![timbray/quamina](https://img.shields.io/github/go-mod/go-version/timbray/quamina)](https://github.com/timbray/quamina)
 [![Go Reference](https://pkg.go.dev/badge/quamina.net/go/quamina.svg)](https://pkg.go.dev/quamina.net/go/quamina)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
+[![0 dependencies!](https://0dependencies.dev/0dependencies.svg)](https://0dependencies.dev)
 
 ### Fast pattern-matching library
 
