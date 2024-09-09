@@ -116,6 +116,9 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		case shellStyleType:
 			newFA, nextField = makeShellStyleFA(valBytes, printer)
 			fields.isNondeterministic = true
+		case wildcardType:
+			newFA, nextField = makeWildcardFA(valBytes, printer)
+			fields.isNondeterministic = true
 		case prefixType:
 			newFA, nextField = makePrefixFA(valBytes)
 		case monocaseType:
@@ -152,6 +155,12 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			return nextField
 		case shellStyleType:
 			newAutomaton, nextField := makeShellStyleFA(valBytes, printer)
+			fields.startTable = newAutomaton
+			fields.isNondeterministic = true
+			m.update(fields)
+			return nextField
+		case wildcardType:
+			newAutomaton, nextField := makeWildcardFA(valBytes, printer)
 			fields.startTable = newAutomaton
 			fields.isNondeterministic = true
 			m.update(fields)
@@ -193,6 +202,9 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		newFA, nextField = makeMultiAnythingButFA(val.list)
 	case shellStyleType:
 		newFA, nextField = makeShellStyleFA(valBytes, printer)
+		fields.isNondeterministic = true
+	case wildcardType:
+		newFA, nextField = makeWildcardFA(valBytes, printer)
 		fields.isNondeterministic = true
 	case prefixType:
 		newFA, nextField = makePrefixFA(valBytes)
