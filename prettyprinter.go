@@ -38,18 +38,18 @@ var sharedNullPrinter = &nullPrinter{}
 type prettyPrinter struct {
 	randInts     rand.Source
 	tableLabels  map[*smallTable]string
-	tableSerials map[*smallTable]uint64
+	tableSerials map[*smallTable]uint
 }
 
 func newPrettyPrinter(seed int) *prettyPrinter {
 	return &prettyPrinter{
 		randInts:     rand.NewSource(int64(seed)),
 		tableLabels:  make(map[*smallTable]string),
-		tableSerials: make(map[*smallTable]uint64),
+		tableSerials: make(map[*smallTable]uint),
 	}
 }
 
-func (pp *prettyPrinter) tableSerial(t *smallTable) uint64 {
+func (pp *prettyPrinter) tableSerial(t *smallTable) uint {
 	return pp.tableSerials[t]
 }
 func (pp *prettyPrinter) tableLabel(t *smallTable) string {
@@ -58,7 +58,9 @@ func (pp *prettyPrinter) tableLabel(t *smallTable) string {
 
 func (pp *prettyPrinter) labelTable(table *smallTable, label string) {
 	pp.tableLabels[table] = label
-	pp.tableSerials[table] = uint64(pp.randInts.Int63()%500 + 500)
+	newSerial := pp.randInts.Int63()%500 + 500
+	//nolint:gosec
+	pp.tableSerials[table] = uint(newSerial)
 }
 
 func (pp *prettyPrinter) printNFA(t *smallTable) string {
