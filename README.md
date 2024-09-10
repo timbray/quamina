@@ -89,7 +89,7 @@ The following Patterns would match it:
 ```json
 {
   "Image": {
-    "Thumbnail": { "Url": [ { "shellstyle": "*9943" } ] }
+    "Thumbnail": { "Url": [ { "wildcard": "*9943" } ] }
   }
 }
 ```
@@ -97,7 +97,7 @@ The following Patterns would match it:
 {
   "Image": {
     "Thumbnail": { "Url":
-      [ { "shellstyle": "http://www.example.com/*" } ] }
+      [ { "wildcard": "http://www.example.com/*" } ] }
   }
 }
 ```
@@ -105,7 +105,7 @@ The following Patterns would match it:
 {
   "Image": {
     "Thumbnail": { "Url":
-      [ { "shellstyle": "http://www.example.*/*9943" } ] }
+      [ { "wildcard": "http://www.example.*/*9943" } ] }
   }
 }
 ```
@@ -298,7 +298,7 @@ I used to say that the performance of
 `MatchesForEvent` was O(1) in the number of
 Patterns. That’s probably a reasonable way to think
 about it, because it’s *almost* right, except in the
-case where a very large number of `shellstyle` patterns
+case where a very large number of `wildcard` patterns
 have been added; this is discussed in the next section.
 
 To be correct, the performance is a little worse than
@@ -342,7 +342,7 @@ So, adding a new Pattern that only mentions fields which are
 already mentioned in previous Patterns is effectively free,
 i.e. O(1) in terms of run-time performance.
 
-### Quamina instances with large numbers of `shellstyle` Patterns
+### Quamina instances with large numbers of `wildcard` Patterns
 
 A study of the theory of finite automata reveals that processing
 regular-expression constructs such as `*` increases the complexity of

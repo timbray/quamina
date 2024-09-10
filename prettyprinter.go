@@ -58,7 +58,9 @@ func (pp *prettyPrinter) tableLabel(t *smallTable) string {
 
 func (pp *prettyPrinter) labelTable(table *smallTable, label string) {
 	pp.tableLabels[table] = label
-	pp.tableSerials[table] = uint(pp.randInts.Int63()%500 + 500)
+	newSerial := pp.randInts.Int63()%500 + 500
+	//nolint:gosec
+	pp.tableSerials[table] = uint(newSerial)
 }
 
 func (pp *prettyPrinter) printNFA(t *smallTable) string {

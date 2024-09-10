@@ -21,6 +21,7 @@ const (
 	anythingButType
 	prefixType
 	monocaseType
+	wildcardType
 )
 
 // typedVal represents the value of a field in a pattern, giving the value and the type of pattern.
@@ -198,6 +199,8 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 		pathVals, err = readExistsSpecial(pb, pathVals)
 	case "shellstyle":
 		pathVals, err = readShellStyleSpecial(pb, pathVals)
+	case "wildcard":
+		pathVals, err = readWildcardSpecial(pb, pathVals)
 	case "prefix":
 		pathVals, err = readPrefixSpecial(pb, pathVals)
 	case "equals-ignore-case":

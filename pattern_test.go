@@ -69,6 +69,10 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"abc": [ {"prefix":  - "a" }, "foo" ] }`,
 		`{"abc": [ {"prefix":  "a" {, "foo" ] }`,
 		`{"abc": [ {"equals-ignore-case":23}, "foo" ] }`,
+		`{"abc": [ {"wildcard":"15", "x", 1} ] }`,
+		`{"abc": [ {"wildcard":"a**b"}, "foo" ] }`,
+		`{"abc": [ {"wildcard":"a\\b"}, "foo" ] }`,                                             // after JSON parsing, code sees `a/b`
+		`{"abc": [ {"wildcard":"a\\"}, "foo" ] }`,                                              // after JSON parsing, code sees `a\`
 		"{\"a\": [ { \"anything-but\": { \"equals-ignore-case\": [\"1\", \"2\" \"3\"] } } ] }", // missing ,
 		"{\"a\": [ { \"anything-but\": { \"equals-ignore-case\": [1, 2, 3] } } ] }",            // no numbers
 		"{\"a\": [ { \"anything-but\": { \"equals-ignore-case\": [\"1\", \"2\" } } ] }",        // missing ]
@@ -93,6 +97,10 @@ func TestPatternFromJSON(t *testing.T) {
 		`{"abc": [ {"shellstyle":"a*b"}, "foo" ] }`,
 		`{"abc": [ {"shellstyle":"a*b*c"} ] }`,
 		`{"x": [ {"equals-ignore-case":"a*b*c"} ] }`,
+		`{"abc": [ 3, {"wildcard":"a*b"} ] }`,
+		`{"abc": [ {"wildcard":"a*b"}, "foo" ] }`,
+		`{"abc": [ {"wildcard":"a*b*c"} ] }`,
+		`{"abc": [ {"wildcard":"a*b\\*c"} ] }`,
 	}
 	w1 := []*patternField{{path: "x", vals: []typedVal{{vType: numberType, val: "2"}}}}
 	w2 := []*patternField{{path: "x", vals: []typedVal{
@@ -156,7 +164,37 @@ func TestPatternFromJSON(t *testing.T) {
 			},
 		},
 	}
-	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7, w8, w9}
+	w10 := []*patternField{
+		{
+			path: "abc", vals: []typedVal{
+				{vType: stringType, val: "3"},
+				{vType: wildcardType, val: `"a*b"`},
+			},
+		},
+	}
+	w11 := []*patternField{
+		{
+			path: "abc", vals: []typedVal{
+				{vType: wildcardType, val: `"a*b"`},
+				{vType: stringType, val: `"foo"`},
+			},
+		},
+	}
+	w12 := []*patternField{
+		{
+			path: "abc", vals: []typedVal{
+				{vType: wildcardType, val: `"a*b*c"`},
+			},
+		},
+	}
+	w13 := []*patternField{
+		{
+			path: "abc", vals: []typedVal{
+				{vType: wildcardType, val: `"a*b\*c"`},
+			},
+		},
+	}
+	wanted := [][]*patternField{w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13}
 
 	for i, good := range goods {
 		fields, err := patternFromJSON([]byte(good))

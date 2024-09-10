@@ -149,9 +149,9 @@ is not equal to any of the strings in the array.
 If a Field in a Pattern contains an Anything-But Pattern,
 it **MUST NOT** contain any other values.
 
-### Shellstyle Pattern
+### Wildcard Pattern
 
-The Pattern Type of a Shellstyle Pattern is `shellstyle`
+The Pattern Type of a Wildcard Pattern is `wildcard`
 and its value **MUST** be a string which **MAY** contain
 `*` (“star”) characters. The star character
 functions exactly as the same character does in
@@ -164,13 +164,37 @@ Consider the following Event:
 ```json
 {"img": "https://example.com/9943.jpg"}
 ```
-The following Shellstyle Patterns would match it:
+The following Wildcard Patterns would match it:
 ```json
-{"img": [ {"shellstyle": "*.jpg"} ] }
-{"img": [ {"shellstyle": "https://example.com/*"} ] }
-{"img": [ {"shellstyle": "https://example.com/*.jpg"} ] }
-{"img": [ {"shellstyle": "https://example.*/*.jpg"} ] }
+{"img": [ {"wildcard": "*.jpg"} ] }
+{"img": [ {"wildcard": "https://example.com/*"} ] }
+{"img": [ {"wildcard": "https://example.com/*.jpg"} ] }
+{"img": [ {"wildcard": "https://example.*/*.jpg"} ] }
 ```
+
+If it is desired to match the actual character "*", it may be “escaped”
+with backslash, "\". For example, consider the following Event:
+
+```json
+{"example-regex": "a**\\.b"}
+```
+
+The following Wildcard pattern would match it.
+
+```json
+{"example-regex": [ {"wildcard":  "a\\*\\*\\\\.b"}]}
+```
+
+Note that the "\" backslashes must be doubled to deal with the
+fact that they are escape characters for JSON as well as for Quamina.
+
+After a "\", the appearance of any character other than "*" or "\" is an error.
+
+### Shellstyle Pattern
+
+This is an earlier version of the Wildcard pattern, differing only that 
+\-escaping the "*" and "\" characters is not supported.
+
 ### Equals-Ignore-Case Pattern
 
 The Pattern Type of an Equals-Ignore-Case pattern is `equals-ignore-case`
@@ -192,6 +216,6 @@ the AWS EventBridge service, as documented in
 As of release 1.0, Quamina supports Exists and
 Anything-But Patterns, but does not yet support any other
 EventBridge patterns. Note that a
-Shellstyle Pattern with a trailing `*` is equivalent
+Wildcard Pattern with a trailing `*` is equivalent
 to a `prefix` pattern.
 

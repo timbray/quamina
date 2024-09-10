@@ -347,3 +347,75 @@ func TestMakeFAFragment(t *testing.T) {
 		}
 	}
 }
+func TestExerciseSingletonReplacement(t *testing.T) {
+	cm := newCoreMatcher()
+	err := cm.addPattern("x", `{"x": [ "a"]}`)
+	if err != nil {
+		t.Error("AP: " + err.Error())
+	}
+	err = cm.addPattern("x", `{"x": [1]}`)
+	if err != nil {
+		t.Error("AP: " + err.Error())
+	}
+	events := []string{`{"x": 1}`, `{"x": "a"}`}
+	for _, e := range events {
+		matches, err := cm.matchesForJSONEvent([]byte(e))
+		if err != nil {
+			t.Error("m4: " + err.Error())
+		}
+		if len(matches) != 1 || matches[0] != "x" {
+			t.Error("match failed on: " + e)
+		}
+	}
+	events = []string{`{"x": 1}`, `{"x": "a"}`}
+	for _, e := range events {
+		matches, err := cm.matchesForJSONEvent([]byte(e))
+		if err != nil {
+			t.Error("m4: " + err.Error())
+		}
+		if len(matches) != 1 || matches[0] != "x" {
+			t.Error("match failed on: " + e)
+		}
+	}
+	cm = newCoreMatcher()
+	err = cm.addPattern("x", `{"x": ["x"]}`)
+	if err != nil {
+		t.Error("AP: " + err.Error())
+	}
+	err = cm.addPattern("x", `{"x": [ {"wildcard": "x*y"}]}`)
+	if err != nil {
+		t.Error("AP: " + err.Error())
+	}
+	events = []string{`{"x": "x"}`, `{"x": "x..y"}`}
+	for _, e := range events {
+		matches, err := cm.matchesForJSONEvent([]byte(e))
+		if err != nil {
+			t.Error("m4: " + err.Error())
+		}
+		if len(matches) != 1 || matches[0] != "x" {
+			t.Error("match failed on: " + e)
+		}
+	}
+}
+
+func TestMergeNfaAndNumeric(t *testing.T) {
+	cm := newCoreMatcher()
+	err := cm.addPattern("x", `{"x": [{"wildcard":"x*y"}]}`)
+	if err != nil {
+		t.Error("AP: " + err.Error())
+	}
+	err = cm.addPattern("x", `{"x": [3]}`)
+	if err != nil {
+		t.Error("AP: " + err.Error())
+	}
+	events := []string{`{"x": 3}`, `{"x": "xasdfy"}`}
+	for _, e := range events {
+		matches, err := cm.matchesForJSONEvent([]byte(e))
+		if err != nil {
+			t.Error("M4: " + err.Error())
+		}
+		if len(matches) != 1 || matches[0] != "x" {
+			t.Error("Match failed on " + e)
+		}
+	}
+}
