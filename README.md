@@ -26,7 +26,7 @@ Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
 
-This is version 1.5.0 of Quamina. In future, the API will be changed only additively.
+This is version 1.5.1 of Quamina. In future, the API will be changed only additively.
 
 Note that we have documented more APIs than are actually
 fully implemented, with the intent of showing direction.
