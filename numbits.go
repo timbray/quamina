@@ -23,7 +23,9 @@ func numbitsFromFloat64(f float64) numbits {
 	u := math.Float64bits(f)
 	//nolint:gosec // disable G115
 	// transform without branching:
-	// if high bit is 0, xor with sign bit 1 << 63, else negate (xor with ^0)
+	// if high bit is 0, xor with sign bit 1 << 63, else negate (xor with ^0).
+	// Using a sign extending right shift was proposed by Raph Levien in
+	// https://mastodon.online/@raph/113071041069390831
 	mask := uint64(int64(u)>>63) | (1 << 63)
 	return numbits(u ^ mask)
 }
