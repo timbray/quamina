@@ -21,9 +21,12 @@ type numbits uint64
 // numbitsFromFloat64 converts a float64 value to its numbits representation.
 func numbitsFromFloat64(f float64) numbits {
 	u := math.Float64bits(f)
-	// transform without branching (inverse of numbits.Float64):
-	// if high bit is 0, xor with sign bit 1 << 63, else negate (xor with ^0)
-	mask := (u>>63)*^uint64(0) | (1 << 63)
+	//nolint:gosec // disable G115
+	// transform without branching:
+	// if high bit is 0, xor with sign bit 1 << 63, else negate (xor with ^0).
+	// Using a sign extending right shift was proposed by Raph Levien in
+	// https://mastodon.online/@raph/113071041069390831
+	mask := uint64(int64(u)>>63) | (1 << 63)
 	return numbits(u ^ mask)
 }
 
