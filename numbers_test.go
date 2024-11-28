@@ -14,7 +14,7 @@ import (
 func BenchmarkNumberMatching(b *testing.B) {
 	// we’re going to have a pattern that matches one of ten random floats, then we're going to throw
 	// 10K random events at it, 10% of which will match the pattern
-	rand.Seed(2325)
+	rand.New(rand.NewSource(2325))
 	pattern := `{"x": [`
 	var targets []string
 	for i := 0; i < 10; i++ {

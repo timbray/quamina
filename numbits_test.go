@@ -10,7 +10,7 @@ import (
 )
 
 func TestToQNumber(t *testing.T) {
-	rand.Seed(230948)
+	rand.New(rand.NewSource(230948))
 	var nbs []numbits
 	var utf8s [][]byte
 	for i := 0; i < 10000; i++ {
@@ -53,7 +53,7 @@ var (
 )
 
 func TestNumbits_Compare(t *testing.T) {
-	rand.Seed(203785)
+	rand.New(rand.NewSource(203785))
 	floats := append([]float64{}, specials...)
 
 	for i := 0; i < 1000; i++ {
