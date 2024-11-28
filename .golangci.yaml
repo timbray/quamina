@@ -6,7 +6,6 @@ linters:
     - bodyclose
     - errname
     - errorlint
-    - exportloopref
     - gochecknoinits
     - goimports
     - goprintffuncname
@@ -29,3 +28,5 @@ issues:
   exclude-rules:
     - path: _test\.go
       text: "Use of weak random number generator" #gosec:G404
+    - path: _test\.go
+      text: "ST1018"
