@@ -67,7 +67,7 @@ jobs:
 
       - if: steps.codecov-enabled.outputs.files_exists == 'true'
         name: Upload Codecov Report
-        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673
+        uses: codecov/codecov-action@1e68e06f1dbfde0e4cefc87efeba9e4643565303
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
