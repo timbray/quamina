@@ -157,7 +157,16 @@ var (
 			"  }\n" +
 			"}",
 	}
+
 	equalsIgnoreCaseMatches = []int{131, 211, 1758, 825, 116386}
+	regexpRules             = []string{
+		"{\n" +
+			"  \"properties\": {\n" +
+			"    \"STREET\": [ { \"regexp\": \"B..CH\" } ]\n" +
+			"  }\n" +
+			"}",
+	}
+	regexpMatches = []int{220}
 	/* will add when we have numeric
 	complexArraysRules := []string{
 		"{\n" +
@@ -267,6 +276,10 @@ func TestRulerCl2(t *testing.T) {
 	bm = newBenchmarker()
 	bm.addRules(equalsIgnoreCaseRules, equalsIgnoreCaseMatches, true)
 	fmt.Printf("EQUALS_IGNORE-CASE events/sec: %.1f\n", bm.run(t, lines))
+
+	bm = newBenchmarker()
+	bm.addRules(regexpRules, regexpMatches, true)
+	fmt.Printf("REGEXP events/sec: %.1f\n", bm.run(t, lines))
 }
 
 type benchmarker struct {

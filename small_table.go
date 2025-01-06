@@ -19,7 +19,7 @@ const valueTerminator byte = 0xf5
 // but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 // byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
 //
-//	ceilings:--|3|----|5|-|0x34|--|x35|-|byteCeiling|
+//	ceilings:---|3|----|5|-|0x34|--|x35|-|byteCeiling|
 //	states:---|nil|-|&ss1|--|nil|-|&ss2|---------|nil|
 //	invariant: The last element of ceilings is always byteCeiling
 //
@@ -53,6 +53,12 @@ type stepOut struct {
 	epsilon []*faState
 }
 
+var forbiddenBytes = map[byte]bool{
+	0xC0: true, 0xC1: true,
+	0xF5: true, 0xF6: true, 0xF7: true, 0xF8: true, 0xF9: true, 0xFA: true,
+	0xFB: true, 0xFC: true, 0xFD: true, 0xFE: true, 0xFF: true,
+}
+
 // step finds the list of states that result from a transition on the utf8Byte argument. The states can come
 // as a result of looking in the table structure, and also the "epsilon" transitions that occur on every
 // input byte.  Since this is the white-hot center of Quamina's runtime CPU, we don't want to be merging
@@ -70,6 +76,10 @@ func (t *smallTable) step(utf8Byte byte, out *stepOut) {
 			return
 		}
 	}
+	_, forbidden := forbiddenBytes[utf8Byte]
+	if forbidden {
+		return
+	}
 	panic("Malformed smallTable")
 }
 
@@ -85,6 +95,10 @@ func (t *smallTable) dStep(utf8Byte byte) *faState {
 				return t.steps[index].states[0]
 			}
 		}
+	}
+	_, forbidden := forbiddenBytes[utf8Byte]
+	if forbidden {
+		return nil
 	}
 	panic("Malformed smallTable")
 }
