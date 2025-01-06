@@ -1,3 +1,6 @@
 .idea
 .DS_Store
 coverage.txt
+# codecov CLI and sig files
+codecov
+codecov.SHA256SUM*
