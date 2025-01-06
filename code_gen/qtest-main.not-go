@@ -1,0 +1,405 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+// TODO: Add a resWithSubtraction map[string]bool and keep running the tests and finding them and populating
+// the map and write valid:false if they're in the map.
+/*
+<test-case name="regex-syntax-0752">
+
+	<description>see regex-syntax-0001</description>
+	<created by="Michael Kay" on="2012-11-07"/>
+	<environment ref="regex-syntax"/>
+	<test>
+	   <param name="regex" as="xs:string" select="'[-e-g]+'"/>
+	   <param name="match" as="xs:string" select="''"/>
+	   <param name="nonmatch" as="xs:string" select="'ddd---eeefffggghhh,ddd---eeefffggghhh'"/>
+	   <param name="delimiter" as="xs:string" select="','"/>
+	   <initial-template name="go"/>
+	</test>
+	<result>
+	   <assert>/true</assert>
+	</result>
+
+</test-case>
+*/
+type regexSampleB struct {
+	regex     string
+	matches   []string
+	nomatches []string
+	valid     bool
+}
+
+var xHash *regexp.Regexp
+var isUnicodeBlock *regexp.Regexp
+var isMultiCharEscape *regexp.Regexp
+var isLeadingMCE *regexp.Regexp
+var lParenQM *regexp.Regexp
+var quantQM *regexp.Regexp
+var escDigit *regexp.Regexp
+var twoQMs *regexp.Regexp
+
+var resWithSubtraction = map[string]bool{
+	`[a-d-[b-c]]`:                    true,
+	`[^a-d-b-c]`:                     true,
+	`[a-b-[0-9]]+`:                   true,
+	`[a-c-[^a-c]]`:                   true,
+	`[a-z-[^a]]`:                     true,
+	`[a-c-1-4x-z-7-9]*`:              true,
+	`[a-a-x-x]+`:                     true,
+	`[abcd-[d]]+`:                    true,
+	`[\p{Ll}-[ae-z]]+`:               true,
+	`[\p{Nd}-[2468]]+`:               true,
+	`[\P{Lu}-[ae-z]]+`:               true,
+	`[abcd-[def]]+`:                  true,
+	`[\p{Ll}-[ae-z0-9]]+`:            true,
+	`[\p{Nd}-[2468az]]+`:             true,
+	`[\P{Lu}-[ae-zA-Z]]+`:            true,
+	`[abc-[defg]]+`:                  true,
+	`[\p{Ll}-[A-Z]]+`:                true,
+	`[\p{Nd}-[a-z]]+`:                true,
+	`[\P{Lu}-[\p{Lu}]]+`:             true,
+	`[\P{Lu}-[A-Z]]+`:                true,
+	`[\P{Nd}-[\p{Nd}]]+`:             true,
+	`[\P{Nd}-[2-8]]+`:                true,
+	`([0-9-[02468]]|[0-9-[13579]])+`: true,
+	`[abcdef-[^bce]]+`:               true,
+	`[^cde-[ag]]+`:                   true,
+	`[a-zA-Z-[aeiouAEIOU]]+`:         true,
+	`[abcd\-d-[bc]]+`:                true,
+	`[a-[a-f]]`:                      true,
+	`[a-[c-e]]+`:                     true,
+	`[a-d\--[bc]]+`:                  true,
+	`[abc\--[b]]+`:                   true,
+	`[abc\-z-[b]]+`:                  true,
+}
+
+var resReplacementHacks = map[string]string{
+	`[a-~~]`:   "[a-\\\\]",
+	`[~~-~{^]`: "[\\\\-~{^]",
+}
+
+var xmlBuiltin = map[string]rune{
+	"&amp":   '&',
+	"&apos;": '\'',
+	"&lt;":   '<',
+	"&gt;":   '>',
+	"&quot;": '"',
+}
+
+func main() {
+
+	testCase, err := regexp.Compile("<test-case")
+	if err != nil {
+		panic(err.Error())
+	}
+	regex, err := regexp.Compile(`<param name="regex" as="xs:string" select="'([^']*)'"/>`)
+	if err != nil {
+		panic(err.Error())
+	}
+	match, err := regexp.Compile(`<param name="match" as="xs:string" select="'([^']*)'"/>`)
+	if err != nil {
+		panic(err.Error())
+	}
+	nomatch, err := regexp.Compile(`<param name="nonmatch" as="xs:string" select="'([^']*)'"/>`)
+	if err != nil {
+		panic(err.Error())
+	}
+	delimiter, err := regexp.Compile(`<param name="delimiter" as="xs:string" select="'([^']*)'"/>`)
+	if err != nil {
+		panic(err.Error())
+	}
+	valid, err := regexp.Compile(`<assert>/true</assert>`)
+	if err != nil {
+		panic(err.Error())
+	}
+	invalid, err := regexp.Compile(`<error`)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println(`package quamina
+	
+import (
+	"testing"
+)
+
+// This file produced by processing a set of XSD regexp syntax samples by Michael Kay
+// from the repo https://github.com/qt4cg/xslt40-test - thanks to Michael!
+// The code may be found in codegen/qtest-main.not-go. It is fairly horrible and my assumption 
+// is that it will never be run again; there is plenty of room for more regexp-related testing
+// but I think as much benefit has been extracted from this sample set as is reasonable to expect.
+
+type regexpSample struct {
+	regex     string
+	matches   []string
+	nomatches []string
+	valid     bool
+}
+
+func TestRegexpSamplesExist(t *testing.T) {
+	if len(regexpSamples) == 0 {
+		t.Error("no samples")
+	}
+}
+// test-case numbers are off by one, i.e. the first one below is actually for regex-syntax-0001
+var regexpSamples = []regexpSample{`)
+
+	/*
+		var regexpSamples = []regexpSample{
+			{
+				"foo",
+				[]string{"foo", "bar"},
+				[]string{"foo", "bar"},
+				true,
+			},
+		}
+	*/
+
+	xHash, err = regexp.Compile(`^&?#x([0-9a-fA-F]*);`)
+	if err != nil {
+		panic(err.Error())
+	}
+	isUnicodeBlock, err = regexp.Compile(`\\[pP]{[^LMNPZSC]`)
+	if err != nil {
+		panic(err.Error())
+	}
+	isMultiCharEscape, err = regexp.Compile(`[^\\]\\[sSiIcCdDwW]`)
+	if err != nil {
+		panic(err.Error())
+	}
+	isLeadingMCE, err = regexp.Compile(`^\\[sSiIcCdDwW]`)
+	if err != nil {
+		panic(err.Error())
+	}
+	lParenQM, err = regexp.Compile(`\(\?`)
+	if err != nil {
+		panic(err.Error())
+	}
+	quantQM, err = regexp.Compile(`{[0-9]*,[0-9]*}\?`)
+	if err != nil {
+		panic(err.Error())
+	}
+	escDigit, err = regexp.Compile(`\\10?$`)
+	if err != nil {
+		panic(err.Error())
+	}
+	twoQMs, err = regexp.Compile(`\?\?.`)
+	if err != nil {
+		panic(err.Error())
+	}
+	reader := bufio.NewReader(os.Stdin)
+	starting := true
+	rec := &regexSampleB{}
+	var rawMatches, rawNoMatches []byte
+	var rawDelimiter string
+	for {
+		bytes, _, err := reader.ReadLine()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			panic(err.Error())
+		}
+		if testCase.Match(bytes) {
+			if starting {
+				starting = false
+			} else {
+				//rawMatches = xHash.ReplaceAll(rawMatches, []byte(`0x${1}`))
+				//rawNoMatches = xHash.ReplaceAll([]byte(rawNoMatches), []byte(`0x${1}`))
+				rec.matches = strings.Split(string(rawMatches), rawDelimiter)
+				rec.nomatches = strings.Split(string(rawNoMatches), rawDelimiter)
+				report(rec, bytes)
+				rec = &regexSampleB{}
+			}
+			continue
+		}
+		var b [][]byte
+		b = regex.FindSubmatch(bytes)
+		if len(b) > 1 {
+			rec.regex = string(b[1])
+			continue
+		}
+		b = match.FindSubmatch(bytes)
+		if len(b) > 1 {
+			rawMatches = b[1]
+			continue
+		}
+		b = nomatch.FindSubmatch(bytes)
+		if len(b) > 1 {
+			rawNoMatches = b[1]
+			continue
+		}
+		b = delimiter.FindSubmatch(bytes)
+		if len(b) > 1 {
+			rawDelimiter = string(b[1])
+			continue
+		}
+		if valid.Match(bytes) {
+			rec.valid = true
+			continue
+		}
+		if invalid.Match(bytes) {
+			rec.valid = false
+			continue
+		}
+	}
+	//fmt.Println("\t\t\t},")
+	fmt.Println("\t\t}")
+}
+
+func prIndent(tabs int) string {
+	return "\t\t\t\t\t\t\t\t"[0:tabs]
+}
+func report(rec *regexSampleB, testcase []byte) {
+	/*
+		var regexpSamples = []regexpSample{
+			{
+				"foo",
+				[]string{"foo", "bar"},
+				[]string{"foo", "bar"},
+				true,
+			},
+		}
+
+	*/
+	// suppress things we don't handle
+	if isUnicodeBlock.MatchString(rec.regex) {
+		rec.valid = false
+	}
+	if isMultiCharEscape.MatchString(rec.regex) {
+		rec.valid = false
+	}
+	if isLeadingMCE.MatchString(rec.regex) {
+		rec.valid = false
+	}
+	if lParenQM.MatchString(rec.regex) {
+		rec.valid = false
+	}
+	if quantQM.MatchString(rec.regex) {
+		rec.valid = false
+	}
+	if escDigit.MatchString(rec.regex) {
+		rec.valid = false
+	}
+	if twoQMs.MatchString(rec.regex) {
+		rec.valid = false
+	}
+	if rec.regex == "(foo)(\\176)" {
+		rec.valid = false
+	}
+	badQuants := []string{
+		"+?", "*?",
+	}
+	for _, bq := range badQuants {
+		if strings.Contains(rec.regex, bq) {
+			rec.valid = false
+		}
+	}
+	_, ok := resWithSubtraction[rec.regex]
+	if ok {
+		rec.valid = false
+	}
+
+	cleaned := doString(rec.regex)
+	replacement, ok := resReplacementHacks[cleaned[1:len(cleaned)-1]]
+	if ok {
+		cleaned = `"` + replacement + `"`
+	}
+	fmt.Print(prIndent(3) + "// " + string(testcase) + "\n")
+	fmt.Print(prIndent(3) + "{\n")
+	fmt.Printf(prIndent(4)+"regex:%s,\n", cleaned)
+
+	if rec.valid {
+		fmt.Print(prIndent(4) + "matches:[]string{")
+		for i, m := range rec.matches {
+			cleaned = doString(m)
+			fmt.Print(cleaned)
+			if i < len(rec.matches)-1 {
+				fmt.Print(", ")
+			}
+		}
+		fmt.Println("},")
+
+		fmt.Print("\t\t\t\tnomatches:[]string{")
+		for i, m := range rec.nomatches {
+			cleaned = doString(m)
+			fmt.Print(cleaned)
+			if strings.Contains(string(testcase), "syntax-0471") {
+				_, _ = fmt.Fprintf(os.Stderr, "BOO in %s, out %s\n", m, cleaned)
+			}
+
+			if i < len(rec.nomatches)-1 {
+				fmt.Print(", ")
+			}
+		}
+		fmt.Println("},")
+		fmt.Println("\t\t\t\tvalid:true,")
+	} else {
+		fmt.Println("\t\t\t\tvalid:false,")
+	}
+	fmt.Println("\t\t\t},")
+}
+
+func doString(s string) string {
+	done := []byte{'"'}
+	i := 0
+	for i < len(s) {
+		var r rune
+		isEntity := false
+		for name, val := range xmlBuiltin {
+			if strings.HasPrefix(s[i:], name) {
+				r = val
+				i += len(name)
+				isEntity = true
+				break
+			}
+		}
+		if !isEntity {
+			matches := xHash.FindStringSubmatch(s[i:])
+			if len(matches) > 1 {
+				hex := matches[1]
+				value, err := strconv.ParseUint(hex, 16, 32)
+				if err != nil {
+					panic(err.Error())
+				}
+				r = rune(value)
+				i += len(matches[0])
+			} else {
+				r = rune(s[i])
+				i++
+			}
+		}
+		var t string
+		switch r {
+		case '\a':
+			t = `\a`
+		case '\b':
+			t = `\b`
+		case '\f':
+			t = `\f`
+		case '\n':
+			t = `\n`
+		case '\r':
+			t = `\r`
+		case '\v':
+			t = `\v`
+		case '\\':
+			t = `~`
+		case '"':
+			t = `\"`
+		default:
+			t = string([]rune{r})
+		}
+		done = append(done, []byte(t)...)
+	}
+	done = append(done, '"')
+	return string(done)
+}

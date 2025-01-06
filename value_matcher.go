@@ -101,95 +101,22 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
 
-	// there's already a table, thus an out-degree > 1
-	if fields.startTable != nil {
-		var newFA *smallTable
-		var nextField *fieldMatcher
-		switch val.vType {
-		case stringType, literalType:
-			newFA, nextField = makeStringFA(valBytes, nil, false)
-		case numberType:
-			newFA, nextField = makeStringFA(valBytes, nil, true)
-			fields.hasNumbers = true
-		case anythingButType:
-			newFA, nextField = makeMultiAnythingButFA(val.list)
-		case shellStyleType:
-			newFA, nextField = makeShellStyleFA(valBytes, printer)
-			fields.isNondeterministic = true
-		case wildcardType:
-			newFA, nextField = makeWildcardFA(valBytes, printer)
-			fields.isNondeterministic = true
-		case prefixType:
-			newFA, nextField = makePrefixFA(valBytes)
-		case monocaseType:
-			newFA, nextField = makeMonocaseFA(valBytes, printer)
-		default:
-			panic("unknown value type")
-		}
-		fields.startTable = mergeFAs(fields.startTable, newFA, sharedNullPrinter)
+	// special case - virgin state and this is a string match
+	if fields.startTable == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
+		fields.singletonMatch = valBytes
+		fields.singletonTransition = newFieldMatcher()
 		m.update(fields)
-		return nextField
+		return fields.singletonTransition
 	}
 
-	// no start table, we have to work with singletons …
-
-	// … unless this is completely virgin, in which case put in the singleton,
-	// assuming it's just a string match
-	if fields.singletonMatch == nil {
-		switch val.vType {
-		case stringType, literalType:
-			fields.singletonMatch = valBytes
-			fields.singletonTransition = newFieldMatcher()
-			m.update(fields)
-			return fields.singletonTransition
-		case numberType:
-			newFA, nextField := makeStringFA(valBytes, nil, true)
-			fields.hasNumbers = true
-			fields.startTable = newFA
-			m.update(fields)
-			return nextField
-		case anythingButType:
-			newFA, nextField := makeMultiAnythingButFA(val.list)
-			fields.startTable = newFA
-			m.update(fields)
-			return nextField
-		case shellStyleType:
-			newAutomaton, nextField := makeShellStyleFA(valBytes, printer)
-			fields.startTable = newAutomaton
-			fields.isNondeterministic = true
-			m.update(fields)
-			return nextField
-		case wildcardType:
-			newAutomaton, nextField := makeWildcardFA(valBytes, printer)
-			fields.startTable = newAutomaton
-			fields.isNondeterministic = true
-			m.update(fields)
-			return nextField
-		case prefixType:
-			newFA, nextField := makePrefixFA(valBytes)
-			fields.startTable = newFA
-			m.update(fields)
-			return nextField
-		case monocaseType:
-			newFA, nextField := makeMonocaseFA(valBytes, printer)
-			fields.startTable = newFA
-			m.update(fields)
-			return nextField
-		default:
-			panic("unknown value type")
-		}
-	}
-
-	// singleton match is here and this value matches it
-	if val.vType == stringType || val.vType == literalType || val.vType == numberType {
+	// special case: singleton match is here and this value matches it
+	if val.vType == stringType || val.vType == literalType {
 		if bytes.Equal(fields.singletonMatch, valBytes) {
 			return fields.singletonTransition
 		}
 	}
 
-	// singleton is here, we don't match, so our outdegree becomes 2, so we have
-	// to build an automaton with two values in it
-	singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
+	// no dodges, we have to build an automaton to match this value
 	var nextField *fieldMatcher
 	var newFA *smallTable
 	switch val.vType {
@@ -210,14 +137,33 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		newFA, nextField = makePrefixFA(valBytes)
 	case monocaseType:
 		newFA, nextField = makeMonocaseFA(valBytes, printer)
+	case regexpType:
+		newFA, nextField = makeRegexpNFA(val.parsedRegexp)
 	default:
 		panic("unknown value type")
 	}
 
-	// now table is ready for use, nuke singleton to signal threads to use it
-	fields.startTable = mergeFAs(singletonAutomaton, newFA, sharedNullPrinter)
-	fields.singletonMatch = nil
-	fields.singletonTransition = nil
+	// there's already a table, thus an out-degree > 1
+	if fields.startTable != nil {
+		fields.startTable = mergeFAs(fields.startTable, newFA, sharedNullPrinter)
+		m.update(fields)
+		return nextField
+	}
+
+	// no start table, maybe singletons …
+	if fields.singletonMatch != nil {
+		// singleton is here, we don't match, so our outdegree becomes 2, so we have
+		// to build an automaton with two values in it
+		singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
+
+		// now table is ready for use, nuke singleton to signal threads to use it
+		fields.startTable = mergeFAs(singletonAutomaton, newFA, sharedNullPrinter)
+		fields.singletonMatch = nil
+		fields.singletonTransition = nil
+	} else {
+		// empty valuematcher, no special cases, just jam in the new FA
+		fields.startTable = newFA
+	}
 	m.update(fields)
 	return nextField
 }

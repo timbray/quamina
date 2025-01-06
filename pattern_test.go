@@ -104,20 +104,20 @@ func TestPatternFromJSON(t *testing.T) {
 	}
 	w1 := []*patternField{{path: "x", vals: []typedVal{{vType: numberType, val: "2"}}}}
 	w2 := []*patternField{{path: "x", vals: []typedVal{
-		{literalType, "null", nil},
-		{literalType, "true", nil},
-		{literalType, "false", nil},
-		{stringType, `"hopp"`, nil},
-		{numberType, "3.072e-11", nil},
+		{literalType, "null", nil, nil},
+		{literalType, "true", nil, nil},
+		{literalType, "false", nil, nil},
+		{stringType, `"hopp"`, nil, nil},
+		{numberType, "3.072e-11", nil, nil},
 	}}}
 	w3 := []*patternField{
 		{path: "x\na", vals: []typedVal{
-			{numberType, "27", nil},
-			{numberType, "28", nil},
+			{numberType, "27", nil, nil},
+			{numberType, "28", nil, nil},
 		}},
 		{path: "x\nb\nm", vals: []typedVal{
-			{stringType, `"a"`, nil},
-			{stringType, `"b"`, nil},
+			{stringType, `"a"`, nil, nil},
+			{stringType, `"b"`, nil, nil},
 		}},
 	}
 	w4 := []*patternField{

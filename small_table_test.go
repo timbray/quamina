@@ -62,3 +62,10 @@ func TestUnpack(t *testing.T) {
 		}
 	}
 }
+
+func TestDodgeBadUTF8(t *testing.T) {
+	st := makeSmallTable(nil, []byte{'a'}, []*faNext{{states: []*faState{{}}}})
+	so := &stepOut{}
+	st.step(0xFE, so)
+	st.dStep(0xFE)
+}

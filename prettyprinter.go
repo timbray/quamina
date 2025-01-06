@@ -157,12 +157,28 @@ func (pp *prettyPrinter) nextString(n *faNext) string {
 }
 
 func branchChar(b byte) string {
+	replaceStr := []string{
+		"nul", "soh", "stx", "etx", "eot", "enq", "ack", "bel", "bs", "ht", "nl", "vt", "np", "cr", "so", "si", "dle",
+		"dc1", "dc2", "dc3", "dc4", "nak", "syn", "etb", "can", "em", "sub", "esc", "fs", "gs", "rs", "us", "sp",
+		"!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+		":", ";", "<", "=", ">", "?", "@",
+		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R",
+		"S", "T", "U", "V", "W", "X", "Y", "Z",
+		"[", "\\", "]", "^", "_", "`",
+		"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r",
+		"s", "t", "u", "v", "w", "x", "y", "z",
+		"{", "|", "}", "~", "del"}
 	switch b {
 	// TODO: Figure out how to test commented-out cases
 	case valueTerminator:
-		return "ℵ"
+		return fmt.Sprintf("%x/ℵ", valueTerminator)
 	default:
-		return fmt.Sprintf("%c", b)
+		if b < 128 {
+			return fmt.Sprintf("%x/%s", b, replaceStr[b])
+		} else {
+			return fmt.Sprintf("%x/", b)
+		}
 	}
 }
 
