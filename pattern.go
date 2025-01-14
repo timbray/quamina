@@ -22,14 +22,17 @@ const (
 	prefixType
 	monocaseType
 	wildcardType
+	regexpType
 )
 
 // typedVal represents the value of a field in a pattern, giving the value and the type of pattern.
-// list is used to handle anything-but matches with multiple values.
+// - list is used to handle anything-but matches with multiple values.
+// - parsedRegexp only used for vType == regexpType
 type typedVal struct {
-	vType valType
-	val   string
-	list  [][]byte
+	vType        valType
+	val          string
+	list         [][]byte
+	parsedRegexp regexpRoot
 }
 
 // patternField represents a field in a pattern.
@@ -205,6 +208,9 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 		pathVals, err = readPrefixSpecial(pb, pathVals)
 	case "equals-ignore-case":
 		pathVals, err = readMonocaseSpecial(pb, pathVals)
+	case "regexp":
+		containsExclusive = tt
+		pathVals, err = readRegexpSpecial(pb, pathVals)
 	default:
 		err = errors.New("unrecognized in special pattern: " + tt)
 	}

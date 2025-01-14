@@ -59,7 +59,7 @@ Thus, the following Pattern would match both JSON events above:
 ### Numeric Values
 
 Quamina can match numeric values with precision and range exactly the same as that provided by 
-Go's `float64` data type, which is said to conform to IEE 754 `binary64`.
+Go's `float64` data type, which is said to conform to IEEE 754 `binary64`.
 
 ## Extended Patterns
 An **Extended Pattern** **MUST** be a JSON object containing
@@ -190,6 +190,12 @@ fact that they are escape characters for JSON as well as for Quamina.
 
 After a "\", the appearance of any character other than "*" or "\" is an error.
 
+### Regexp Pattern
+
+The Pattern Type of a Regexp Pattern is `regexp` and its value
+**MUST** be a string. For details of that string’s syntax see
+[Regular Expressions in Quamina](REGEXP.md).
+
 ### Shellstyle Pattern
 
 This is an earlier version of the Wildcard pattern, differing only that 
@@ -213,9 +219,4 @@ Quamina’s Patterns are inspired by those offered by
 the AWS EventBridge service, as documented in
 [Amazon EventBridge event patterns](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
 
-As of release 1.0, Quamina supports Exists and
-Anything-But Patterns, but does not yet support any other
-EventBridge patterns. Note that a
-Wildcard Pattern with a trailing `*` is equivalent
-to a `prefix` pattern.
-
+It is a goal of Quamina to eventually support all the patterns that EventBridge does.

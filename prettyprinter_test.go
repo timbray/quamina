@@ -8,11 +8,11 @@ func TestPP(t *testing.T) {
 	pp := newPrettyPrinter(1)
 	table, _ := makeShellStyleFA([]byte(`"x*9"`), pp)
 	pp.labelTable(table, "START HERE")
-	wanted := ` 758[START HERE] '"' → 910[on " at 0]
- 910[on " at 0] 'x' → 821[gS at 2]
- 821[gS at 2] ε → 821[gS at 2] / '9' → 551[gX on 9 at 3]
- 551[gX on 9 at 3] '"' → 937[on " at 4]
- 937[on " at 4] 'ℵ' → 820[last step at 5]
+	wanted := ` 758[START HERE] '22/"' → 910[on " at 0]
+ 910[on " at 0] '78/x' → 821[gS at 2]
+ 821[gS at 2] ε → 821[gS at 2] / '39/9' → 551[gX on 9 at 3]
+ 551[gX on 9 at 3] '22/"' → 937[on " at 4]
+ 937[on " at 4] 'f5/ℵ' → 820[last step at 5]
  820[last step at 5]  [1 transition(s)]
 `
 	s := pp.printNFA(table)

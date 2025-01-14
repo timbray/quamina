@@ -15,6 +15,7 @@ type statsAccum struct {
 	stTblCount int
 	stEntries  int
 	stMax      int
+	stDepth    int
 	stEpsilon  int
 	stEpMax    int
 	stVisited  map[*smallTable]bool
