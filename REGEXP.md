@@ -33,6 +33,11 @@ current release are bold-faced.
 
 `.` : **single-character matcher**
 
+
+`|` : **logical alternatives**
+
+`[]` : **character-class matcher**
+
 `*` : zero-or-more matcher
 
 `+` : one-or-more matcher
@@ -47,11 +52,7 @@ current release are bold-faced.
 
 `~P{}` : Unicode property-complement matcher
 
-`[]` : character-class matcher
-
 `[^]` : complementary character-class matcher
-
-`|` logical alternatives
 
 ## Semantics of “.”
 

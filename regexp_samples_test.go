@@ -191,8 +191,8 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0027">
 	{
 		regex:     "ab{2}c",
-		matches:   []string{"\"xs:"},
-		nomatches: []string{"e=\"go\"/>\n      "},
+		matches:   []string{"abbc"},
+		nomatches: []string{"ac", "abc", "abbbc", "a", ""},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0028">
@@ -331,7 +331,7 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0051">
 	{
 		regex:     "(([~.~~~?~*~+~{~}~[~]~(~)~|]?)*)+",
-		matches:   []string{" <description>see regex-syntax-0001<"},
+		matches:   []string{".~?*+{}[]()|.~?*+{}[]()|.~?*+{}[]()|"},
 		nomatches: []string{""},
 		valid:     true,
 	},
@@ -631,7 +631,7 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0099">
 	{
 		regex:     "[~~~[~]]{0,3}",
-		matches:   []string{"as=\"xs:string\" select=\"'~|."},
+		matches:   []string{"~", "[", "]", "~[", "~[]", "[]", "[~~", "~]~", "[]["},
 		nomatches: []string{"~[][", "~]~]", "[][]"},
 		valid:     true,
 	},
@@ -816,7 +816,7 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0125">
 	{
 		regex:     "~]",
-		matches:   []string{"\""},
+		matches:   []string{"]"},
 		nomatches: []string{""},
 		valid:     true,
 	},
@@ -858,7 +858,7 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0131">
 	{
 		regex:     "~n~ra~n~rb",
-		matches:   []string{"\"/>\n      </test>\n    "},
+		matches:   []string{"\n\ra\n\rb"},
 		nomatches: []string{""},
 		valid:     true,
 	},
@@ -898,7 +898,7 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0137">
 	{
 		regex:     "~~.*,~~s*,~~S*,~~i*,~~I?,~~c+,~~C+,~~d{0,3},~~D{1,1000},~~w*,~~W+",
-		matches:   []string{"ram name=\"regex\" as=\"xs:string\" select=\"'~p{Lm}*'\"/>\n         <pa"},
+		matches:   []string{"~.abcd,~sssss,~SSSSSS,~iiiiiii,~,~c,~CCCCCC,~ddd,~D,~wwwwwww,~WWW"},
 		nomatches: []string{""},
 		valid:     true,
 	},
@@ -947,8 +947,8 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0144">
 	{
 		regex:     "~p{Lm}*",
-		matches:   []string{"<created by=\"Mi"},
-		nomatches: []string{"ntax\"/>"},
+		matches:   []string{"ʰﾟ"},
+		nomatches: []string{"א"},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0145">
@@ -1038,8 +1038,8 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0157">
 	{
 		regex:     "~p{Ps}*",
-		matches:   []string{"  <environment r"},
-		nomatches: []string{" as=\"xs:"},
+		matches:   []string{"〝｢"},
+		nomatches: []string{"〞"},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0158">
@@ -1087,8 +1087,8 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0164">
 	{
 		regex:     "~p{Zl}*",
-		matches:   []string{">\n      "},
-		nomatches: []string{"m name=\""},
+		matches:   []string{" "},
+		nomatches: []string{" "},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0165">
@@ -1227,8 +1227,8 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0184">
 	{
 		regex:     "~P{M}*",
-		matches:   []string{"gex-syn"},
-		nomatches: []string{"12-11-07\"/>\n      <environment ref=\"regex-syntax\"/>\n      <test>\n       "},
+		matches:   []string{"ǅ"},
+		nomatches: []string{"ً𝆭ः𝅲ः𝅲⃝⃝⃠"},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0185">
@@ -1276,7 +1276,7 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0191">
 	{
 		regex:     "~P{No}*",
-		matches:   []string{"     <de"},
+		matches:   []string{"‿"},
 		nomatches: []string{"²𐌣"},
 		valid:     true,
 	},
@@ -1367,8 +1367,8 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0204">
 	{
 		regex:     "~P{S}*",
-		matches:   []string{" <descri"},
-		nomatches: []string{"Michael Kay\" on=\"2012-11-07\"/>\n      <environment ref=\"regex-syntax\"/>\n      <test>\n     "},
+		matches:   []string{" "},
+		nomatches: []string{"⁄￢₠₠￦゛゛￣㆐㆐𝇝"},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0205">
@@ -2938,7 +2938,7 @@ var regexpSamples = []regexpSample{
 	//    <test-case name="regex-syntax-0510">
 	{
 		regex:     "(true|false)",
-		matches:   []string{"egex\" as=\""},
+		matches:   []string{"true", "false"},
 		nomatches: []string{""},
 		valid:     true,
 	},
@@ -3805,7 +3805,7 @@ var regexpSamples = []regexpSample{
 	{
 		regex:     "cH",
 		matches:   []string{""},
-		nomatches: []string{"/>\n  "},
+		nomatches: []string{"Ch", "Ch"},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0669">
@@ -4483,7 +4483,7 @@ var regexpSamples = []regexpSample{
 	{
 		regex:     "^(cat|chat)",
 		matches:   []string{""},
-		nomatches: []string{"scription>\n "},
+		nomatches: []string{"cats are bad"},
 		valid:     true,
 	},
 	//    <test-case name="regex-syntax-0797">

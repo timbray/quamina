@@ -138,6 +138,13 @@ The following Patterns would match it:
   }
 }
 ```
+```json
+{
+  "Image": {
+    "Title": [ { "regexp": "View from [0-9][0-9][rtn][dh] Floor" } ]
+  }
+}
+```
 The syntax and semantics of Patterns are fully specified
 in [Patterns in Quamina](PATTERNS.md).
 

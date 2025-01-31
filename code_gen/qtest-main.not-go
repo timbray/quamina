@@ -105,15 +105,15 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	match, err := regexp.Compile(`<param name="match" as="xs:string" select="'([^']*)'"/>`)
+	matchRegexp, err := regexp.Compile(`<param name="match" as="xs:string" select="'([^']*)'"/>`)
 	if err != nil {
 		panic(err.Error())
 	}
-	nomatch, err := regexp.Compile(`<param name="nonmatch" as="xs:string" select="'([^']*)'"/>`)
+	noMatchRegexp, err := regexp.Compile(`<param name="nonmatch" as="xs:string" select="'([^']*)'"/>`)
 	if err != nil {
 		panic(err.Error())
 	}
-	delimiter, err := regexp.Compile(`<param name="delimiter" as="xs:string" select="'([^']*)'"/>`)
+	delimiterRegexp, err := regexp.Compile(`<param name="delimiter" as="xs:string" select="'([^']*)'"/>`)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -224,20 +224,20 @@ var regexpSamples = []regexpSample{`)
 		var b [][]byte
 		b = regex.FindSubmatch(bytes)
 		if len(b) > 1 {
-			rec.regex = string(b[1])
+			rec.regex = string(extractSubmatch(b[1]))
 			continue
 		}
-		b = match.FindSubmatch(bytes)
+		b = matchRegexp.FindSubmatch(bytes)
 		if len(b) > 1 {
-			rawMatches = b[1]
+			rawMatches = extractSubmatch(b[1])
 			continue
 		}
-		b = nomatch.FindSubmatch(bytes)
+		b = noMatchRegexp.FindSubmatch(bytes)
 		if len(b) > 1 {
-			rawNoMatches = b[1]
+			rawNoMatches = extractSubmatch(b[1])
 			continue
 		}
-		b = delimiter.FindSubmatch(bytes)
+		b = delimiterRegexp.FindSubmatch(bytes)
 		if len(b) > 1 {
 			rawDelimiter = string(b[1])
 			continue
@@ -253,6 +253,12 @@ var regexpSamples = []regexpSample{`)
 	}
 	//fmt.Println("\t\t\t},")
 	fmt.Println("\t\t}")
+}
+
+func extractSubmatch(b []byte) []byte {
+	mem := make([]byte, len(b))
+	copy(mem, b)
+	return mem
 }
 
 func prIndent(tabs int) string {

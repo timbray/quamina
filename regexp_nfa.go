@@ -4,10 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"unicode/utf8"
 )
 
-// these types exported to facilitate building Unicode tables in code_gen
+// RunePair and related types exported to facilitate building Unicode tables in code_gen
 type RunePair struct {
 	Lo, Hi rune
 }
@@ -23,6 +22,7 @@ func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
 	if len(rr) == 0 {
 		return nil, errors.New("empty range")
 	}
+	sort.Slice(rr, func(i, j int) bool { return rr[i].Lo < rr[j].Lo })
 	return &runeRangeIterator{pairs: rr, whichPair: 0, inPair: rr[0].Lo}, nil
 }
 
@@ -46,24 +46,46 @@ type regexpQuantifiedAtom struct {
 type regexpBranch []*regexpQuantifiedAtom
 type regexpRoot []regexpBranch
 
-func makeRegexpNFA(root regexpRoot) (*smallTable, *fieldMatcher) {
+// makeRegexpNFA traverses the parsed regexp tree and generates a finite automaton
+// that matches it. If forField is true, then the FA will have states that match " at the beginning
+// and end.
+func makeRegexpNFA(root regexpRoot, forField bool) (*smallTable, *fieldMatcher) {
 	nextField := newFieldMatcher()
+	nextStep := makeNFATrailer(nextField)
+	if forField {
+		table := makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep})
+		state := &faState{table: table}
+		nextStep = &faNext{states: []*faState{state}}
+	}
+	// completely empty regexp
+	if len(root) == 0 {
+		return makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep}), nextField
+	}
 	fa := newSmallTable()
 	for _, branch := range root {
-		nextBranch := makeOneRegexpBranchFA(branch, nextField)
+		var nextBranch *smallTable
+		if len(branch) == 0 {
+			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep})
+		} else {
+			nextBranch = makeOneRegexpBranchFA(branch, nextStep, forField)
+		}
 		fa = mergeFAs(fa, nextBranch, sharedNullPrinter)
 	}
 	return fa, nextField
 }
 
-// makeOneRegexpBranchFA - exploring… we know what the last step looks like, so we proceed back to
+// makeOneRegexpBranchFA - We know what the last step looks like, so we proceed back to
 // front through the members of the branch, which are quantified atoms. Each can be a runeRange (which
 // can be a single character or a dot or a subtree, in each case followed by a quantifier.
 // We know the last step, which points at the nextField argument.
-func makeOneRegexpBranchFA(branch regexpBranch, nextField *fieldMatcher) *smallTable {
-	nextStep := makeNFATrailer(nextField)
+// There's a problem here. Quamina's match* methods feed string values including the enclosing "" to
+// the automaton. This is useful for a variety of reasons. But that means if the regexp is a|b, because
+// the | has the lowest precedence, it'd build an automaton that would match ("a)|(b"). So we need to
+// just build the automaton on a|b and then manually fasten "-transitions in front of and behind it.
+func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faNext, forField bool) *smallTable {
 	var step *faNext
 	var table *smallTable
+
 	// TODO: Assuming this works, rewrite a bunch of other make*NFA calls in this style, without recursion
 	for index := len(branch) - 1; index >= 0; index-- {
 		qa := branch[index]
@@ -74,17 +96,20 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextField *fieldMatcher) *smallT
 			panic("Not supported " + rxfParenGroup)
 		} else {
 			// it's a rune range
-			if len(qa.runes) != 1 || qa.quantMin != 1 || qa.quantMax != 1 {
+			if qa.quantMin != 1 || qa.quantMax != 1 {
 				panic("Not supported: quantifiers")
 			}
 
 			// just match a rune
-			u, _ := runeToUTF8(qa.runes[0].Lo)
-			trailer := makeFAFragment(u, nextStep, sharedNullPrinter)
-			table = makeSmallTable(nil, []byte{u[0]}, []*faNext{trailer})
+			table = makeRuneRangeNFA(qa.runes, nextStep, sharedNullPrinter)
 			step = &faNext{states: []*faState{{table: table}}}
 		}
 		nextStep = step
+	}
+	if forField {
+		firstState := &faState{table: table}
+		firstStep := &faNext{states: []*faState{firstState}}
+		table = makeSmallTable(nil, []byte{'"'}, []*faNext{firstStep})
 	}
 	return table
 }
@@ -103,86 +128,86 @@ func makeNFATrailer(nextField *fieldMatcher) *faNext {
 	return &faNext{states: []*faState{{table: table}}}
 }
 
-func makeRuneRangeNFA(rr RuneRange, next *faState, pp *prettyPrinter) (*smallTable, error) {
-	// these have to be in increasing order to work
-	sort.Slice(rr, func(i, j int) bool { return rr[i].Lo < rr[j].Lo })
+// plan B
+
+type runeTreeEntry struct {
+	next  *faNext
+	child runeTreeNode
+}
+type runeTreeNode []*runeTreeEntry
+
+func addRuneTreeEntry(root runeTreeNode, r rune, dest *faNext) {
+	// this works because no UTF-8 representation of a code point can be a prefix of any other
+	node := root
+	bytes, err := runeToUTF8(r)
+	// Invalid bytes should be caught at another level, but if they show up here, silently ignore
+	if err != nil {
+		return
+	}
+
+	// find or make entry
+	for i, b := range bytes {
+		if node[b] != nil {
+			node = node[b].child
+			continue
+		}
+		// need to make a new node
+		entry := &runeTreeEntry{}
+		node[b] = entry
+		if i == len(bytes)-1 {
+			entry.next = dest
+		} else {
+			entry.child = make([]*runeTreeEntry, byteCeiling)
+		}
+		node = entry.child
+	}
+}
+
+func nfaFromRuneTree(root runeTreeNode, pp printer) *smallTable {
+	return tableFromRuneTreeNode(root, pp)
+}
+
+func tableFromRuneTreeNode(node runeTreeNode, pp printer) *smallTable {
+	var unpacked unpackedTable
+	for b, entry := range node {
+		if entry == nil {
+			continue
+		}
+		if entry.next != nil {
+			unpacked[b] = entry.next
+		} else {
+			table := tableFromRuneTreeNode(entry.child, pp)
+			pp.labelTable(table, fmt.Sprintf("on %x", b))
+			state := &faState{table: table}
+			unpacked[b] = &faNext{states: []*faState{state}}
+		}
+	}
+	st := newSmallTable()
+	st.pack(&unpacked)
+	return st
+}
+
+func makeRuneRangeNFA(rr RuneRange, next *faNext, pp printer) *smallTable {
+	pp.labelTable(next.states[0].table, "Next")
 
 	// turn the slice of hi/lo inclusive endpoints into a slice of utf8 encodings
-	var utf8Range [][]byte
 	ri, err := newRuneRangeIterator(rr)
+
+	// can't happen I think
 	if err != nil {
-		return nil, err
+		panic("Invalid rune range")
 	}
+
+	var root runeTreeNode = make([]*runeTreeEntry, byteCeiling)
+
 	// for each rune
 	for r := ri.next(); r != -1; r = ri.next() {
-		buf, err := runeToUTF8(r)
-		if err != nil {
-			continue
-		}
-		utf8Range = append(utf8Range, buf)
+		addRuneTreeEntry(root, r, next)
 	}
-	pp.labelTable(next.table, "DESTINATION")
-	step := &faNext{[]*faState{next}}
-	table := newSmallTable()
-	pp.labelTable(table, "ROOT")
-	makeRuneRangeNFALevel(utf8Range, 0, table, step, pp)
-	return table, nil
-}
-
-type runeSubrange struct {
-	lo int
-	hi int
-}
-
-// makeRuneRangeNFALevel fills in the transitions in the 'table' argument based on the bytes in all the utf8Range
-// byte slices
-func makeRuneRangeNFALevel(utf8Range [][]byte, level int, targetTable *smallTable, next *faNext, pp *prettyPrinter) {
-	unpacked := unpackTable(targetTable)
-	nextLevelSubrange := make(map[byte]*runeSubrange)
-	nextLevelSteps := make(map[byte]*faNext)
-
-	var lastByte byte = 0xff
-	var subrange *runeSubrange
-	for index, u := range utf8Range {
-		if level >= len(u) {
-			continue
-		}
-		b := u[level]
-		if b != lastByte {
-			subrange = &runeSubrange{lo: index, hi: index}
-			nextLevelSubrange[b] = subrange
-			lastByte = b
-		} else {
-			subrange.hi = index
-		}
-
-		if len(u) > (level + 1) {
-			nextStep, ok := nextLevelSteps[b]
-			if !ok {
-				table := newSmallTable()
-				nextState := &faState{table: table}
-				asRune, _ := utf8.DecodeRune(u)
-				pp.labelTable(table, fmt.Sprintf("For level %d in %x", level+1, asRune))
-				nextStep = &faNext{[]*faState{nextState}}
-				nextLevelSteps[b] = nextStep
-			}
-			unpacked[b] = nextStep
-		} else {
-			unpacked[b] = next
-		}
-	}
-	for b, nextStep := range nextLevelSteps {
-		subrange = nextLevelSubrange[b]
-		makeRuneRangeNFALevel(utf8Range[subrange.lo:subrange.hi+1], level+1, nextStep.states[0].table, next, pp)
-	}
-
-	targetTable.pack(unpacked)
+	return nfaFromRuneTree(root, pp)
 }
 
 func makeDotFA(dest *faNext) *smallTable {
-	if dest == nil {
-		dest = &faNext{}
-	}
 	sLast := &smallTable{
 		ceilings: []byte{0x80, 0xc0, byte(byteCeiling)},
 		steps:    []*faNext{nil, dest, nil},

@@ -29,7 +29,11 @@ func (r *regexpParse) isNested() bool {
 }
 
 func newRxParseState(t []byte) *regexpParse {
-	return &regexpParse{bytes: t, features: defaultRegexpFeatureChecker()}
+	return &regexpParse{
+		bytes:    t,
+		features: defaultRegexpFeatureChecker(),
+		tree:     regexpRoot{},
+	}
 }
 
 func (r *regexpParse) nextRune() (rune, error) {

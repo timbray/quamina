@@ -2,7 +2,7 @@ package quamina
 
 import (
 	"fmt"
-	"math"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -69,7 +69,7 @@ func TestSingleCharEscape(t *testing.T) {
 
 func TestReadCCE1(t *testing.T) {
 	goods := []string{
-		`~n-~r`, "a", "ab", "a-b",
+		"a", `~n-~r`, "ab", "a-b",
 	}
 	bads := []string{
 		"a-~P{Lu}", "~P{Lu}-x",
@@ -77,7 +77,7 @@ func TestReadCCE1(t *testing.T) {
 	for _, good := range goods {
 		_, err := readRegexp("[" + good + "]")
 		if err != nil {
-			t.Errorf("Blecch %s", good)
+			t.Errorf("Missed good /[%s]/: %s", good, err.Error())
 		}
 	}
 	for _, bad := range bads {
@@ -86,6 +86,67 @@ func TestReadCCE1(t *testing.T) {
 			t.Errorf("Missed bad %s", bad)
 		}
 	}
+}
+
+func TestRuneRangesFromCCE1(t *testing.T) {
+	cce1s := []string{
+		"[ax]", "[a]", "[abc]",
+		"[c-g]", "[ah-mq]",
+		"[~n-~r]",
+		"[-bdg-h]",
+	}
+	wanted := []RuneRange{
+		{{'a', 'a'}, {'x', 'x'}}, {{'a', 'a'}}, {{'a', 'c'}},
+		{{'c', 'g'}}, {{'a', 'a'}, {'h', 'm'}, {'q', 'q'}},
+		{{10, 13}},
+		{{'-', '-'}, {'b', 'b'}, {'d', 'd'}, {'g', 'h'}},
+	}
+	for i, cce1 := range cce1s {
+		parse := newRxParseState([]byte(cce1[1:]))
+		rr, err := readCCE1s(parse)
+		if err != nil {
+			t.Error("RC: " + err.Error())
+		}
+		if !runeRangeEqual(t, wanted[i], rr) {
+			t.Errorf("Failed on %s", cce1)
+		}
+	}
+}
+
+func TestSimplifyRR(t *testing.T) {
+	in := []RuneRange{
+		{{'a', 'b'}, {'e', 'j'}, {'l', 'n'}},
+		{{'a', 'e'}, {'b', 'e'}, {'d', 'm'}},
+		{{'a', 'c'}, {'d', 'r'}, {'s', 'x'}},
+	}
+	wanteds := []RuneRange{
+		{{'a', 'b'}, {'e', 'j'}, {'l', 'n'}},
+		{{'a', 'm'}},
+		{{'a', 'x'}},
+	}
+	for i, rrin := range in {
+		wanted := wanteds[i]
+		out := simplifyRuneRange(rrin)
+		if !runeRangeEqual(t, out, wanted) {
+			t.Errorf("botch at %d", i)
+		}
+	}
+}
+
+func runeRangeEqual(t *testing.T, wanted RuneRange, got RuneRange) bool {
+	t.Helper()
+	if len(wanted) != len(got) {
+		return false
+	}
+	sort.Slice(wanted, func(i, j int) bool { return wanted[i].Lo < wanted[j].Lo })
+	sort.Slice(got, func(i, j int) bool { return got[i].Lo < got[j].Lo })
+	for i, w := range wanted {
+		g := got[i]
+		if w.Lo != g.Lo || w.Hi != g.Hi {
+			return false
+		}
+	}
+	return true
 }
 
 func TestBasicRegexpFeatureRead(t *testing.T) {
@@ -182,7 +243,7 @@ func TestAddRegexpTransition(t *testing.T) {
 	}
 	bads := []string{
 		"a?", "a*", "a+", "a?",
-		"a{1,3}", "(ab)", "~p{Lu}", "[abc]", "[^abc]", "ab|cd",
+		"a{1,3}", "(ab)", "~p{Lu}", "[^abc]",
 	}
 	template := `{"a":[{"regexp": "FOO"}]}`
 	cm := newCoreMatcher()
@@ -200,25 +261,6 @@ func TestAddRegexpTransition(t *testing.T) {
 			t.Errorf("missed unimplemented feature in /%s/", bad)
 		}
 	}
-}
-
-func TestUniquePaths(t *testing.T) {
-	uniques := make(map[string]bool)
-	size := int(17 * math.Pow(2.0, 16))
-	fmt.Printf("size: %d\n", size)
-	var i rune
-	for i = 0; i < rune(size); i++ {
-		buf, err := runeToUTF8(i)
-		if err != nil {
-			continue
-		}
-		var str string
-		if len(buf) > 1 {
-			str = string(buf[:len(buf)-1])
-		}
-		uniques[str] = true
-	}
-	fmt.Printf("unique: %d\n", len(uniques))
 }
 
 func TestRegexpReader(t *testing.T) {
