@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"unicode/utf8"
 )
@@ -61,10 +62,9 @@ func readRegexpSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 	}
 	val := typedVal{
 		vType: regexpType,
-		val:   `"` + regexpString + `"`,
 	}
 	var parse *regexpParse
-	parse, err = readRegexp(val.val)
+	parse, err = readRegexp(regexpString)
 	if err != nil {
 		return
 	}
@@ -91,7 +91,9 @@ type regexpFeatureChecker struct {
 }
 
 var implementedRegexpFeatures = map[regexpFeature]bool{
-	rxfDot: true,
+	rxfDot:   true,
+	rxfClass: true,
+	rxfOrBar: true,
 }
 
 func defaultRegexpFeatureChecker() *regexpFeatureChecker {
@@ -194,7 +196,7 @@ func readBranches(parse *regexpParse) error {
 }
 
 func readBranch(parse *regexpParse) (regexpBranch, error) {
-	var branch regexpBranch
+	branch := regexpBranch{}
 	var err error
 	for err == nil {
 		var piece *regexpQuantifiedAtom
@@ -206,7 +208,7 @@ func readBranch(parse *regexpParse) (regexpBranch, error) {
 	if errors.Is(err, errRegexpEOF) {
 		return branch, nil
 	}
-	return nil, err
+	return branch, err
 }
 
 // piece = atom [ quantifier ]
@@ -270,10 +272,11 @@ func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 		}
 	case b == '[':
 		parse.features.recordFeature(rxfClass)
-		err = readCharClassExpr(parse)
+		qa.runes, err = readCharClassExpr(parse)
 		if err != nil {
 			return nil, err
 		}
+		qa.quantMin, qa.quantMax = 1, 1
 		return &qa, nil
 	case b == ']':
 		return nil, fmt.Errorf("invalid ']' at %d", parse.lastOffset())
@@ -311,7 +314,7 @@ func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 
 // charClassExpr = "[" [ "^" ] ( "-" / CCE1 ) *CCE1 [ "-" ] "]"
 
-func readCharClassExpr(parse *regexpParse) error {
+func readCharClassExpr(parse *regexpParse) (RuneRange, error) {
 	// starting after the "["
 	var err error
 	bypassed, err := parse.bypassOptional('^')
@@ -319,35 +322,65 @@ func readCharClassExpr(parse *regexpParse) error {
 		err = errors.New("empty character class []")
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if bypassed {
 		parse.features.recordFeature(rxfNegatedClass)
 	}
-	if err = readCCE1s(parse); err != nil {
-		return err
+	rr, err := readCCE1s(parse)
+	if err != nil {
+		return nil, err
 	}
-	_, _ = parse.bypassOptional('-') // already probed
+	bypassed, _ = parse.bypassOptional('-') // already probed
+	if bypassed {
+		rr = append(rr, RunePair{Lo: '-', Hi: '-'})
+	}
 	if err = parse.require(']'); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return rr, nil
 }
 
 // readCCE1s proceeds forward until the next chunk is not a CCE1
-func readCCE1s(parse *regexpParse) error {
+func readCCE1s(parse *regexpParse) (RuneRange, error) {
+	var rr RuneRange
 	first := true
 	for {
-		if err := readCCE1(parse, first); err != nil {
-			return err
+		cce1, err := readCCE1(parse, first)
+		if err != nil {
+			return nil, err
 		}
+		rr = append(rr, cce1...)
 		first = false
 		r, _ := parse.nextRune() // already probed
 		parse.backup1(r)
 		if r == '-' || r == ']' {
-			return nil
+			return simplifyRuneRange(rr), nil
 		}
 	}
+}
+
+func simplifyRuneRange(rranges RuneRange) RuneRange {
+	if len(rranges) == 0 {
+		return rranges
+	}
+	sort.Slice(rranges, func(i, j int) bool { return rranges[i].Lo < rranges[j].Lo })
+	var out RuneRange
+	currentPair := rranges[0]
+	for i := 1; i < len(rranges); i++ {
+		nextPair := rranges[i]
+		if nextPair.Lo > currentPair.Hi+1 {
+			out = append(out, currentPair)
+			currentPair = nextPair
+			continue
+		}
+		if nextPair.Hi <= currentPair.Hi {
+			continue
+		}
+		currentPair.Hi = nextPair.Hi
+	}
+	out = append(out, currentPair)
+	return out
 }
 
 // CCE1 = ( CCchar [ "-" CCchar ] ) / charClassEsc
@@ -378,76 +411,76 @@ func isCCchar(r rune) bool {
 // / %xE000-10FFFF ) / SingleCharEsc
 
 // readCCE1 reads one instance of CCE1 token
-func readCCE1(parse *regexpParse, first bool) error {
+func readCCE1(parse *regexpParse, first bool) (RuneRange, error) {
 	// starts after [
+	var rr RuneRange
+	var err error
 	r, _ := parse.nextRune() // have already probed, can't fail
 
-	var err error
 	var lo rune
 	if first && r == '-' {
-		lo = '-'
+		return RuneRange{RunePair{'-', '-'}}, nil
 	} else if r == Escape {
 		r, _ = parse.nextRune() // have already probed
 		if r == 'p' || r == 'P' {
 			// maybe a good category, in which case we can't participate in range, so we're done
 			// or a malformed category
 			parse.features.recordFeature(rxfProperty)
-			return readCategory(parse)
+			return rr, readCategory(parse)
 		}
 		escaped, ok := checkSingleCharEscape(r)
 		if !ok {
-			return fmt.Errorf("invalid character '%c' after ~ at %d", r, parse.lastOffset())
+			return nil, fmt.Errorf("invalid character '%c' after ~ at %d", r, parse.lastOffset())
 		}
 		lo = escaped
 		// we've seen a single-character escape
 	} else {
 		if !isCCchar(r) {
-			return fmt.Errorf("invalid character '%c' after [ at %d", r, parse.lastOffset())
+			return nil, fmt.Errorf("invalid character '%c' after [ at %d", r, parse.lastOffset())
 		}
 		lo = r
 	}
 	// either a regular character or a single-char escape, either we're done or we're looking for '-'
 	r, err = parse.nextRune()
 	if err != nil {
-		return fmt.Errorf("error in range at %d", parse.lastOffset())
+		return nil, fmt.Errorf("error in range at %d", parse.lastOffset())
 	}
 	if r != '-' {
 		// not a range, so probably looking for the next cce1
 		parse.backup1(r)
-		return nil
+		return RuneRange{RunePair{lo, lo}}, nil
 	}
-	// looking at a range
+	// looking at a range?
 	r, err = parse.nextRune()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// might be end of range -] which is legal. Otherwise, has to be either a CChar or single-char escape
 	if r == ']' {
 		parse.backup1(r)
-		parse.backup1('-')
-		return nil
+		return RuneRange{RunePair{lo, lo}, {'-', '-'}}, nil
 	}
 	if r == Escape {
 		r, err = parse.nextRune()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		escaped, ok := checkSingleCharEscape(r)
 		if !ok {
-			return fmt.Errorf("invalid char '%c' after - at %d", r, parse.lastOffset())
+			return nil, fmt.Errorf("invalid char '%c' after - at %d", r, parse.lastOffset())
 		}
 		if lo > escaped {
-			return fmt.Errorf("invalid range %c-%c", lo, r)
+			return nil, fmt.Errorf("invalid range %c-%c", lo, r)
 		}
-		return nil
+		return RuneRange{RunePair{lo, escaped}}, nil
 	}
 	if !isCCchar(r) {
-		return fmt.Errorf("invalid char '%c' after - at %d", r, parse.lastOffset())
+		return nil, fmt.Errorf("invalid char '%c' after - at %d", r, parse.lastOffset())
 	}
 	if lo > r {
-		return fmt.Errorf("invalid range %c-%c", lo, r)
+		return nil, fmt.Errorf("invalid range %c-%c", lo, r)
 	}
-	return nil
+	return RuneRange{RunePair{lo, r}}, nil
 }
 
 // catEsc = %s"\p{" charProp "}"
@@ -509,6 +542,7 @@ func readQuantifier(parse *regexpParse, qa *regexpQuantifiedAtom) error {
 	// QuantExact = 1*%x30-39 ; '0'-'9'
 	b, err := parse.nextRune()
 	if errors.Is(err, errRegexpEOF) {
+		qa.quantMin, qa.quantMax = 1, 1
 		return nil
 	}
 	if err != nil {
@@ -531,6 +565,7 @@ func readQuantifier(parse *regexpParse, qa *regexpQuantifiedAtom) error {
 		parse.features.recordFeature(rxfRange)
 		return readRangeQuantifier(parse, qa)
 	}
+	qa.quantMin, qa.quantMax = 1, 1
 	parse.backup1(b)
 	return errRegexpStuck
 }

@@ -7,26 +7,6 @@ import (
 	"unicode"
 )
 
-var unicodeAssignables = RuneRange{
-	{0x9, 0x9}, {0xA, 0xA}, {0xD, 0xD},
-	{0x20, 0x7E},
-	{0xA0, 0xD7FF},
-	{0xE000, 0xFDCF},
-	{0xFDF0, 0xFFFD},
-	{0x10000, 0x1FFFD}, {0x20000, 0x2FFFD},
-	{0x30000, 0x3FFFD}, {0x40000, 0x4FFFD},
-	{0x50000, 0x5FFFD}, {0x60000, 0x6FFFD},
-	{0x70000, 0x7FFFD}, {0x80000, 0x8FFFD},
-	{0x90000, 0x9FFFD}, {0xA0000, 0xAFFFD},
-	{0xB0000, 0xBFFFD}, {0xC0000, 0xCFFFD},
-	{0xD0000, 0xDFFFD}, {0xE0000, 0xEFFFD},
-	{0xF0000, 0xFFFFD}, {0x100000, 0x10FFFD},
-}
-
-var unicodeScalars = RuneRange{
-	{0x0, 0xD800}, {0xE000, 0x10FFFF},
-}
-
 func TestExploreUTF8Form(t *testing.T) {
 	bads := [][]byte{
 		{0xc0, 0x80},             //0
@@ -128,7 +108,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse " + err.Error())
 		}
-		st, wanted := makeRegexpNFA(parsed.tree)
+		st, wanted := makeRegexpNFA(parsed.tree, false)
 		bufs := &bufpair{}
 		for _, r := range runes {
 			// func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *bufpair) []*fieldMatcher {
@@ -152,7 +132,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse " + err.Error())
 		}
-		st, _ := makeRegexpNFA(parsed.tree)
+		st, _ := makeRegexpNFA(parsed.tree, false)
 		bufs := &bufpair{}
 		for _, nonMatch := range nonMatches {
 			found := traverseNFA(st, []byte(nonMatch), nil, bufs)
@@ -176,7 +156,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse failure: " + pat)
 		}
-		st, wanted := makeRegexpNFA(parsed.tree)
+		st, wanted := makeRegexpNFA(parsed.tree, false)
 		found := traverseNFA(st, []byte(daodechingorig), nil, bufs)
 		if len(found) != 1 {
 			t.Errorf("Failed to match ")
@@ -187,22 +167,36 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 	}
 }
 
-func TestMultiLengthRR(t *testing.T) {
-	ranges := []RuneRange{unicodeScalars, unicodeAssignables}
-	rangeNames := []string{"Scalars", "assignables"}
+func TestAddRuneTreeEntry(t *testing.T) {
+	var root runeTreeNode = make([]*runeTreeEntry, byteCeiling)
+	bbs := [][]rune{
+		{'a', 'b', 'c'},
+	}
+	dest := &faNext{}
+	for _, runes := range bbs {
+		for _, r := range runes {
+			addRuneTreeEntry(root, r, dest)
+		}
+		fmt.Printf("RL: %d\n", len(root))
+	}
+}
 
-	// get UTF-8 versions of all the code points
-	for index, rr := range ranges {
-		fmt.Println(" " + rangeNames[index])
+func TestMultiLengthRR(t *testing.T) {
+	range1 := RuneRange{
+		{'a', 'd'},
+		{0xf800, 0x10005},
+	}
+	ranges := []RuneRange{range1}
+
+	for _, rr := range ranges {
 		var multiLengthTest = rr
 
-		pp := newPrettyPrinter(2335)
+		//pp := newPrettyPrinter(2335)
 		wantFM := &fieldMatcher{}
-		next := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
-		st, err := makeRuneRangeNFA(rr, next, pp)
-		if err != nil {
-			t.Error(err.Error())
-		}
+
+		dest := &faNext{states: []*faState{{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}}}
+		st := makeRuneRangeNFA(rr, dest, sharedNullPrinter)
+		//fmt.Printf("T: %s\n", pp.printNFA(st))
 
 		matchers := []*fieldMatcher{}
 		var got []*fieldMatcher
@@ -295,10 +289,9 @@ func TestRRiterator(t *testing.T) {
 func TestBasicRRNFABuilding(t *testing.T) {
 	rr := RuneRange{{'a', 'c'}}
 	pp := newPrettyPrinter(2335)
-	next := &faState{table: newSmallTable()}
-	st, err := makeRuneRangeNFA(rr, next, pp)
-	if err != nil {
-		t.Error(err.Error())
-	}
+	wantFM := newFieldMatcher()
+	dest := &faNext{states: []*faState{{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}}}
+
+	st := makeRuneRangeNFA(rr, dest, pp)
 	fmt.Println("ST: " + pp.printNFA(st))
 }

@@ -221,6 +221,7 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "Thumbnail": { "Url": [ "a", { "prefix": "https:" } ] } } }`,
 		`{"Image": { "Title": [ { "equals-ignore-case": "VIEW FROM 15th FLOOR" } ] } }`,
 		`{"Image": { "Title": [ { "regexp": "View from .... Floor" } ]  } }`,
+		`{"Image": { "Title": [ { "regexp": "View from [0-9][0-9][rtn][dh] Floor" } ]  } }`,
 	}
 
 	var err error

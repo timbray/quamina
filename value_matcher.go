@@ -138,7 +138,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	case monocaseType:
 		newFA, nextField = makeMonocaseFA(valBytes, printer)
 	case regexpType:
-		newFA, nextField = makeRegexpNFA(val.parsedRegexp)
+		newFA, nextField = makeRegexpNFA(val.parsedRegexp, true)
 	default:
 		panic("unknown value type")
 	}
@@ -161,7 +161,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		fields.singletonMatch = nil
 		fields.singletonTransition = nil
 	} else {
-		// empty valuematcher, no special cases, just jam in the new FA
+		// empty valueMatcher, no special cases, just jam in the new FA
 		fields.startTable = newFA
 	}
 	m.update(fields)
@@ -254,6 +254,7 @@ func makeFAFragment(val []byte, endAt *faNext, pp printer) *faNext {
 }
 
 func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
+	// TODO: Turn this into a simple back-to-front construction and remove the recursion
 	var nextStepList *faNext
 	if index == len(val)-1 {
 		lastStep := &faState{
