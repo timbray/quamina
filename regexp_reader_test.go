@@ -243,7 +243,7 @@ func TestAddRegexpTransition(t *testing.T) {
 	}
 	bads := []string{
 		"a?", "a*", "a+", "a?",
-		"a{1,3}", "(ab)", "~p{Lu}", "[^abc]",
+		"a{1,3}", "~p{Lu}", "[^abc]",
 	}
 	template := `{"a":[{"regexp": "FOO"}]}`
 	cm := newCoreMatcher()

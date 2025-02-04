@@ -91,9 +91,10 @@ type regexpFeatureChecker struct {
 }
 
 var implementedRegexpFeatures = map[regexpFeature]bool{
-	rxfDot:   true,
-	rxfClass: true,
-	rxfOrBar: true,
+	rxfDot:        true,
+	rxfClass:      true,
+	rxfOrBar:      true,
+	rxfParenGroup: true,
 }
 
 func defaultRegexpFeatureChecker() *regexpFeatureChecker {
@@ -251,8 +252,6 @@ func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 	case b == '(':
 		parse.nest()
 		parse.features.recordFeature(rxfParenGroup)
-		newBranch := regexpBranch{}
-		qa.subtree = regexpRoot{newBranch}
 		err = readBranches(parse)
 		if (err != nil) && !errors.Is(err, errRegexpEOF) {
 			return nil, err
@@ -261,6 +260,7 @@ func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 		if err != nil {
 			return nil, fmt.Errorf("missing ')' at %d", parse.lastOffset())
 		}
+		qa.subtree = parse.tree
 		parse.unNest()
 		return &qa, nil
 	case b == ')':

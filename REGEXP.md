@@ -38,6 +38,8 @@ current release are bold-faced.
 
 `[]` : **character-class matcher**
 
+`()` : **parenthetized sub-regexp**
+
 `*` : zero-or-more matcher
 
 `+` : one-or-more matcher
@@ -45,8 +47,6 @@ current release are bold-faced.
 `?` : optional matcher
 
 `{lo,hi}` : occurrence-count matcher
-
-`()` : parenthetized sub-regexp
 
 `~p{}` : Unicode property matcher
 

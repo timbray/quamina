@@ -145,6 +145,13 @@ The following Patterns would match it:
   }
 }
 ```
+```json
+{
+  "Image": {
+    "Title": [ { "regexp": "View from 15th (Floor|Storey)" } ]
+  }
+}
+```
 The syntax and semantics of Patterns are fully specified
 in [Patterns in Quamina](PATTERNS.md).
 

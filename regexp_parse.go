@@ -10,18 +10,21 @@ type regexpParse struct {
 	bytes     []byte
 	index     int
 	lastIndex int
-	nesting   []bool
+	nesting   []regexpRoot
 	features  *regexpFeatureChecker
 	tree      regexpRoot
 }
 
 func (r *regexpParse) nest() {
-	r.nesting = append(r.nesting, true)
+	r.nesting = append(r.nesting, r.tree)
+	r.tree = regexpRoot{}
 }
 
 // unNest is only called after isNested
 func (r *regexpParse) unNest() {
+	newTree := append(r.nesting[len(r.nesting)-1], r.tree...)
 	r.nesting = r.nesting[0 : len(r.nesting)-1]
+	r.tree = newTree
 }
 
 func (r *regexpParse) isNested() bool {
