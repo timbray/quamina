@@ -36,14 +36,14 @@ func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
 // All the forms of quantifiers can be described by pairs of numbers. ? is [0,1]. + is [1,♾️]. * is [0,♾️].
 // {m,n} ranges also, obviously.
 
-type regexpQuantifiedAtom struct {
+type quantifiedAtom struct {
 	isDot    bool
 	runes    RuneRange
 	quantMin int
 	quantMax int
 	subtree  regexpRoot // if non-nil, ()-enclosed subtree here
 }
-type regexpBranch []*regexpQuantifiedAtom
+type regexpBranch []*quantifiedAtom
 type regexpRoot []regexpBranch
 
 // makeRegexpNFA traverses the parsed regexp tree and generates a finite automaton

@@ -266,6 +266,31 @@ func showUTF8(t *testing.T, lo rune, hi rune) {
 }
 */
 
+func TestSimpleRegexpMerging(t *testing.T) {
+	// I peeked into the machine for the RE below and it was horribly wrong
+	re := "(a|b)c"
+	parse, err := readRegexp(re)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	fa, fm := makeRegexpNFA(parse.tree, false)
+	tr := []*fieldMatcher{}
+	out := traverseDFA(fa, []byte("ac"), tr)
+	if len(out) != 1 || out[0] != fm {
+		t.Error("MISS1")
+	}
+	tr = tr[:0]
+	out = traverseDFA(fa, []byte("bc"), tr)
+	if len(out) != 1 || out[0] != fm {
+		t.Error("MISS2")
+	}
+	tr = tr[:0]
+	out = traverseDFA(fa, []byte("a"), tr)
+	if len(out) != 0 {
+		t.Error("MISS3")
+	}
+}
+
 func TestRRiterator(t *testing.T) {
 	rr := RuneRange{
 		{'a', 'c'},

@@ -15,20 +15,23 @@ type regexpParse struct {
 	tree      regexpRoot
 }
 
-func (r *regexpParse) nest() {
-	r.nesting = append(r.nesting, r.tree)
-	r.tree = regexpRoot{}
+func (p *regexpParse) nest() {
+	p.nesting = append(p.nesting, p.tree)
+	p.tree = regexpRoot{}
 }
 
-// unNest is only called after isNested
-func (r *regexpParse) unNest() {
-	newTree := append(r.nesting[len(r.nesting)-1], r.tree...)
-	r.nesting = r.nesting[0 : len(r.nesting)-1]
-	r.tree = newTree
+// unNest is only called after isNested. We've been building up a subtree in p.tree, so we need to
+// save that subtree, pop whatever was on the nesting stack back into p.tree, and then return the
+// sub tree so it can be built into a quantifiedAtom
+func (p *regexpParse) unNest() regexpRoot {
+	subtree := p.tree
+	p.tree = p.nesting[len(p.nesting)-1]
+	p.nesting = p.nesting[0 : len(p.nesting)-1]
+	return subtree
 }
 
-func (r *regexpParse) isNested() bool {
-	return len(r.nesting) > 0
+func (p *regexpParse) isNested() bool {
+	return len(p.nesting) > 0
 }
 
 func newRxParseState(t []byte) *regexpParse {
@@ -39,54 +42,54 @@ func newRxParseState(t []byte) *regexpParse {
 	}
 }
 
-func (r *regexpParse) nextRune() (rune, error) {
-	if r.index >= len(r.bytes) {
+func (p *regexpParse) nextRune() (rune, error) {
+	if p.index >= len(p.bytes) {
 		return 0, errRegexpEOF
 	}
-	r.lastIndex = r.index
-	c, length := utf8.DecodeRune(r.bytes[r.index:])
+	p.lastIndex = p.index
+	c, length := utf8.DecodeRune(p.bytes[p.index:])
 	if c == utf8.RuneError {
-		return 0, fmt.Errorf("UTF-8 encoding error at offset %d", r.lastOffset())
+		return 0, fmt.Errorf("UTF-8 encoding error at offset %d", p.lastOffset())
 	}
-	r.index += length
+	p.index += length
 	return c, nil
 }
 
 // require checks to see if the first rune matches the supplied argument. If it fails, it doesn't back up or
 // recover or anything, on the assumption that you're giving up.
-func (r *regexpParse) require(wanted rune) error {
-	got, err := r.nextRune()
+func (p *regexpParse) require(wanted rune) error {
+	got, err := p.nextRune()
 	if err != nil {
 		return err
 	}
 	if got != wanted {
-		return fmt.Errorf("incorrect character at %d; got %c wanted %c", r.lastOffset(), got, wanted)
+		return fmt.Errorf("incorrect character at %d; got %c wanted %c", p.lastOffset(), got, wanted)
 	}
 	return nil
 }
 
-func (r *regexpParse) bypassOptional(c rune) (bool, error) {
-	next, err := r.nextRune()
+func (p *regexpParse) bypassOptional(c rune) (bool, error) {
+	next, err := p.nextRune()
 	if err != nil {
 		return false, err
 	}
 	if next != c {
-		r.backup1(next)
+		p.backup1(next)
 	}
 	return next == c, nil
 }
 
-func (r *regexpParse) backup1(oneRune rune) {
-	r.index -= utf8.RuneLen(oneRune)
+func (p *regexpParse) backup1(oneRune rune) {
+	p.index -= utf8.RuneLen(oneRune)
 }
 
-func (r *regexpParse) offset() int {
-	return r.index
+func (p *regexpParse) offset() int {
+	return p.index
 }
-func (r *regexpParse) lastOffset() int {
-	return r.lastIndex
+func (p *regexpParse) lastOffset() int {
+	return p.lastIndex
 }
 
-func (r *regexpParse) isEmpty() bool {
-	return r.index >= len(r.bytes)
+func (p *regexpParse) isEmpty() bool {
+	return p.index >= len(p.bytes)
 }
