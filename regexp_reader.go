@@ -91,9 +91,10 @@ type regexpFeatureChecker struct {
 }
 
 var implementedRegexpFeatures = map[regexpFeature]bool{
-	rxfDot:   true,
-	rxfClass: true,
-	rxfOrBar: true,
+	rxfDot:        true,
+	rxfClass:      true,
+	rxfOrBar:      true,
+	rxfParenGroup: true,
 }
 
 func defaultRegexpFeatureChecker() *regexpFeatureChecker {
@@ -199,7 +200,7 @@ func readBranch(parse *regexpParse) (regexpBranch, error) {
 	branch := regexpBranch{}
 	var err error
 	for err == nil {
-		var piece *regexpQuantifiedAtom
+		var piece *quantifiedAtom
 		piece, err = readPiece(parse)
 		if err == nil {
 			branch = append(branch, piece)
@@ -212,9 +213,9 @@ func readBranch(parse *regexpParse) (regexpBranch, error) {
 }
 
 // piece = atom [ quantifier ]
-func readPiece(parse *regexpParse) (*regexpQuantifiedAtom, error) {
+func readPiece(parse *regexpParse) (*quantifiedAtom, error) {
 	var err error
-	var nextQA *regexpQuantifiedAtom
+	var nextQA *quantifiedAtom
 	nextQA, err = readAtom(parse)
 	if err != nil {
 		return nil, err
@@ -230,9 +231,44 @@ func readPiece(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 	return nil, err
 }
 
+/* handy for debugging
+func atomType(qa *quantifiedAtom) string {
+	if qa == nil {
+		return "NIL"
+	}
+	if qa.isDot {
+		return "DOT"
+	}
+	if qa.subtree != nil {
+		return "SUB"
+	}
+	return "RR"
+}
+func dumpTree(tree regexpRoot, depth int) string {
+	out := ""
+	for i := 0; i < depth; i++ {
+		out = out + " "
+	}
+	for _, branch := range tree {
+		for _, qa := range branch {
+			if qa.isDot {
+				out += "."
+			} else if qa.subtree != nil {
+				out += dumpTree(qa.subtree, depth+1)
+			} else {
+				out += string([]rune{qa.runes[0].Lo}) + ".." + string([]rune{qa.runes[0].Hi})
+			}
+			out += " "
+		}
+		out += " | "
+	}
+	return out + "\n"
+}
+*/
+
 // atom = NormalChar / charClass / ( "(" i-regexp ")" )
-func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
-	var qa regexpQuantifiedAtom
+func readAtom(parse *regexpParse) (*quantifiedAtom, error) {
+	var qa quantifiedAtom
 	b, err := parse.nextRune()
 	if err != nil {
 		return nil, err
@@ -251,8 +287,6 @@ func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 	case b == '(':
 		parse.nest()
 		parse.features.recordFeature(rxfParenGroup)
-		newBranch := regexpBranch{}
-		qa.subtree = regexpRoot{newBranch}
 		err = readBranches(parse)
 		if (err != nil) && !errors.Is(err, errRegexpEOF) {
 			return nil, err
@@ -261,7 +295,7 @@ func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 		if err != nil {
 			return nil, fmt.Errorf("missing ')' at %d", parse.lastOffset())
 		}
-		parse.unNest()
+		qa.subtree = parse.unNest()
 		return &qa, nil
 	case b == ')':
 		if parse.isNested() {
@@ -296,7 +330,7 @@ func readAtom(parse *regexpParse) (*regexpQuantifiedAtom, error) {
 		if c == 'p' || c == 'P' {
 			// QA not implemented yet
 			parse.features.recordFeature(rxfProperty)
-			return &regexpQuantifiedAtom{}, readCategory(parse)
+			return &quantifiedAtom{}, readCategory(parse)
 		}
 		if bytes.ContainsRune([]byte("sSiIcCdDwW"), c) {
 			return nil, fmt.Errorf("multiple-character escape ~%c at %d", c, parse.lastOffset())
@@ -536,7 +570,7 @@ func readCategory(parse *regexpParse) error {
 	return nil
 }
 
-func readQuantifier(parse *regexpParse, qa *regexpQuantifiedAtom) error {
+func readQuantifier(parse *regexpParse, qa *quantifiedAtom) error {
 	// quantifier = ( "*" / "+" / "?" ) / range-quantifier
 	// range-quantifier = "{" QuantExact [ "," [ QuantExact ] ] "}"
 	// QuantExact = 1*%x30-39 ; '0'-'9'
@@ -570,7 +604,7 @@ func readQuantifier(parse *regexpParse, qa *regexpQuantifiedAtom) error {
 	return errRegexpStuck
 }
 
-func readRangeQuantifier(parse *regexpParse, qa *regexpQuantifiedAtom) error {
+func readRangeQuantifier(parse *regexpParse, qa *quantifiedAtom) error {
 	// after {
 	var loDigits []rune
 	b, err := parse.nextRune()

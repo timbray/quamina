@@ -139,6 +139,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		newFA, nextField = makeMonocaseFA(valBytes, printer)
 	case regexpType:
 		newFA, nextField = makeRegexpNFA(val.parsedRegexp, true)
+		printer.labelTable(newFA, "RX start")
 	default:
 		panic("unknown value type")
 	}

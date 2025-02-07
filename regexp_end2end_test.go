@@ -31,19 +31,23 @@ func TestRegexpEnd2End(t *testing.T) {
 		{rx: "[a-c]|[xz]", matches: []string{"a", "b", "c", "x", "z"}, nonMatches: []string{"", "Á", "w"}},
 		{rx: "[ac-e]h|p[xy]", matches: []string{"ah", "ch", "dh", "eh", "px", "py"}, nonMatches: []string{"", "Á", "xp"}},
 		{rx: "[0-9][0-9][rtn][dh]", matches: []string{"11th", "23rd", "22nd"}, nonMatches: []string{"first", "9th"}},
+		{rx: "a(h|i)z", matches: []string{"ahz", "aiz"}, nonMatches: []string{"a.z", "Á"}},
+		{rx: "a([1-3]|ac)z", matches: []string{"a1z", "a2z", "a3z", "aacz"}, nonMatches: []string{"a.z", "Á", "a0^z"}},
+		{rx: "a(h|([x-z]|(1|2)))z", matches: []string{"ahz", "axz", "a1z", "a2z"}, nonMatches: []string{"a.z", "Á"}},
 	}
 
 	for _, test := range tests {
 		cm := newCoreMatcher()
 		pattern := fmt.Sprintf(`{"a": [{"regexp": "%s"}]}`, test.rx)
-		//fmt.Println("P: " + pattern)
 		err := cm.addPattern("a", pattern)
 		if err != nil {
-			t.Error("addP" + err.Error())
+			t.Error("addP: " + err.Error())
+			continue
 		}
 		err = allPatternsCM.addPattern(pattern, pattern)
 		if err != nil {
 			t.Error("addPAll" + err.Error())
+			continue
 		}
 		for _, match := range test.matches {
 			event := fmt.Sprintf(`{"a": "%s"}`, match)

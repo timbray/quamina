@@ -36,14 +36,14 @@ func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
 // All the forms of quantifiers can be described by pairs of numbers. ? is [0,1]. + is [1,♾️]. * is [0,♾️].
 // {m,n} ranges also, obviously.
 
-type regexpQuantifiedAtom struct {
+type quantifiedAtom struct {
 	isDot    bool
 	runes    RuneRange
 	quantMin int
 	quantMax int
 	subtree  regexpRoot // if non-nil, ()-enclosed subtree here
 }
-type regexpBranch []*regexpQuantifiedAtom
+type regexpBranch []*quantifiedAtom
 type regexpRoot []regexpBranch
 
 // makeRegexpNFA traverses the parsed regexp tree and generates a finite automaton
@@ -57,9 +57,12 @@ func makeRegexpNFA(root regexpRoot, forField bool) (*smallTable, *fieldMatcher) 
 		state := &faState{table: table}
 		nextStep = &faNext{states: []*faState{state}}
 	}
+	return makeNFAFromBranches(root, nextStep, forField), nextField
+}
+func makeNFAFromBranches(root regexpRoot, nextStep *faNext, forField bool) *smallTable {
 	// completely empty regexp
 	if len(root) == 0 {
-		return makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep}), nextField
+		return makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep})
 	}
 	fa := newSmallTable()
 	for _, branch := range root {
@@ -71,7 +74,7 @@ func makeRegexpNFA(root regexpRoot, forField bool) (*smallTable, *fieldMatcher) 
 		}
 		fa = mergeFAs(fa, nextBranch, sharedNullPrinter)
 	}
-	return fa, nextField
+	return fa
 }
 
 // makeOneRegexpBranchFA - We know what the last step looks like, so we proceed back to
@@ -93,7 +96,8 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faNext, forField bool)
 			table = makeDotFA(nextStep)
 			step = &faNext{states: []*faState{{table: table}}}
 		} else if qa.subtree != nil {
-			panic("Not supported " + rxfParenGroup)
+			table = makeNFAFromBranches(qa.subtree, nextStep, false)
+			step = &faNext{states: []*faState{{table: table}}}
 		} else {
 			// it's a rune range
 			if qa.quantMin != 1 || qa.quantMax != 1 {
@@ -102,6 +106,7 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faNext, forField bool)
 
 			// just match a rune
 			table = makeRuneRangeNFA(qa.runes, nextStep, sharedNullPrinter)
+
 			step = &faNext{states: []*faState{{table: table}}}
 		}
 		nextStep = step
