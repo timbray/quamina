@@ -203,6 +203,20 @@ func TestNumericRangeMatching(t *testing.T) {
 			want:        true,
 		},
 		{
+			name:        "equals - matches with event as float",
+			patternName: "equals",
+			pattern:     `{"limit": [ {"numeric": ["=", 35]} ]}`,
+			event:       `{"limit": 35.0}`,
+			want:        true,
+		},
+		{
+			name:        "equals - matches with scientific notation event",
+			patternName: "equals",
+			pattern:     `{"limit": [ {"numeric": ["=", 35]} ]}`,
+			event:       `{"limit": 3.5e1}`,
+			want:        true,
+		},
+		{
 			name:        "equals - doesn't match",
 			patternName: "equals no match",
 			pattern:     `{"price": [ {"numeric": ["=", 100]} ]}`,
