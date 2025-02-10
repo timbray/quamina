@@ -227,6 +227,25 @@ func TestNumericRangePatterns(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name:    "equals",
+			pattern: `{"price": [ {"numeric": ["=", 100]} ]}`,
+			want: &patternField{
+				path: "price",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{
+						bottom:     qNumFromFloat(100),
+						top:        qNumFromFloat(100),
+						openBottom: false,
+						openTop:    false,
+					},
+				}},
+			},
+		},
+		{
 			name:    "less than",
 			pattern: `{"price": [ {"numeric": ["<", 100]} ]}`,
 			want: &patternField{

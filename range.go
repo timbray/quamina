@@ -80,6 +80,11 @@ func GreaterThanOrEqualTo(val string, isCIDR bool) (*Range, error) {
 	return NewRange(val, false, "", true, isCIDR)
 }
 
+// Equals creates a Range that matches exactly the given value
+func Equals(val string, isCIDR bool) (*Range, error) {
+	return NewRange(val, false, val, false, isCIDR)
+}
+
 // Between creates a Range with explicitly defined boundaries
 func Between(bottom string, openBottom bool, top string, openTop bool, isCIDR bool) (*Range, error) {
 	return NewRange(bottom, openBottom, top, openTop, isCIDR)
@@ -94,7 +99,7 @@ func (r *Range) validate() error {
 
 	// If both bounds are present, ensure bottom is less than top
 	if len(r.bottom) > 0 && len(r.top) > 0 {
-		if bytes.Compare(r.bottom, r.top) >= 0 {
+		if bytes.Compare(r.bottom, r.top) > 0 {
 			return fmt.Errorf("invalid range: bottom boundary must be less than top boundary")
 		}
 	}

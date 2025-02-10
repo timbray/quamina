@@ -319,3 +319,44 @@ func TestRangeString(t *testing.T) {
 		})
 	}
 }
+
+func TestRange_Contains(t *testing.T) {
+	tests := []struct {
+		name string
+		r    *Range
+		val  float64
+		want bool
+	}{
+		{
+			name: "equals match",
+			r: &Range{
+				bottom:     qNumFromFloat(100),
+				top:        qNumFromFloat(100),
+				openBottom: false,
+				openTop:    false,
+			},
+			val:  100,
+			want: true,
+		},
+		{
+			name: "equals no match",
+			r: &Range{
+				bottom:     qNumFromFloat(100),
+				top:        qNumFromFloat(100),
+				openBottom: false,
+				openTop:    false,
+			},
+			val:  99.9,
+			want: false,
+		},
+		{
+			name: "less than match",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Implementation of the test case
+		})
+	}
+}

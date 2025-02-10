@@ -308,6 +308,8 @@ func readNumericRangeSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []ty
 	// Create range based on operator
 	var r *Range
 	switch opStr {
+	case "=":
+		r, err = Equals(valStr, false)
 	case "<":
 		r, err = LessThan(valStr, false)
 	case "<=":

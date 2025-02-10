@@ -188,6 +188,20 @@ func TestNumericRangeMatching(t *testing.T) {
 		want        bool
 	}{
 		{
+			name:        "equals - matches",
+			patternName: "equals",
+			pattern:     `{"price": [ {"numeric": ["=", 100]} ]}`,
+			event:       `{"price": 100}`,
+			want:        true,
+		},
+		{
+			name:        "equals - doesn't match",
+			patternName: "equals no match",
+			pattern:     `{"price": [ {"numeric": ["=", 100]} ]}`,
+			event:       `{"price": 101}`,
+			want:        false,
+		},
+		{
 			name:        "less than - matches",
 			patternName: "less than",
 			pattern:     `{"price": [ {"numeric": ["<", 100]} ]}`,
