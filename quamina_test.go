@@ -196,6 +196,13 @@ func TestNumericRangeMatching(t *testing.T) {
 			want:        true,
 		},
 		{
+			name:        "scientific notation equals - matches",
+			patternName: "scientific notation equals",
+			pattern:     `{"price": [ {"numeric": ["=", 3.018e2]} ]}`,
+			event:       `{"price": 3.018e2}`,
+			want:        true,
+		},
+		{
 			name:        "equals - doesn't match",
 			patternName: "equals no match",
 			pattern:     `{"price": [ {"numeric": ["=", 100]} ]}`,
@@ -210,11 +217,32 @@ func TestNumericRangeMatching(t *testing.T) {
 			want:        true,
 		},
 		{
+			name:        "scientific notation less than - matches",
+			patternName: "scientific notation less than",
+			pattern:     `{"limit": [ {"numeric": ["<", 3.018e2]} ]}`,
+			event:       `{"limit": 3.017e2}`,
+			want:        true,
+		},
+		{
 			name:        "less than - doesn't match",
 			patternName: "less than no match",
 			pattern:     `{"price": [ {"numeric": ["<", 100]} ]}`,
 			event:       `{"price": 100}`,
 			want:        false,
+		},
+		{
+			name:        "greater than - matches equal",
+			patternName: "greater than match equal",
+			pattern:     `{"quantity": [ {"numeric": [">", 10]} ]}`,
+			event:       `{"quantity": 11}`,
+			want:        true,
+		},
+		{
+			name:        "scientific notation greater than - matches equal",
+			patternName: "scientific notation greater than match equal",
+			pattern:     `{"limit": [ {"numeric": [">", 3.018e2]} ]}`,
+			event:       `{"limit": 3.019e2}`,
+			want:        true,
 		},
 		{
 			name:        "greater than or equal - matches equal",
@@ -322,6 +350,7 @@ func TestNumericRangeMatching(t *testing.T) {
 			event:       `{"price": 50}`,
 			want:        false,
 		},
+
 		{
 			name:        "numeric range - doesn't matches with open top",
 			patternName: "numeric range match with open top",

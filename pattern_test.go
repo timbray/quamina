@@ -246,6 +246,25 @@ func TestNumericRangePatterns(t *testing.T) {
 			},
 		},
 		{
+			name:    "equals scientific notation",
+			pattern: `{"price": [ {"numeric": ["=", 3.018e2]} ]}`,
+			want: &patternField{
+				path: "price",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{
+						bottom:     qNumFromFloat(3.018e2),
+						top:        qNumFromFloat(3.018e2),
+						openBottom: false,
+						openTop:    false,
+					},
+				}},
+			},
+		},
+		{
 			name:    "less than",
 			pattern: `{"price": [ {"numeric": ["<", 100]} ]}`,
 			want: &patternField{
@@ -256,6 +275,20 @@ func TestNumericRangePatterns(t *testing.T) {
 					list:         nil,
 					parsedRegexp: regexpRoot{},
 					numericRange: &Range{openBottom: true, openTop: true, top: qNumFromFloat(100)},
+				}},
+			},
+		},
+		{
+			name:    "scientific notation less than",
+			pattern: `{"price": [ {"numeric": ["<", 3.018e2]} ]}`,
+			want: &patternField{
+				path: "price",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{openBottom: true, openTop: true, top: qNumFromFloat(3.018e2)},
 				}},
 			},
 		},
