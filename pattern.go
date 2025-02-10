@@ -289,49 +289,76 @@ func readNumericRangeSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []ty
 		return nil, errors.New("numeric range pattern must be an array")
 	}
 
-	// Read operator and value
-	operator, err := pb.jd.Token()
-	if err != nil {
-		return nil, err
-	}
-	opStr, ok := operator.(string)
-	if !ok {
-		return nil, errors.New("numeric range operator must be a string")
-	}
+	// Read operators and values
+	var bottom, top string
+	openBottom := true               // Initialize as true since ranges are unbounded by default
+	openTop := true                  // Initialize as true since ranges are unbounded by default
+	seenOps := make(map[string]bool) // Track which operators we've seen
 
-	value, err := pb.jd.Token()
-	if err != nil {
-		return nil, err
+	for {
+		// Read operator
+		operator, err := pb.jd.Token()
+		if err != nil {
+			return nil, err
+		}
+
+		// Check for end of array
+		if delim, ok := operator.(json.Delim); ok && delim == ']' {
+			break
+		}
+
+		opStr, ok := operator.(string)
+		if !ok {
+			return nil, errors.New("numeric range operator must be a string")
+		}
+
+		// Check for duplicate operators
+		if opStr != "=" { // equals is special as it sets both bounds
+			if (opStr == "<" || opStr == "<=") && seenOps["top"] {
+				return nil, errors.New("duplicate upper bound in numeric range")
+			}
+			if (opStr == ">" || opStr == ">=") && seenOps["bottom"] {
+				return nil, errors.New("duplicate lower bound in numeric range")
+			}
+		}
+
+		// Read value
+		value, err := pb.jd.Token()
+		if err != nil {
+			return nil, err
+		}
+		valStr := fmt.Sprintf("%v", value)
+
+		// Process operator and value
+		switch opStr {
+		case "=":
+			bottom, top = valStr, valStr
+			openBottom, openTop = false, false
+		case "<":
+			top = valStr
+			openTop = true
+			seenOps["top"] = true
+		case "<=":
+			top = valStr
+			openTop = false
+			seenOps["top"] = true
+		case ">":
+			bottom = valStr
+			openBottom = true
+			seenOps["bottom"] = true
+		case ">=":
+			bottom = valStr
+			openBottom = false
+			seenOps["bottom"] = true
+		default:
+			return nil, fmt.Errorf("invalid numeric range operator: %s", opStr)
+		}
 	}
-	valStr := fmt.Sprintf("%v", value)
 
 	// Create range based on operator
-	var r *Range
-	switch opStr {
-	case "=":
-		r, err = Equals(valStr, false)
-	case "<":
-		r, err = LessThan(valStr, false)
-	case "<=":
-		r, err = LessThanOrEqualTo(valStr, false)
-	case ">":
-		r, err = GreaterThan(valStr, false)
-	case ">=":
-		r, err = GreaterThanOrEqualTo(valStr, false)
-	default:
-		return nil, fmt.Errorf("invalid numeric range operator: %s", opStr)
-	}
+	r, err := NewRange(bottom, openBottom, top, openTop, false)
 	if err != nil {
 		return nil, err
-	}
-
-	// Expect closing bracket
-	t, err = pb.jd.Token()
-	if err != nil {
-		return nil, err
-	}
-	if delim, ok := t.(json.Delim); !ok || delim != ']' {
-		return nil, errors.New("unclosed numeric range pattern array")
 	}
 
 	// Add to pattern values

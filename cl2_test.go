@@ -199,6 +199,13 @@ var (
 			"    }\n" +
 			"  }\n" +
 			"}",
+		"{\n" +
+			"  \"geometry\": {\n" +
+			"    \"firstCoordinates\": {\n" +
+			"      \"x\": [ { \"numeric\": [ \">\",  -122.46471267081272, \"<\", -122.4063085128395 ] } ]\n" +
+			"    }\n" +
+			"  }\n" +
+			"}",
 	}
 	numericMatches = []int{2, 120, 148948, 64120, 127053}
 	/* will add when we have numeric

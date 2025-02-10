@@ -186,6 +186,7 @@ func TestNumericRangeMatching(t *testing.T) {
 		pattern     string
 		event       string
 		want        bool
+		wantErr     bool
 	}{
 		{
 			name:        "equals - matches",
@@ -285,6 +286,84 @@ func TestNumericRangeMatching(t *testing.T) {
 			event:       `{"other_field": 50}`,
 			want:        false,
 		},
+		{
+			name:        "numeric range - matches",
+			patternName: "numeric range match",
+			pattern:     `{"price": [ {"numeric": ["<", 100, ">", 50]} ]}`,
+			event:       `{"price": 75}`,
+			want:        true,
+		},
+		{
+			name:        "numeric range - open bottom matches",
+			patternName: "numeric range open bottom match",
+			pattern:     `{"price": [ {"numeric": ["<", 100, ">=", 50]} ]}`,
+			event:       `{"price": 50}`,
+			want:        true,
+		},
+		{
+			name:        "numeric range - open top matches",
+			patternName: "numeric range open top match",
+			pattern:     `{"price": [ {"numeric": ["<=", 100, ">=", 50]} ]}`,
+			event:       `{"price": 100}`,
+			want:        true,
+		},
+
+		{
+			name:        "numeric range - doesn't match",
+			patternName: "numeric range no match",
+			pattern:     `{"price": [ {"numeric": ["<", 100, ">", 50]} ]}`,
+			event:       `{"price": 101}`,
+			want:        false,
+		},
+		{
+			name:        "numeric range - doesn't matches with open bottom",
+			patternName: "numeric range match with open bottom",
+			pattern:     `{"price": [ {"numeric": ["<", 100, ">", 50]} ]}`,
+			event:       `{"price": 50}`,
+			want:        false,
+		},
+		{
+			name:        "numeric range - doesn't matches with open top",
+			patternName: "numeric range match with open top",
+			pattern:     `{"price": [ {"numeric": ["<", 100, ">", 50]} ]}`,
+			event:       `{"price": 100}`,
+			want:        false,
+		},
+		{
+			name:        "numeric range - empty array",
+			patternName: "numeric range empty array",
+			pattern:     `{"price": [ {"numeric": []} ]}`,
+			event:       `{"price": 100}`,
+			wantErr:     true,
+		},
+		{
+			name:        "numeric range - invalid operator",
+			patternName: "numeric range invalid operator",
+			pattern:     `{"price": [ {"numeric": ["!=", 100]} ]}`,
+			event:       `{"price": 100}`,
+			wantErr:     true,
+		},
+		{
+			name:        "numeric range - conflicting bounds",
+			patternName: "numeric range conflicting bounds",
+			pattern:     `{"price": [ {"numeric": ["<", 50, ">", 100]} ]}`,
+			event:       `{"price": 75}`,
+			wantErr:     true,
+		},
+		{
+			name:        "numeric range - duplicate operators",
+			patternName: "numeric range duplicate operators",
+			pattern:     `{"price": [ {"numeric": ["<", 100, "<", 50]} ]}`,
+			event:       `{"price": 75}`,
+			wantErr:     true,
+		},
+		{
+			name:        "numeric range - non-numeric value",
+			patternName: "numeric range non-numeric value",
+			pattern:     `{"price": [ {"numeric": ["<", "abc", ">", 50]} ]}`,
+			event:       `{"price": 75}`,
+			wantErr:     true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -294,6 +373,12 @@ func TestNumericRangeMatching(t *testing.T) {
 				t.Fatalf("failed to create Quamina: %v", err)
 			}
 			err = q.AddPattern(tt.patternName, tt.pattern)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("failed to add pattern: %v", err)
 			}
