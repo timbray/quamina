@@ -23,6 +23,7 @@ const (
 	monocaseType
 	wildcardType
 	regexpType
+	numericRangeType
 )
 
 // typedVal represents the value of a field in a pattern, giving the value and the type of pattern.
@@ -33,6 +34,7 @@ type typedVal struct {
 	val          string
 	list         [][]byte
 	parsedRegexp regexpRoot
+	numericRange *Range
 }
 
 // patternField represents a field in a pattern.
@@ -186,6 +188,7 @@ func readPatternArray(pb *patternBuild) error {
 func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal, containsExclusive string, err error) {
 	containsExclusive = ""
 	pathVals = valsIn
+
 	t, err := pb.jd.Token()
 	if err != nil {
 		return
@@ -211,9 +214,12 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 	case "regexp":
 		containsExclusive = tt
 		pathVals, err = readRegexpSpecial(pb, pathVals)
+	case "numeric":
+		pathVals, err = readNumericRangeSpecial(pb, valsIn)
 	default:
 		err = errors.New("unrecognized in special pattern: " + tt)
 	}
+
 	return
 }
 
@@ -269,4 +275,71 @@ func readExistsSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 		err = errors.New("trailing garbage in 'existsMatches' pattern")
 	}
 	return
+}
+
+func readNumericRangeSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal, err error) {
+	t, err := pb.jd.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	// Expect an array
+	delim, ok := t.(json.Delim)
+	if !ok || delim != '[' {
+		return nil, errors.New("numeric range pattern must be an array")
+	}
+
+	// Read operator and value
+	operator, err := pb.jd.Token()
+	if err != nil {
+		return nil, err
+	}
+	opStr, ok := operator.(string)
+	if !ok {
+		return nil, errors.New("numeric range operator must be a string")
+	}
+
+	value, err := pb.jd.Token()
+	if err != nil {
+		return nil, err
+	}
+	valStr := fmt.Sprintf("%v", value)
+
+	// Create range based on operator
+	var r *Range
+	switch opStr {
+	case "<":
+		r, err = LessThan(valStr, false)
+	case "<=":
+		r, err = LessThanOrEqualTo(valStr, false)
+	case ">":
+		r, err = GreaterThan(valStr, false)
+	case ">=":
+		r, err = GreaterThanOrEqualTo(valStr, false)
+	default:
+		return nil, fmt.Errorf("invalid numeric range operator: %s", opStr)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Expect closing bracket
+	t, err = pb.jd.Token()
+	if err != nil {
+		return nil, err
+	}
+	if delim, ok := t.(json.Delim); !ok || delim != ']' {
+		return nil, errors.New("unclosed numeric range pattern array")
+	}
+
+	// Add to pattern values
+	val := typedVal{
+		vType:        numericRangeType,
+		numericRange: r,
+	}
+	pathVals = append(valsIn, val)
+
+	// Expect closing brace
+	_, err = pb.jd.Token()
+	return pathVals, err
 }

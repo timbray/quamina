@@ -10,6 +10,8 @@ import (
 // thread-safe.
 type fieldMatcher struct {
 	updateable atomic.Pointer[fmFields]
+	table      *valueMatcher
+	vals       []typedVal
 }
 
 // fmFields contains the updateable fields in fieldMatcher.
@@ -131,7 +133,9 @@ func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fi
 	//  cases where this doesn't happen and reduce the number of fieldMatchStates
 	var nextFieldMatchers []*fieldMatcher
 	for _, val := range field.vals {
-		nextFieldMatchers = append(nextFieldMatchers, vm.addTransition(val, printer))
+		fm := vm.addTransition(val, printer)
+		fm.vals = append(fm.vals, val)
+		nextFieldMatchers = append(nextFieldMatchers, fm)
 	}
 	m.update(freshStart)
 	return nextFieldMatchers

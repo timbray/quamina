@@ -178,3 +178,121 @@ func TestCityLots(t *testing.T) {
 		}
 	}
 }
+
+func TestNumericRangeMatching(t *testing.T) {
+	tests := []struct {
+		name        string
+		patternName string
+		pattern     string
+		event       string
+		want        bool
+	}{
+		{
+			name:        "less than - matches",
+			patternName: "less than",
+			pattern:     `{"price": [ {"numeric": ["<", 100]} ]}`,
+			event:       `{"price": 99.9}`,
+			want:        true,
+		},
+		{
+			name:        "less than - doesn't match",
+			patternName: "less than no match",
+			pattern:     `{"price": [ {"numeric": ["<", 100]} ]}`,
+			event:       `{"price": 100}`,
+			want:        false,
+		},
+		{
+			name:        "greater than or equal - matches equal",
+			patternName: "greater than or equal match equal",
+			pattern:     `{"quantity": [ {"numeric": [">=", 10]} ]}`,
+			event:       `{"quantity": 10}`,
+			want:        true,
+		},
+		{
+			name:        "greater than or equal - matches greater",
+			patternName: "greater than or equal match greater",
+			pattern:     `{"quantity": [ {"numeric": [">=", 10]} ]}`,
+			event:       `{"quantity": 11}`,
+			want:        true,
+		},
+		{
+			name:        "greater than or equal - doesn't match",
+			patternName: "greater than or equal no match",
+			pattern:     `{"quantity": [ {"numeric": [">=", 10]} ]}`,
+			event:       `{"quantity": 9}`,
+			want:        false,
+		},
+		{
+			name:        "greater than negative - matches",
+			patternName: "greater than negative match",
+			pattern:     `{"score": [ {"numeric": [">", -5.5]} ]}`,
+			event:       `{"score": -5}`,
+			want:        true,
+		},
+		{
+			name:        "greater than negative - doesn't match",
+			patternName: "greater than negative no match",
+			pattern:     `{"score": [ {"numeric": [">", -5.5]} ]}`,
+			event:       `{"score": -6}`,
+			want:        false,
+		},
+		{
+			name:        "less than or equal - matches equal",
+			patternName: "less than or equal match equal",
+			pattern:     `{"rating": [ {"numeric": ["<=", 5.0]} ]}`,
+			event:       `{"rating": 5.0}`,
+			want:        true,
+		},
+		{
+			name:        "less than or equal - matches less",
+			patternName: "less than or equal match less",
+			pattern:     `{"rating": [ {"numeric": ["<=", 5.0]} ]}`,
+			event:       `{"rating": 4.9}`,
+			want:        true,
+		},
+		{
+			name:        "less than or equal - doesn't match",
+			patternName: "less than or equal no match",
+			pattern:     `{"rating": [ {"numeric": ["<=", 5.0]} ]}`,
+			event:       `{"rating": 5.1}`,
+			want:        false,
+		},
+		{
+			name:        "non-numeric field - doesn't match",
+			patternName: "non-numeric field no match",
+			pattern:     `{"price": [ {"numeric": ["<", 100]} ]}`,
+			event:       `{"price": "not a number"}`,
+			want:        false,
+		},
+		{
+			name:        "field missing - doesn't match",
+			patternName: "field missing no match",
+			pattern:     `{"price": [ {"numeric": ["<", 100]} ]}`,
+			event:       `{"other_field": 50}`,
+			want:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q, err := New()
+			if err != nil {
+				t.Fatalf("failed to create Quamina: %v", err)
+			}
+			err = q.AddPattern(tt.patternName, tt.pattern)
+			if err != nil {
+				t.Fatalf("failed to add pattern: %v", err)
+			}
+
+			matches, err := q.MatchesForEvent([]byte(tt.event))
+			if err != nil {
+				t.Fatalf("match failed: %v", err)
+			}
+
+			matched := len(matches) > 0
+			if matched != tt.want {
+				t.Errorf("match = %v, want %v", matched, tt.want)
+			}
+		})
+	}
+}
