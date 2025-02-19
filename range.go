@@ -3,6 +3,7 @@ package quamina
 import (
 	"bytes"
 	"fmt"
+	"math"
 )
 
 // Range represents a continuous block of numeric values with defined boundaries.
@@ -62,22 +63,26 @@ func NewRange(bottom string, openBottom bool, top string, openTop bool, isCIDR b
 
 // LessThan creates a Range that matches all values less than the given value
 func LessThan(val string, isCIDR bool) (*Range, error) {
-	return NewRange("", true, val, true, isCIDR)
+	minBottom := float64(-math.MaxFloat64)
+	return NewRange(fmt.Sprintf("%f", minBottom), true, val, true, isCIDR)
 }
 
 // LessThanOrEqualTo creates a Range that matches values less than or equal to the given value
 func LessThanOrEqualTo(val string, isCIDR bool) (*Range, error) {
-	return NewRange("", true, val, false, isCIDR)
+	minBottom := float64(-math.MaxFloat64)
+	return NewRange(fmt.Sprintf("%f", minBottom), true, val, false, isCIDR)
 }
 
 // GreaterThan creates a Range that matches values greater than the given value
 func GreaterThan(val string, isCIDR bool) (*Range, error) {
-	return NewRange(val, true, "", true, isCIDR)
+	maxTop := float64(math.MaxFloat64)
+	return NewRange(val, true, fmt.Sprintf("%f", maxTop), true, isCIDR)
 }
 
 // GreaterThanOrEqualTo creates a Range that matches values greater than or equal to the given value
 func GreaterThanOrEqualTo(val string, isCIDR bool) (*Range, error) {
-	return NewRange(val, false, "", true, isCIDR)
+	maxTop := float64(math.MaxFloat64)
+	return NewRange(val, false, fmt.Sprintf("%f", maxTop), true, isCIDR)
 }
 
 // Equals creates a Range that matches exactly the given value
