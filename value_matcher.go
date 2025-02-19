@@ -75,11 +75,29 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *bufpair) []*fieldMa
 		if vmFields.hasNumbers && eventField.IsNumber {
 			qNum, err := qNumFromBytes(val)
 			if err == nil {
+				// Get all possible transitions first
 				if vmFields.isNondeterministic {
-					return traverseNFA(vmFields.startTable, qNum, transitions, bufs)
+					transitions = traverseNFA(vmFields.startTable, qNum, transitions, bufs)
 				} else {
-					return traverseDFA(vmFields.startTable, qNum, transitions)
+					transitions = traverseDFA(vmFields.startTable, qNum, transitions)
 				}
+
+				// For numeric fields, we need to check both the transitions and their vals
+				var out stepOut
+				vmFields.startTable.step(valueTerminator, &out)
+				if len(out.steps) > 0 {
+					for _, state := range out.steps {
+						for _, fm := range state.fieldTransitions {
+							for _, v := range fm.vals {
+								if v.vType == numericRangeType && v.numericRange.Contains(qNum) {
+									transitions = append(transitions, fm)
+									break
+								}
+							}
+						}
+					}
+				}
+				return transitions
 			}
 		}
 
@@ -140,6 +158,25 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	case regexpType:
 		newFA, nextField = makeRegexpNFA(val.parsedRegexp, true)
 		printer.labelTable(newFA, "RX start")
+	case numericRangeType:
+		nextField = newFieldMatcher()
+		fields.hasNumbers = true
+		// Create a simple FA that matches any number
+		lastStep := &faState{
+			table:            newSmallTable(),
+			fieldTransitions: []*fieldMatcher{nextField},
+		}
+		lastStepList := &faNext{states: []*faState{lastStep}}
+		newFA = makeSmallTable(nil, []byte{valueTerminator}, []*faNext{lastStepList})
+
+		// Merge with existing FA or set as initial FA
+		if fields.startTable != nil {
+			fields.startTable = mergeFAs(fields.startTable, newFA, printer)
+		} else {
+			fields.startTable = newFA
+		}
+		m.update(fields)
+		return nextField
 	default:
 		panic("unknown value type")
 	}
