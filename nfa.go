@@ -12,15 +12,11 @@ type faState struct {
 	fieldTransitions []*fieldMatcher
 }
 
-// struct wrapper to make this comparable to help with pack/unpack
-type faNext struct {
-	states []*faState
-}
-
 type nfaMetadata struct {
 	maxOutDegree int
 }
 
+// transmap is a Set structure used to gather transitions as we work our way through the automaton
 type transmap struct {
 	set map[*fieldMatcher]bool
 }
@@ -80,9 +76,9 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 		}
 		for _, state := range currentStates {
 			state.table.step(utf8Byte, stepResult)
-			for _, nextStep := range stepResult.steps {
-				newTransitions.add(nextStep.fieldTransitions)
-				nextStates = append(nextStates, nextStep)
+			if stepResult.step != nil {
+				newTransitions.add(stepResult.step.fieldTransitions)
+				nextStates = append(nextStates, stepResult.step)
 			}
 			for _, nextStep := range stepResult.epsilon {
 				newTransitions.add(nextStep.fieldTransitions)
@@ -150,13 +146,7 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, prin
 		case i > 0 && next1 == u1[i-1] && next2 == u2[i-1]: // dupe of previous step - happens a lot
 			uComb[i] = uComb[i-1]
 		default: // have to recurse & merge
-			var comboNext []*faState
-			for _, nextStep1 := range next1.states {
-				for _, nextStep2 := range next2.states {
-					comboNext = append(comboNext, mergeFAStates(nextStep1, nextStep2, keyMemo, printer))
-				}
-			}
-			uComb[i] = &faNext{states: comboNext}
+			uComb[i] = mergeFAStates(next1, next2, keyMemo, printer)
 		}
 	}
 	combined.table.pack(&uComb)

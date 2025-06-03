@@ -72,8 +72,7 @@ func readAnythingButSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typ
 // in principle we could intersect automata.
 func makeMultiAnythingButFA(vals [][]byte) (*smallTable, *fieldMatcher) {
 	nextField := newFieldMatcher()
-	successStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
-	success := &faNext{states: []*faState{successStep}}
+	success := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 
 	ret, _ := makeOneMultiAnythingButStep(vals, 0, success), nextField
 	return ret, nextField
@@ -85,7 +84,7 @@ func makeMultiAnythingButFA(vals [][]byte) (*smallTable, *fieldMatcher) {
 // yet been exhausted. We notice when we get to the end of each val and put in a valueTerminator transition
 // to a step with no nextField entry, i.e. failure because we've exactly matched one of the anything-but
 // strings.
-func makeOneMultiAnythingButStep(vals [][]byte, index int, success *faNext) *smallTable {
+func makeOneMultiAnythingButStep(vals [][]byte, index int, success *faState) *smallTable {
 	// this will be the default transition in all the anything-but tables.
 	var u unpackedTable
 	for i := range u {
@@ -116,16 +115,15 @@ func makeOneMultiAnythingButStep(vals [][]byte, index int, success *faNext) *sma
 	for utf8Byte, val := range valsWithBytesRemaining {
 		nextTable := makeOneMultiAnythingButStep(val, index+1, success)
 		nextStep := &faState{table: nextTable}
-		u[utf8Byte] = &faNext{states: []*faState{nextStep}}
+		u[utf8Byte] = nextStep
 	}
 
 	// for each val that ends at 'index', put a failure-transition for this anything-but
 	// if you hit the valueTerminator, success for everything else
 	for utf8Byte := range valsEndingHere {
 		failState := &faState{table: newSmallTable()} // note no transitions
-		lastStep := &faNext{states: []*faState{failState}}
-		lastTable := makeSmallTable(success, []byte{valueTerminator}, []*faNext{lastStep})
-		u[utf8Byte] = &faNext{states: []*faState{{table: lastTable}}}
+		lastTable := makeSmallTable(success, []byte{valueTerminator}, []*faState{failState})
+		u[utf8Byte] = &faState{table: lastTable}
 	}
 
 	table := newSmallTable()

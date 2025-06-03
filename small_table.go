@@ -19,23 +19,26 @@ const valueTerminator byte = 0xf5
 // but I imagine organizing it this way is a bit more memory-efficient.  Suppose we want to model a table where
 // byte values 3 and 4 map to ss1 and byte 0x34 maps to ss2.  Then the smallTable would look like:
 //
-//	ceilings:---|3|----|5|-|0x34|--|x35|-|byteCeiling|
-//	states:---|nil|-|&ss1|--|nil|-|&ss2|---------|nil|
+//	ceilings:-|  3|-|   5|-|0x34|-| x35|-|byteCeiling|
+//	states:---|nil|-|&ss1|-| nil|-|&ss2|-|        nil|
 //	invariant: The last element of ceilings is always byteCeiling
 //
 // The motivation is that we want to build a state machine on byte values to implement things like prefixes and
 // ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
 // or a map[byte]S, but both would be size-inefficient, particularly in the case where you're implementing
-// ranges.  Now, the step function is O(N) in the number of entries, but empirically, the number of entries is
+// ranges.  Now, the step function is O(N) in the number of entries, but empirically, the average number of entries is
 // small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
 // or array construct. One could imagine making step() smarter and do a binary search in the case where there are
 // more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
 // number of those has a good chance of minimizing memory fetches.
 // Since this is used to support nondeterministic finite automata (NFAs), it is possible for a state
 // to have epsilon transitions, i.e. a transition that is always taken whatever the next input symbol is.
+// NFAs in theory can branch to two or more other states on a single input symbol, but that can always be
+// handled with epsilons. For example, if the symbol 'b' should branch to both s1 and s2, that can be handled
+// by branching on 'b' to a state that has no byte transitions but two epsilons, one each for s1 and s2.
 type smallTable struct {
 	ceilings []byte
-	steps    []*faNext
+	steps    []*faState
 	epsilon  []*faState
 }
 
@@ -44,12 +47,12 @@ type smallTable struct {
 func newSmallTable() *smallTable {
 	return &smallTable{
 		ceilings: []byte{byte(byteCeiling)},
-		steps:    []*faNext{nil},
+		steps:    []*faState{nil},
 	}
 }
 
 type stepOut struct {
-	steps   []*faState
+	step    *faState
 	epsilon []*faState
 }
 
@@ -68,11 +71,7 @@ func (t *smallTable) step(utf8Byte byte, out *stepOut) {
 	out.epsilon = t.epsilon
 	for index, ceiling := range t.ceilings {
 		if utf8Byte < ceiling {
-			if t.steps[index] == nil {
-				out.steps = nil
-			} else {
-				out.steps = t.steps[index].states
-			}
+			out.step = t.steps[index]
 			return
 		}
 	}
@@ -89,11 +88,7 @@ func (t *smallTable) step(utf8Byte byte, out *stepOut) {
 func (t *smallTable) dStep(utf8Byte byte) *faState {
 	for index, ceiling := range t.ceilings {
 		if utf8Byte < ceiling {
-			if t.steps[index] == nil {
-				return nil
-			} else {
-				return t.steps[index].states[0]
-			}
+			return t.steps[index]
 		}
 	}
 	_, forbidden := forbiddenBytes[utf8Byte]
@@ -107,10 +102,10 @@ func (t *smallTable) dStep(utf8Byte byte) *faState {
 // value, and then a few other values with their indexes and values specified in the other two arguments. The
 // goal is to reduce memory churn
 // constraint: positions must be provided in order
-func makeSmallTable(defaultStep *faNext, indices []byte, steps []*faNext) *smallTable {
+func makeSmallTable(defaultStep *faState, indices []byte, steps []*faState) *smallTable {
 	t := smallTable{
 		ceilings: make([]byte, 0, len(indices)+2),
-		steps:    make([]*faNext, 0, len(indices)+2),
+		steps:    make([]*faState, 0, len(indices)+2),
 	}
 
 	var lastIndex byte = 0
@@ -134,12 +129,10 @@ func (t *smallTable) gatherMetadata(meta *nfaMetadata) {
 	eps := len(t.epsilon)
 	for _, step := range t.steps {
 		if step != nil {
-			if (eps + len(step.states)) > meta.maxOutDegree {
-				meta.maxOutDegree = eps + len(step.states)
+			if (eps + 1) > meta.maxOutDegree {
+				meta.maxOutDegree = eps + 1
 			}
-			for _, state := range step.states {
-				state.table.gatherMetadata(meta)
-			}
+			step.table.gatherMetadata(meta)
 		}
 	}
 }
@@ -148,7 +141,7 @@ func (t *smallTable) gatherMetadata(meta *nfaMetadata) {
 // update the list structure in a smallTable, but trivial in an unpackedTable.  The idea is that to update
 // a smallTable you unpack it, update, then re-pack it.  Not gonna be the most efficient thing so at some future point…
 // TODO: Figure out how to update a smallTable in place
-type unpackedTable [byteCeiling]*faNext
+type unpackedTable [byteCeiling]*faState
 
 func unpackTable(t *smallTable) *unpackedTable {
 	var u unpackedTable
@@ -165,7 +158,7 @@ func unpackTable(t *smallTable) *unpackedTable {
 
 func (t *smallTable) pack(u *unpackedTable) {
 	ceilings := make([]byte, 0, 16)
-	steps := make([]*faNext, 0, 16)
+	steps := make([]*faState, 0, 16)
 	lastStep := u[0]
 	for unpackedIndex, ss := range u {
 		if ss != lastStep {
@@ -180,7 +173,7 @@ func (t *smallTable) pack(u *unpackedTable) {
 	t.steps = steps
 }
 
-func (t *smallTable) addByteStep(utf8Byte byte, step *faNext) {
+func (t *smallTable) addByteStep(utf8Byte byte, step *faState) {
 	unpacked := unpackTable(t)
 	unpacked[utf8Byte] = step
 	t.pack(unpacked)

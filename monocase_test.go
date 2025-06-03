@@ -1,7 +1,6 @@
 package quamina
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -25,13 +24,13 @@ func permuteAndTest(t *testing.T, origS, altsS string) {
 	permutations := permuteCase(t, orig, alts, nil, 0, nil)
 	pp := newPrettyPrinter(98987)
 	fa, fm := makeMonocaseFA(orig, pp)
+
 	for _, p := range permutations {
 		ff := traverseDFA(fa, p, nil)
 		if len(ff) != 1 || ff[0] != fm {
 			t.Error("FfFfAIL")
 		}
 	}
-	fmt.Printf("%s/%s: %s\n", origS, altsS, pp.printNFA(fa))
 }
 func permuteCase(t *testing.T, orig []byte, alts []byte, sofar []byte, index int, permutations [][]byte) [][]byte {
 	t.Helper()

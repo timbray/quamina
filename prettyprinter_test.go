@@ -27,7 +27,7 @@ func TestPP(t *testing.T) {
 func TestNullPP(t *testing.T) {
 	np := &nullPrinter{}
 	table := newSmallTable()
-	table.addByteStep(3, &faNext{})
+	table.addByteStep(3, &faState{})
 	np.labelTable(table, "foo")
 	if np.printNFA(table) != noPP || np.shortPrintNFA(table) != noPP {
 		t.Error("didn't get noPP")

@@ -53,22 +53,21 @@ func makeRegexpNFA(root regexpRoot, forField bool) (*smallTable, *fieldMatcher) 
 	nextField := newFieldMatcher()
 	nextStep := makeNFATrailer(nextField)
 	if forField {
-		table := makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep})
-		state := &faState{table: table}
-		nextStep = &faNext{states: []*faState{state}}
+		table := makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
+		nextStep = &faState{table: table}
 	}
 	return makeNFAFromBranches(root, nextStep, forField), nextField
 }
-func makeNFAFromBranches(root regexpRoot, nextStep *faNext, forField bool) *smallTable {
+func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool) *smallTable {
 	// completely empty regexp
 	if len(root) == 0 {
-		return makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep})
+		return makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
 	}
 	fa := newSmallTable()
 	for _, branch := range root {
 		var nextBranch *smallTable
 		if len(branch) == 0 {
-			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faNext{nextStep})
+			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
 		} else {
 			nextBranch = makeOneRegexpBranchFA(branch, nextStep, forField)
 		}
@@ -85,8 +84,8 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faNext, forField bool) *smal
 // the automaton. This is useful for a variety of reasons. But that means if the regexp is a|b, because
 // the | has the lowest precedence, it'd build an automaton that would match ("a)|(b"). So we need to
 // just build the automaton on a|b and then manually fasten "-transitions in front of and behind it.
-func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faNext, forField bool) *smallTable {
-	var step *faNext
+func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faState, forField bool) *smallTable {
+	var step *faState
 	var table *smallTable
 
 	// TODO: Assuming this works, rewrite a bunch of other make*NFA calls in this style, without recursion
@@ -94,10 +93,10 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faNext, forField bool)
 		qa := branch[index]
 		if qa.isDot {
 			table = makeDotFA(nextStep)
-			step = &faNext{states: []*faState{{table: table}}}
+			step = &faState{table: table}
 		} else if qa.subtree != nil {
 			table = makeNFAFromBranches(qa.subtree, nextStep, false)
-			step = &faNext{states: []*faState{{table: table}}}
+			step = &faState{table: table}
 		} else {
 			// it's a rune range
 			if qa.quantMin != 1 || qa.quantMax != 1 {
@@ -107,14 +106,13 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faNext, forField bool)
 			// just match a rune
 			table = makeRuneRangeNFA(qa.runes, nextStep, sharedNullPrinter)
 
-			step = &faNext{states: []*faState{{table: table}}}
+			step = &faState{table: table}
 		}
 		nextStep = step
 	}
 	if forField {
 		firstState := &faState{table: table}
-		firstStep := &faNext{states: []*faState{firstState}}
-		table = makeSmallTable(nil, []byte{'"'}, []*faNext{firstStep})
+		table = makeSmallTable(nil, []byte{'"'}, []*faState{firstState})
 	}
 	return table
 }
@@ -123,25 +121,24 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faNext, forField bool)
 // valueTerminator marker, so you need the field-matched state and you need another state that branches
 // to it based on valueTerminator
 // TODO: Prove that this is useful in other make*NFA scenarios
-func makeNFATrailer(nextField *fieldMatcher) *faNext {
+func makeNFATrailer(nextField *fieldMatcher) *faState {
 	matchState := &faState{
 		table:            newSmallTable(),
 		fieldTransitions: []*fieldMatcher{nextField},
 	}
-	matchStep := &faNext{[]*faState{matchState}}
-	table := makeSmallTable(nil, []byte{valueTerminator}, []*faNext{matchStep})
-	return &faNext{states: []*faState{{table: table}}}
+	table := makeSmallTable(nil, []byte{valueTerminator}, []*faState{matchState})
+	return &faState{table: table}
 }
 
 // plan B
 
 type runeTreeEntry struct {
-	next  *faNext
+	next  *faState
 	child runeTreeNode
 }
 type runeTreeNode []*runeTreeEntry
 
-func addRuneTreeEntry(root runeTreeNode, r rune, dest *faNext) {
+func addRuneTreeEntry(root runeTreeNode, r rune, dest *faState) {
 	// this works because no UTF-8 representation of a code point can be a prefix of any other
 	node := root
 	bytes, err := runeToUTF8(r)
@@ -183,8 +180,7 @@ func tableFromRuneTreeNode(node runeTreeNode, pp printer) *smallTable {
 		} else {
 			table := tableFromRuneTreeNode(entry.child, pp)
 			pp.labelTable(table, fmt.Sprintf("on %x", b))
-			state := &faState{table: table}
-			unpacked[b] = &faNext{states: []*faState{state}}
+			unpacked[b] = &faState{table: table}
 		}
 	}
 	st := newSmallTable()
@@ -192,8 +188,8 @@ func tableFromRuneTreeNode(node runeTreeNode, pp printer) *smallTable {
 	return st
 }
 
-func makeRuneRangeNFA(rr RuneRange, next *faNext, pp printer) *smallTable {
-	pp.labelTable(next.states[0].table, "Next")
+func makeRuneRangeNFA(rr RuneRange, next *faState, pp printer) *smallTable {
+	pp.labelTable(next.table, "Next")
 
 	// turn the slice of hi/lo inclusive endpoints into a slice of utf8 encodings
 	ri, err := newRuneRangeIterator(rr)
@@ -212,46 +208,46 @@ func makeRuneRangeNFA(rr RuneRange, next *faNext, pp printer) *smallTable {
 	return nfaFromRuneTree(root, pp)
 }
 
-func makeDotFA(dest *faNext) *smallTable {
+func makeDotFA(dest *faState) *smallTable {
 	sLast := &smallTable{
 		ceilings: []byte{0x80, 0xc0, byte(byteCeiling)},
-		steps:    []*faNext{nil, dest, nil},
+		steps:    []*faState{nil, dest, nil},
 	}
-	targetLast := &faNext{states: []*faState{{table: sLast}}}
+	targetLast := &faState{table: sLast}
 	sLastInter := &smallTable{
 		ceilings: []byte{0x80, 0xc0, byte(byteCeiling)},
-		steps:    []*faNext{nil, targetLast, nil},
+		steps:    []*faState{nil, targetLast, nil},
 	}
-	targetLastInter := &faNext{states: []*faState{{table: sLastInter}}}
+	targetLastInter := &faState{table: sLastInter}
 	sFirstInter := &smallTable{
 		ceilings: []byte{0x80, 0xc0, byte(byteCeiling)},
-		steps:    []*faNext{nil, targetLastInter, nil},
+		steps:    []*faState{nil, targetLastInter, nil},
 	}
-	targetFirstInter := &faNext{states: []*faState{{table: sFirstInter}}}
+	targetFirstInter := &faState{table: sFirstInter}
 
 	sE0 := &smallTable{
 		ceilings: []byte{0xa0, 0xc0, byte(byteCeiling)},
-		steps:    []*faNext{nil, targetLast, nil},
+		steps:    []*faState{nil, targetLast, nil},
 	}
-	targetE0 := &faNext{states: []*faState{{table: sE0}}}
+	targetE0 := &faState{table: sE0}
 
 	sED := &smallTable{
 		ceilings: []byte{0x80, 0xA0, byte(byteCeiling)},
-		steps:    []*faNext{nil, targetLast, nil},
+		steps:    []*faState{nil, targetLast, nil},
 	}
-	targetED := &faNext{states: []*faState{{table: sED}}}
+	targetED := &faState{table: sED}
 
 	sF0 := &smallTable{
 		ceilings: []byte{0x90, 0xC0, byte(byteCeiling)},
-		steps:    []*faNext{nil, targetLastInter, nil},
+		steps:    []*faState{nil, targetLastInter, nil},
 	}
-	targetF0 := &faNext{states: []*faState{{table: sF0}}}
+	targetF0 := &faState{table: sF0}
 
 	sF4 := &smallTable{
 		ceilings: []byte{0x80, 0x90, byte(byteCeiling)},
-		steps:    []*faNext{nil, targetLastInter, nil},
+		steps:    []*faState{nil, targetLastInter, nil},
 	}
-	targetF4 := &faNext{states: []*faState{{table: sF4}}}
+	targetF4 := &faState{table: sF4}
 
 	// for reference, see https://www.tbray.org/ongoing/When/202x/2024/12/29/Matching-Dot-Redux
 	return &smallTable{
@@ -268,7 +264,7 @@ func makeDotFA(dest *faNext) *smallTable {
 			0xF5,              // 9
 			byte(byteCeiling), // 10
 		},
-		steps: []*faNext{
+		steps: []*faState{
 			dest,             // 0
 			nil,              // 1
 			targetLast,       // 2

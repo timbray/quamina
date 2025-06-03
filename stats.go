@@ -112,14 +112,7 @@ func faStats(t *smallTable, s *statsAccum) {
 	}
 	for _, next := range t.steps {
 		if next != nil {
-			for _, step := range next.states {
-				if step.fieldTransitions != nil {
-					for _, m := range step.fieldTransitions {
-						fmStats(m, s)
-					}
-				}
-				faStats(step.table, s)
-			}
+			faStats(next.table, s)
 		}
 	}
 }
