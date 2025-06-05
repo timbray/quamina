@@ -69,6 +69,9 @@ func (pp *prettyPrinter) printNFA(t *smallTable) string {
 
 func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already map[*smallTable]bool) string {
 	t := fas.table
+	if t == nil {
+		return "*NIL*"
+	}
 	trailer := "\n"
 	if len(fas.fieldTransitions) != 0 {
 		trailer = fmt.Sprintf(" [%d transition(s)]\n", len(fas.fieldTransitions))
@@ -76,12 +79,10 @@ func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already map[*sma
 	s := " " + pp.printTable(t) + trailer
 	for _, step := range t.steps {
 		if step != nil {
-			for _, state := range step.states {
-				_, ok := already[state.table]
-				if !ok {
-					already[state.table] = true
-					s += pp.printNFAStep(state, indent+1, already)
-				}
+			_, ok := already[step.table]
+			if !ok {
+				already[step.table] = true
+				s += pp.printNFAStep(step, indent+1, already)
 			}
 		}
 	}
@@ -94,6 +95,9 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 	// 'c' .. 'e' => %X
 	// lines where the *faNext is nil are omitted
 	// TODO: Post-nfa-rationalization, I don't think the whole defTrans thing is necessary any more?
+	if t == nil {
+		return "*NIL*"
+	}
 	var rows []string
 	unpacked := unpackTable(t)
 
@@ -106,11 +110,10 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 	if len(t.epsilon) != 0 {
 		fas := ""
 		for i, eps := range t.epsilon {
-			ep := &faNext{states: []*faState{eps}}
 			if i != 0 {
 				fas += ", "
 			}
-			fas += pp.nextString(ep)
+			fas += pp.nextString(eps)
 		}
 		rows = append(rows, "ε → "+fas)
 	}
@@ -147,13 +150,8 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 	}
 }
 
-func (pp *prettyPrinter) nextString(n *faNext) string {
-	var snames []string
-	for _, step := range n.states {
-		snames = append(snames, fmt.Sprintf("%d[%s]",
-			pp.tableSerial(step.table), pp.tableLabel(step.table)))
-	}
-	return strings.Join(snames, " · ")
+func (pp *prettyPrinter) nextString(n *faState) string {
+	return fmt.Sprintf("%d[%s]", pp.tableSerial(n.table), pp.tableLabel(n.table))
 }
 
 func branchChar(b byte) string {

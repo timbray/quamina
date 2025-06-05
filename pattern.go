@@ -148,13 +148,14 @@ func readPatternArray(pb *patternBuild) error {
 
 		switch tt := t.(type) {
 		case json.Delim:
-			if tt == ']' {
+			switch tt {
+			case ']':
 				if (containsExclusive != "") && (elementCount > 1) {
 					return fmt.Errorf(`%s cannot be combined with other values in pattern`, containsExclusive)
 				}
 				pb.results = append(pb.results, &patternField{path: pathName, vals: pathVals})
 				return nil
-			} else if tt == '{' {
+			case '{':
 				var ce string
 				pathVals, ce, err = readSpecialPattern(pb, pathVals)
 				if ce != "" {
@@ -163,7 +164,7 @@ func readPatternArray(pb *patternBuild) error {
 				if err != nil {
 					return err
 				}
-			} else {
+			default:
 				return fmt.Errorf("pattern malformed, illegal %v", tt)
 			}
 		case string:

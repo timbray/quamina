@@ -43,16 +43,15 @@ func TestUnpack(t *testing.T) {
 		table:            st1,
 		fieldTransitions: nil,
 	}
-	nextStep := faNext{states: []*faState{&nextState}}
 
 	st := smallTable{
 		ceilings: []uint8{2, 3, byte(byteCeiling)},
-		steps:    []*faNext{nil, &nextStep, nil},
+		steps:    []*faState{nil, &nextState, nil},
 	}
 	u := unpackTable(&st)
 	for i := range u {
 		if i == 2 {
-			if u[i] != &nextStep {
+			if u[i] != &nextState {
 				t.Error("Not in pos 2")
 			}
 		} else {
@@ -64,7 +63,7 @@ func TestUnpack(t *testing.T) {
 }
 
 func TestDodgeBadUTF8(t *testing.T) {
-	st := makeSmallTable(nil, []byte{'a'}, []*faNext{{states: []*faState{{}}}})
+	st := makeSmallTable(nil, []byte{'a'}, []*faState{{}})
 	so := &stepOut{}
 	st.step(0xFE, so)
 	st.dStep(0xFE)

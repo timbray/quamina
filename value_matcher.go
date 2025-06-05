@@ -184,18 +184,14 @@ func makePrefixFA(val []byte) (*smallTable, *fieldMatcher) {
 }
 
 func makeOnePrefixFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
-	var nextStep *faNext
-
 	// have to stop one short to skip the closing "
 	var nextState *faState
-
 	if index == len(val)-2 {
 		nextState = &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 	} else {
 		nextState = &faState{table: makeOnePrefixFAStep(val, index+1, nextField)}
 	}
-	nextStep = &faNext{states: []*faState{nextState}}
-	return makeSmallTable(nil, []byte{val[index]}, []*faNext{nextStep})
+	return makeSmallTable(nil, []byte{val[index]}, []*faState{nextState})
 }
 
 // makeStringFA creates a utf8-based automaton from a literal string
@@ -230,8 +226,8 @@ func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*
 // suppose you need a few steps to match "cat". You call makeFAFragment and it'll make two *faState instances, one
 // which matches 'a' and transitions to the second, which matches 't' and transitions to the provided endAt
 // argument. Then you transition to what makeFAFragment returns on 'c' from your current faState.
-func makeFAFragment(val []byte, endAt *faNext, pp printer) *faNext {
-	firstStep := &faNext{}
+func makeFAFragment(val []byte, endAt *faState, pp printer) *faState {
+	firstStep := &faState{}
 	step := firstStep
 	// no-op on one-byte values, but should still work so caller can just call this without worrying
 	// about slice length
@@ -240,14 +236,14 @@ func makeFAFragment(val []byte, endAt *faNext, pp printer) *faNext {
 	}
 	for index := 1; index < len(val); index++ {
 		if index == len(val)-1 {
-			table := makeSmallTable(nil, []byte{val[index]}, []*faNext{endAt})
+			table := makeSmallTable(nil, []byte{val[index]}, []*faState{endAt})
 			pp.labelTable(table, fmt.Sprintf("exiting on %v", val[index]))
-			step.states = []*faState{{table: table}}
+			step.table = table
 		} else {
-			nextState := &faNext{}
-			table := makeSmallTable(nil, []byte{val[index]}, []*faNext{nextState})
+			nextState := &faState{}
+			table := makeSmallTable(nil, []byte{val[index]}, []*faState{nextState})
 			pp.labelTable(table, fmt.Sprintf("stepping on %c", val[index]))
-			step.states = []*faState{{table: table}}
+			step.table = table
 			step = nextState
 		}
 	}
@@ -256,20 +252,17 @@ func makeFAFragment(val []byte, endAt *faNext, pp printer) *faNext {
 
 func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
 	// TODO: Turn this into a simple back-to-front construction and remove the recursion
-	var nextStepList *faNext
+	var nextStep *faState
 	if index == len(val)-1 {
 		lastStep := &faState{
 			table:            newSmallTable(),
 			fieldTransitions: []*fieldMatcher{nextField},
 		}
-		lastStepList := &faNext{states: []*faState{lastStep}}
-		nextStep := &faState{
-			table: makeSmallTable(nil, []byte{valueTerminator}, []*faNext{lastStepList}),
+		nextStep = &faState{
+			table: makeSmallTable(nil, []byte{valueTerminator}, []*faState{lastStep}),
 		}
-		nextStepList = &faNext{states: []*faState{nextStep}}
 	} else {
-		nextStep := &faState{table: makeOneStringFAStep(val, index+1, nextField)}
-		nextStepList = &faNext{states: []*faState{nextStep}}
+		nextStep = &faState{table: makeOneStringFAStep(val, index+1, nextField)}
 	}
-	return makeSmallTable(nil, []byte{val[index]}, []*faNext{nextStepList})
+	return makeSmallTable(nil, []byte{val[index]}, []*faState{nextStep})
 }

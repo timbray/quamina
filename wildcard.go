@@ -114,18 +114,18 @@ func makeWildcardFA(val []byte, printer printer) (start *smallTable, nextField *
 			}
 			globNext := &faState{table: newSmallTable()}
 			printer.labelTable(globNext.table, fmt.Sprintf("gX on %c at %d", val[valIndex], valIndex))
-			table.addByteStep(val[valIndex], &faNext{states: []*faState{globNext}})
+			table.addByteStep(val[valIndex], globNext)
 			table = globNext.table
 		} else {
 			nextStep := &faState{table: newSmallTable()}
 			printer.labelTable(nextStep.table, fmt.Sprintf("on %c at %d", val[valIndex], valIndex))
-			table.addByteStep(ch, &faNext{states: []*faState{nextStep}})
+			table.addByteStep(ch, nextStep)
 			table = nextStep.table
 		}
 		valIndex++
 	}
 	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 	printer.labelTable(lastStep.table, fmt.Sprintf("last step at %d", valIndex))
-	table.addByteStep(valueTerminator, &faNext{states: []*faState{lastStep}})
+	table.addByteStep(valueTerminator, lastStep)
 	return
 }

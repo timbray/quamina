@@ -30,7 +30,7 @@ func TestExploreUTF8Form(t *testing.T) {
 
 	wantFM := &fieldMatcher{}
 	targetState := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
-	table := makeDotFA(&faNext{states: []*faState{targetState}})
+	table := makeDotFA(targetState)
 	var matchers []*fieldMatcher
 	var got []*fieldMatcher
 	for i, bad := range bads {
@@ -44,7 +44,7 @@ func TestExploreUTF8Form(t *testing.T) {
 func TestDotSemantics(t *testing.T) {
 	wantFM := &fieldMatcher{}
 	targetState := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
-	table := makeDotFA(&faNext{states: []*faState{targetState}})
+	table := makeDotFA(targetState)
 	var matchers []*fieldMatcher
 	var got []*fieldMatcher
 	var r rune
@@ -172,7 +172,7 @@ func TestAddRuneTreeEntry(t *testing.T) {
 	bbs := [][]rune{
 		{'a', 'b', 'c'},
 	}
-	dest := &faNext{}
+	dest := &faState{}
 	for _, runes := range bbs {
 		for _, r := range runes {
 			addRuneTreeEntry(root, r, dest)
@@ -194,7 +194,7 @@ func TestMultiLengthRR(t *testing.T) {
 		//pp := newPrettyPrinter(2335)
 		wantFM := &fieldMatcher{}
 
-		dest := &faNext{states: []*faState{{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}}}
+		dest := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
 		st := makeRuneRangeNFA(rr, dest, sharedNullPrinter)
 		//fmt.Printf("T: %s\n", pp.printNFA(st))
 
@@ -239,9 +239,7 @@ func nfaSizeStep(t *testing.T, st *smallTable, s *statsAccum, depth int) {
 	}
 	for _, next := range st.steps {
 		if next != nil {
-			for _, step := range next.states {
-				nfaSizeStep(t, step.table, s, depth+1)
-			}
+			nfaSizeStep(t, next.table, s, depth+1)
 		}
 	}
 }
@@ -315,7 +313,7 @@ func TestBasicRRNFABuilding(t *testing.T) {
 	rr := RuneRange{{'a', 'c'}}
 	pp := newPrettyPrinter(2335)
 	wantFM := newFieldMatcher()
-	dest := &faNext{states: []*faState{{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}}}
+	dest := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
 
 	st := makeRuneRangeNFA(rr, dest, pp)
 	fmt.Println("ST: " + pp.printNFA(st))
