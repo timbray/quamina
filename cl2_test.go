@@ -167,6 +167,47 @@ var (
 			"}",
 	}
 	regexpMatches = []int{220}
+
+	numericRules = []string{
+		"{\n" +
+			"  \"geometry\": {\n" +
+			"    \"type\": [ \"Polygon\" ],\n" +
+			"    \"firstCoordinates\": {\n" +
+			"      \"x\": [ { \"numeric\": [ \"=\", -122.42916360922355 ] } ]\n" +
+			"    }\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"geometry\": {\n" +
+			"    \"type\": [ \"MultiPolygon\" ],\n" +
+			"    \"firstCoordinates\": {\n" +
+			"      \"z\": [ { \"numeric\": [ \"=\", 0 ] } ]\n" +
+			"    }\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"geometry\": {\n" +
+			"    \"firstCoordinates\": {\n" +
+			"      \"x\": [ { \"numeric\": [ \"<\", -122.41600944012424 ] } ]\n" +
+			"    }\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"geometry\": {\n" +
+			"    \"firstCoordinates\": {\n" +
+			"      \"x\": [ { \"numeric\": [ \">\", -122.41600944012424 ] } ]\n" +
+			"    }\n" +
+			"  }\n" +
+			"}",
+		"{\n" +
+			"  \"geometry\": {\n" +
+			"    \"firstCoordinates\": {\n" +
+			"      \"x\": [ { \"numeric\": [ \">\",  -122.46471267081272, \"<\", -122.4063085128395 ] } ]\n" +
+			"    }\n" +
+			"  }\n" +
+			"}",
+	}
+	numericMatches = []int{2, 120, 148948, 64120, 127053}
 	/* will add when we have numeric
 	complexArraysRules := []string{
 		"{\n" +
@@ -280,6 +321,10 @@ func TestRulerCl2(t *testing.T) {
 	bm = newBenchmarker()
 	bm.addRules(regexpRules, regexpMatches, true)
 	fmt.Printf("REGEXP events/sec: %.1f\n", bm.run(t, lines))
+
+	bm = newBenchmarker()
+	bm.addRules(numericRules, numericMatches, true)
+	fmt.Printf("NUMERIC MATCHES events/sec: %.1f\n", bm.run(t, lines))
 }
 
 type benchmarker struct {

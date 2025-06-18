@@ -23,6 +23,7 @@ const (
 	monocaseType
 	wildcardType
 	regexpType
+	numericRangeType
 )
 
 // typedVal represents the value of a field in a pattern, giving the value and the type of pattern.
@@ -33,6 +34,7 @@ type typedVal struct {
 	val          string
 	list         [][]byte
 	parsedRegexp regexpRoot
+	numericRange *Range
 }
 
 // patternField represents a field in a pattern.
@@ -187,6 +189,7 @@ func readPatternArray(pb *patternBuild) error {
 func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal, containsExclusive string, err error) {
 	containsExclusive = ""
 	pathVals = valsIn
+
 	t, err := pb.jd.Token()
 	if err != nil {
 		return
@@ -212,9 +215,12 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 	case "regexp":
 		containsExclusive = tt
 		pathVals, err = readRegexpSpecial(pb, pathVals)
+	case "numeric":
+		pathVals, err = readNumericRangeSpecial(pb, valsIn)
 	default:
 		err = errors.New("unrecognized in special pattern: " + tt)
 	}
+
 	return
 }
 
@@ -270,4 +276,100 @@ func readExistsSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 		err = errors.New("trailing garbage in 'existsMatches' pattern")
 	}
 	return
+}
+
+func readNumericRangeSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal, err error) {
+	t, err := pb.jd.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	// Expect an array
+	delim, ok := t.(json.Delim)
+	if !ok || delim != '[' {
+		return nil, errors.New("numeric range pattern must be an array")
+	}
+
+	// Read operators and values
+	var bottom, top string
+	openBottom := true               // Initialize as true since ranges are unbounded by default
+	openTop := true                  // Initialize as true since ranges are unbounded by default
+	seenOps := make(map[string]bool) // Track which operators we've seen
+
+	for {
+		// Read operator
+		operator, err := pb.jd.Token()
+		if err != nil {
+			return nil, err
+		}
+
+		// Check for end of array
+		if delim, ok := operator.(json.Delim); ok && delim == ']' {
+			break
+		}
+
+		opStr, ok := operator.(string)
+		if !ok {
+			return nil, errors.New("numeric range operator must be a string")
+		}
+
+		// Check for duplicate operators
+		if opStr != "=" { // equals is special as it sets both bounds
+			if (opStr == "<" || opStr == "<=") && seenOps["top"] {
+				return nil, errors.New("duplicate upper bound in numeric range")
+			}
+			if (opStr == ">" || opStr == ">=") && seenOps["bottom"] {
+				return nil, errors.New("duplicate lower bound in numeric range")
+			}
+		}
+
+		// Read value
+		value, err := pb.jd.Token()
+		if err != nil {
+			return nil, err
+		}
+		valStr := fmt.Sprintf("%v", value)
+
+		// Process operator and value
+		switch opStr {
+		case "=":
+			bottom, top = valStr, valStr
+			openBottom, openTop = false, false
+		case "<":
+			top = valStr
+			openTop = true
+			seenOps["top"] = true
+		case "<=":
+			top = valStr
+			openTop = false
+			seenOps["top"] = true
+		case ">":
+			bottom = valStr
+			openBottom = true
+			seenOps["bottom"] = true
+		case ">=":
+			bottom = valStr
+			openBottom = false
+			seenOps["bottom"] = true
+		default:
+			return nil, fmt.Errorf("invalid numeric range operator: %s", opStr)
+		}
+	}
+
+	// Create range based on operator
+	r, err := NewRange(bottom, openBottom, top, openTop, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to pattern values
+	val := typedVal{
+		vType:        numericRangeType,
+		numericRange: r,
+	}
+	pathVals = append(valsIn, val)
+
+	// Expect closing brace
+	_, err = pb.jd.Token()
+	return pathVals, err
 }
