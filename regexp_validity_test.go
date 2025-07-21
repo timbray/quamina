@@ -14,7 +14,6 @@ func oneRegexp(t *testing.T, re string, valid bool) {
 	if (!valid) && err == nil {
 		t.Errorf("should NOT be valid: /%s/", re)
 	}
-	//fmt.Println("ERR: " + err.Error())
 }
 
 func TestDebugRegexp(t *testing.T) {
@@ -27,11 +26,11 @@ func TestEmptyRegexp(t *testing.T) {
 	if err != nil {
 		fmt.Println("OOPS: " + err.Error())
 	}
-	table, _ := makeRegexpNFA(parse.tree, false)
+	table, _ := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
 	// raw empty string should NOT match
 	var transitions []*fieldMatcher
-	bufs := &bufpair{}
-	fields := traverseNFA(table, []byte(""), transitions, bufs)
+	bufs := newNfaBuffers()
+	fields := traverseNFA(table, []byte(""), transitions, bufs, sharedNullPrinter)
 	if len(fields) != 0 {
 		t.Error("Matched empty string")
 	}
@@ -54,39 +53,48 @@ func TestEmptyRegexp(t *testing.T) {
 }
 
 func TestRegexpValidity(t *testing.T) {
+	t.Helper()
 	problems := 0
 	tests := 0
 	implemented := 0
+	correctlyMatched := 0
+	correctlyNotMatched := 0
+
 	for _, sample := range regexpSamples {
 		tests++
 		parse := newRxParseState([]byte(sample.regex))
+		//fmt.Println("Sample: " + sample.regex)
 
 		parse, err := readRegexpWithParse(parse)
 		if sample.valid {
 			if len(parse.features.foundUnimplemented()) == 0 {
 				implemented++
-				table, dest := makeRegexpNFA(parse.tree, false)
+				table, dest := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
 				for _, should := range sample.matches {
-					// the sample regexp tests think the empty string matches lots of regexps with which
-					// I don't think it should
-					if should == "" {
-						continue
-					}
 					var transitions []*fieldMatcher
-					bufs := &bufpair{}
-					fields := traverseNFA(table, []byte(should), transitions, bufs)
+					bufs := newNfaBuffers()
+					fields := traverseNFA(table, []byte(should), transitions, bufs, sharedNullPrinter)
+
 					if !containsFM(t, fields, dest) {
-						t.Errorf("<%s> failed to match /%s/", should, sample.regex)
-						problems++
+						// the sample regexp tests think the empty string matches lots of regexps with which
+						// I don't think it should
+						if should != "" {
+							t.Errorf("<%s> failed to match /%s/", should, sample.regex)
+							problems++
+						}
+					} else {
+						correctlyMatched++
 					}
 				}
 				for _, shouldNot := range sample.nomatches {
 					var transitions []*fieldMatcher
-					bufs := &bufpair{}
-					fields := traverseNFA(table, []byte(shouldNot), transitions, bufs)
+					bufs := newNfaBuffers()
+					fields := traverseNFA(table, []byte(shouldNot), transitions, bufs, sharedNullPrinter)
 					if len(fields) != 0 {
 						t.Errorf("<%s> matched /%s/", shouldNot, sample.regex)
 						problems++
+					} else {
+						correctlyNotMatched++
 					}
 				}
 			}
@@ -104,5 +112,6 @@ func TestRegexpValidity(t *testing.T) {
 			return
 		}
 	}
-	fmt.Printf("tests: %d, implemented: %d\n", tests, implemented)
+	fmt.Printf("tests: %d, implemented: %d, matches/nonMatches: %d/%d\n", tests, implemented,
+		correctlyMatched, correctlyNotMatched)
 }

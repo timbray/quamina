@@ -96,18 +96,16 @@ func TestShowBigSmall(t *testing.T) {
 	lows := []string{"-5_000_000_000.00000", "-4_999_999_999.99999", "-4_999_999_999.99998"}
 	highs := []string{"4_999_999_999.99998", "4_999_999_999.99999", "5_000_000_000.00000"}
 	for _, low := range lows {
-		c, err := qNumFromBytes([]byte(low))
+		_, err := qNumFromBytes([]byte(low))
 		if err != nil {
 			t.Errorf("Problem with %s: %s", low, err.Error())
 		}
-		fmt.Printf("%s <%s>\n", low, c)
 	}
 	for _, high := range highs {
-		c, err := qNumFromBytes([]byte(high))
+		_, err := qNumFromBytes([]byte(high))
 		if err != nil {
 			t.Errorf("Problem with %s: %s", high, err.Error())
 		}
-		fmt.Printf("%s <%s>\n", high, c)
 	}
 }
 
@@ -183,11 +181,10 @@ func TestMatcherNumerics(t *testing.T) {
 		if err != nil {
 			t.Error("Parse? " + err.Error())
 		}
-		q, err := qNumFromBytes([]byte(should))
+		_, err = qNumFromBytes([]byte(should))
 		if err != nil {
 			t.Error("QF: " + err.Error())
 		}
-		fmt.Printf("%f <%s>\n", f, q)
 		if f != 35.0 {
 			t.Error("Not 35!")
 		}

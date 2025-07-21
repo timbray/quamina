@@ -34,7 +34,6 @@ type coreMatcher struct {
 type coreFields struct {
 	state        *fieldMatcher
 	segmentsTree *segmentsTree
-	nfaMeta      *nfaMetadata
 }
 
 func newCoreMatcher() *coreMatcher {
@@ -42,28 +41,12 @@ func newCoreMatcher() *coreMatcher {
 	m.updateable.Store(&coreFields{
 		state:        newFieldMatcher(),
 		segmentsTree: newSegmentsIndex(),
-		nfaMeta:      &nfaMetadata{},
 	})
 	return &m
 }
 
 func (m *coreMatcher) fields() *coreFields {
 	return m.updateable.Load()
-}
-
-// analyze traverses all the different per-field NFAs and gathers metadata that can be
-// used to optimize traversal. At the moment, all that it gathers is the maximum outdegree
-// from any smallTable, where outdegree is the epsilon count plus the largest number of
-// targets jumped to from a single byte transition. Can be called any time but normally
-// you'd do this after you've added a bunch of patterns and are ready to start matching
-func (m *coreMatcher) analyze() {
-	// only one thread can be updating at a time
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	fields := m.fields()
-	fields.state.gatherMetadata(fields.nfaMeta)
-	m.updateable.Store(fields)
 }
 
 // addPattern - the patternBytes is a JSON text which must be an object. The X is what the matcher returns to indicate
@@ -92,7 +75,6 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 	currentFields := m.fields()
 	freshStart.segmentsTree = currentFields.segmentsTree.copy()
 	freshStart.state = currentFields.state
-	freshStart.nfaMeta = currentFields.nfaMeta
 
 	// Add paths to the segments tree index.
 	for _, field := range patternFields {
@@ -156,7 +138,7 @@ func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 // because newJSONFlattener() is fairly heavyweight and you want it out of the benchmark loop
 func (m *coreMatcher) matchesForJSONWithFlattener(event []byte, f Flattener) ([]X, error) {
 	fields, _ := f.Flatten(event, m.getSegmentsTreeTracker())
-	return m.matchesForFields(fields)
+	return m.matchesForFields(fields, newNfaBuffers())
 }
 
 // emptyFields returns a fake []Field list containing a single field whose name is lexically greater than any that
@@ -190,7 +172,7 @@ func (a fieldsList) Swap(i, j int) {
 // matchesForFields takes a list of Field structures, sorts them by pathname, and launches the field-matching
 // process. The fields in a pattern to match are similarly sorted; thus running an automaton over them works.
 // No error can be returned but the matcher interface requires one, and it is used by the pruner implementation
-func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
+func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, error) {
 	if len(fields) == 0 {
 		fields = emptyFields()
 	} else {
@@ -198,39 +180,6 @@ func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 	}
 	matches := newMatchSet()
 	cmFields := m.fields()
-
-	// nondeterministic states in this matcher's automata have a list of current states and
-	// transition to a list of next states. This requires memory shuffling, which we want to
-	// minimize at matching/traversal time. Whatever we do, we want to keep one pair of
-	// buffers around for an entire matchesForFields call, bufs is that.
-	// In theory, there should be significant savings to be had by pre-allocating those buffers,
-	// or managing a pool of them with sync.Pool, or some such. However, adding any straightforward
-	// pre-allocation causes massive slowdown on the mainstream cases such as EXACT_MATCH in
-	// TestRulerCl2(). My hypothesis is that the DFA-like processing there is so efficient that
-	// anything that does actual allocation is death.
-	// Thus was created the analyze() call, which traverses the whole coreMatcher tree and returns
-	// the maximum state outdegree in the nfaMeta data structure, then pre-allocates a quality
-	// estimate of what's going to be used. This did in fact produce an increase in performnance,
-	// but that improvement was a small single-digit percentage and things that made one of EXACT,
-	// ANYTHING_BUT, and SHELLSTYLE matches go faster made one of the others go slower.
-	// Complicating factor: even if there is some modest amount of garbage collection, the Go
-	// runtime seems to be very good at shuffling it off into another thread so that the actual
-	// pattern-matching throughput doesn't suffer much. That's true at least on my massively
-	// over-equipped M2 MBPro, but probably not on some miserable cloud event-handling worker.
-	// Conclusion: I dunno. I left the analyze() func in but for now, don't use its results in
-	// production.
-	var bufs = &bufpair{}
-	/*
-		if cmFields.nfaMeta.maxOutDegree < 2 {
-			bufs = &bufpair{}
-		} else {
-			bufferSize := cmFields.nfaMeta.maxOutDegree * 2
-			bufs = &bufpair{
-				buf1: make([]*faState, 0, bufferSize),
-				buf2: make([]*faState, 0, bufferSize),
-			}
-		}
-	*/
 
 	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch
 	// routine will, in the case that there's a match, call itself to see if subsequent fields after the
@@ -244,7 +193,7 @@ func (m *coreMatcher) matchesForFields(fields []Field) ([]X, error) {
 // tryToMatch tries to match the field at fields[index] to the provided state. If it does match and generate
 // 1 or more transitions to other states, it calls itself recursively to see if any of the remaining fields
 // can continue the process by matching that state.
-func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSet, bufs *bufpair) {
+func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSet, bufs *nfaBuffers) {
 	stateFields := state.fields()
 
 	// transition on exists:true?
@@ -284,7 +233,7 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 	}
 }
 
-func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet, bufs *bufpair) {
+func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet, bufs *nfaBuffers) {
 	for existsFalsePath, existsFalseTrans := range stateFields.existsFalse {
 		// it seems like there ought to be a more state-machine-idiomatic way to do this, but
 		// I thought of a few and none of them worked.  Quite likely someone will figure it out eventually.

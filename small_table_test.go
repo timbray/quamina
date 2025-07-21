@@ -68,3 +68,63 @@ func TestDodgeBadUTF8(t *testing.T) {
 	st.step(0xFE, so)
 	st.dStep(0xFE)
 }
+
+func TestSmallTableIterator(t *testing.T) {
+	bytevals := []byte{11, 22, 'a', 'b', 'c', 'z', 0xf3}
+	var s1, s2, s3, s4, s5, s6, s7 faState
+	var steps = []*faState{&s1, &s2, &s3, &s4, &s5, &s6, &s7}
+	st := makeSmallTable(nil, bytevals, steps)
+	wanted := make([]*faState, byteCeiling)
+	for i, byteval := range bytevals {
+		wanted[byteval] = steps[i]
+	}
+	iter := newSTIterator(st, nil)
+	for iter.hasNext() {
+		utf8byte, step := iter.next()
+		if wanted[utf8byte] != step {
+			t.Errorf("at u=%x wanted %p got %p", utf8byte, wanted[utf8byte], step)
+		}
+	}
+	iter.byteIndex = 0
+	iter.ceilingIndex = 0
+	for i := 0; i < byteCeiling; i++ {
+		state := iter.nextState()
+		if wanted[i] != state {
+			t.Errorf("at u=%x wanted %p got %p", i, wanted[i], state)
+		}
+	}
+	unpacked := unpackTable(st)
+	iter = newSTIterator(st, &iter)
+	for iter.hasNext() {
+		utf8byte, step := iter.next()
+		if unpacked[utf8byte] != step {
+			t.Errorf("Wrong unpacked at %x", utf8byte)
+		}
+	}
+
+	//	ceilings:-|  3|-|   5|-|0x34|-| x35|-|byteCeiling|
+	//	states:---|nil|-|&ss1|-| nil|-|&ss2|-|        nil|
+	bytevals = []byte{3, 5, 0x34, 0x35}
+	var ss1, ss2 faState
+	steps = []*faState{nil, &ss1, nil, &ss2}
+	st = makeSmallTable(nil, bytevals, steps)
+	wanted = make([]*faState, byteCeiling)
+	for i, byteval := range bytevals {
+		wanted[byteval] = steps[i]
+	}
+	iter = newSTIterator(st, &iter)
+	for iter.hasNext() {
+		utf8byte, step := iter.next()
+		if wanted[utf8byte] != step {
+			t.Errorf("at u=%x wanted %p got %p", utf8byte, wanted[utf8byte], step)
+		}
+	}
+	unpacked = unpackTable(st)
+	iter = newSTIterator(st, &iter)
+	for iter.hasNext() {
+		utf8byte, step := iter.next()
+		if unpacked[utf8byte] != step {
+			t.Errorf("Wrong unpacked at %x", utf8byte)
+		}
+	}
+}

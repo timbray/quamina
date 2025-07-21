@@ -73,7 +73,6 @@ func makeMonocaseFA(val []byte, pp printer) (*smallTable, *fieldMatcher) {
 				pp.labelTable(table, fmt.Sprintf("common prologue on %x", orig[commonPrefix]))
 			}
 			// now build automata for the orig and alt versions of the char
-			// TODO: make sure that makeFAFragment works with length == 1R
 			origFA := makeFAFragment(orig[commonPrefix:], nextStep, pp)
 			altFA := makeFAFragment(alt[commonPrefix:], nextStep, pp)
 			table.addByteStep(orig[commonPrefix], origFA)

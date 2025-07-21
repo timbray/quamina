@@ -31,6 +31,7 @@ func TestLongCase(t *testing.T) {
 		}
 	}
 }
+
 func TestMakeShellStyleFA(t *testing.T) {
 	patterns := []string{
 		`"*ST"`,
@@ -62,17 +63,17 @@ func TestMakeShellStyleFA(t *testing.T) {
 		vm := newValueMatcher()
 		vmf := vmFields{startTable: a}
 		vm.update(&vmf)
-		var bufs bufpair
+		bufs := newNfaBuffers()
 		for _, should := range shouldsForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := traverseNFA(a, []byte(should), transitions, &bufs)
+			gotTrans := traverseNFA(a, []byte(should), transitions, bufs, sharedNullPrinter)
 			if len(gotTrans) != 1 || gotTrans[0] != wanted {
 				t.Errorf("Failure for %s on %s", pattern, should)
 			}
 		}
 		for _, shouldNot := range shouldNotForPatterns[i] {
 			var transitions []*fieldMatcher
-			gotTrans := traverseNFA(a, []byte(shouldNot), transitions, &bufs)
+			gotTrans := traverseNFA(a, []byte(shouldNot), transitions, bufs, sharedNullPrinter)
 			if gotTrans != nil {
 				t.Errorf("bogus match for %s on %s", pattern, shouldNot)
 			}
@@ -155,48 +156,70 @@ func containsX(matches []X, wanteds ...string) bool {
 
 func TestShellStyleBuildTime(t *testing.T) {
 	words := readWWords(t)
+
 	fmt.Printf("WC %d\n", len(words))
 	starWords := make([]string, 0, len(words))
+	expandedWords := make([]string, 0, len(words))
 	patterns := make([]string, 0, len(words))
 	source := rand.NewSource(293591)
+
 	for _, word := range words {
 		//nolint:gosec
 		starAt := source.Int63() % 6
 		starWord := string(word[:starAt]) + "*" + string(word[starAt:])
+		expandedWord := string(word[:starAt]) + "ÉÉÉÉ" + string(word[starAt:])
 		starWords = append(starWords, starWord)
+		expandedWords = append(expandedWords, expandedWord)
 		pattern := fmt.Sprintf(`{"x": [ {"shellstyle": "%s" } ] }`, starWord)
 		patterns = append(patterns, pattern)
 	}
+
 	q, _ := New()
+	before := time.Now()
+	cm := q.matcher.(*coreMatcher)
 	for i := range words {
 		err := q.AddPattern(starWords[i], patterns[i])
 		if err != nil {
 			t.Error("AddP: " + err.Error())
 		}
 	}
-	cm := q.matcher.(*coreMatcher)
+	fmt.Println("Done adding patterns")
+	elapsed := float64(time.Since(before).Milliseconds())
+	eps := float64(len(words)) / (elapsed / 1000.0)
+	fmt.Printf("Patterns/sec: %.1f\n", eps)
 
 	fmt.Println(matcherStats(cm))
-	cm.analyze()
-	fmt.Printf("MaxP: %d\n", cm.fields().nfaMeta.maxOutDegree)
 
 	// make sure that all the words actually are matched
-	before := time.Now()
-	for _, word := range words {
+	before = time.Now()
+	for i, word := range words {
 		record := fmt.Sprintf(`{"x": "%s"}`, word)
 		matches, err := q.MatchesForEvent([]byte(record))
 		if err != nil {
 			t.Error("M4E on " + string(word))
 		}
 		if len(matches) == 0 {
-			t.Error("no matches for " + string(word))
+			t.Error("no matches for " + record)
+		}
+		if len(matches) > 1 {
+			fmt.Printf("%d matches for %s\n", len(matches), word)
+		}
+		record = fmt.Sprintf(`{"x": "%s"}`, expandedWords[i])
+		matches, err = q.MatchesForEvent([]byte(record))
+		if err != nil {
+			t.Error("M4E on " + string(word))
+		}
+		if len(matches) == 0 {
+			t.Error("no matches for " + record)
 		}
 		if len(matches) > 1 {
 			fmt.Printf("%d matches for %s\n", len(matches), word)
 		}
 	}
-	elapsed := float64(time.Since(before).Milliseconds())
-	eps := float64(len(words)) / (elapsed / 1000.0)
+	elapsed = float64(time.Since(before).Milliseconds())
+	eps = float64(len(words)) / (elapsed / 1000.0)
+	// we're doing two searches
+	eps *= 2
 	fmt.Printf("Huge-machine events/sec: %.1f\n", eps)
 }
 
@@ -256,3 +279,33 @@ func TestMixedPatterns(t *testing.T) {
 		}
 	}
 }
+
+/*
+// useful for debugging when an NFA ends up having a state with no table
+func sanityCheck(t *testing.T, fa *smallTable, pp *prettyPrinter) {
+	t.Helper()
+	sanityCheckStep(t, fa, pp, make(map[*smallTable]bool))
+}
+func sanityCheckStep(t *testing.T, fa *smallTable, pp *prettyPrinter, seen map[*smallTable]bool) {
+	t.Helper()
+	_, ok := seen[fa]
+	if ok {
+		return
+	} else {
+		seen[fa] = true
+	}
+	fmt.Printf("Check %s: ", pp.printSerial(fa))
+	for _, step := range fa.steps {
+		if step != nil && step.table == nil {
+			fmt.Println("NO")
+			return
+		}
+	}
+	fmt.Println("YES")
+	for _, step := range fa.steps {
+		if step != nil {
+			sanityCheckStep(t, step.table, pp, seen)
+		}
+	}
+}
+*/

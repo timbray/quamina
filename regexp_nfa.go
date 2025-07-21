@@ -49,16 +49,18 @@ type regexpRoot []regexpBranch
 // makeRegexpNFA traverses the parsed regexp tree and generates a finite automaton
 // that matches it. If forField is true, then the FA will have states that match " at the beginning
 // and end.
-func makeRegexpNFA(root regexpRoot, forField bool) (*smallTable, *fieldMatcher) {
+func makeRegexpNFA(root regexpRoot, forField bool, pp printer) (*smallTable, *fieldMatcher) {
 	nextField := newFieldMatcher()
 	nextStep := makeNFATrailer(nextField)
+	pp.labelTable(nextStep.table, "Trailer")
 	if forField {
 		table := makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
+		pp.labelTable(table, "</Field>")
 		nextStep = &faState{table: table}
 	}
-	return makeNFAFromBranches(root, nextStep, forField), nextField
+	return makeNFAFromBranches(root, nextStep, forField, pp), nextField
 }
-func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool) *smallTable {
+func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp printer) *smallTable {
 	// completely empty regexp
 	if len(root) == 0 {
 		return makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
@@ -68,10 +70,11 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool) *sma
 		var nextBranch *smallTable
 		if len(branch) == 0 {
 			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
+			pp.labelTable(nextBranch, "next on len 0")
 		} else {
-			nextBranch = makeOneRegexpBranchFA(branch, nextStep, forField)
+			nextBranch = makeOneRegexpBranchFA(branch, nextStep, forField, pp)
 		}
-		fa = mergeFAs(fa, nextBranch, sharedNullPrinter)
+		fa = mergeFAs(fa, nextBranch, pp)
 	}
 	return fa
 }
@@ -84,7 +87,7 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool) *sma
 // the automaton. This is useful for a variety of reasons. But that means if the regexp is a|b, because
 // the | has the lowest precedence, it'd build an automaton that would match ("a)|(b"). So we need to
 // just build the automaton on a|b and then manually fasten "-transitions in front of and behind it.
-func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faState, forField bool) *smallTable {
+func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faState, forField bool, pp printer) *smallTable {
 	var step *faState
 	var table *smallTable
 
@@ -93,26 +96,34 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faState, forField bool
 		qa := branch[index]
 		if qa.isDot {
 			table = makeDotFA(nextStep)
+			pp.labelTable(table, "Dot")
 			step = &faState{table: table}
 		} else if qa.subtree != nil {
-			table = makeNFAFromBranches(qa.subtree, nextStep, false)
+			table = makeNFAFromBranches(qa.subtree, nextStep, false, sharedNullPrinter)
 			step = &faState{table: table}
 		} else {
-			// it's a rune range
-			if qa.quantMin != 1 || qa.quantMax != 1 {
-				panic("Not supported: quantifiers")
-			}
-
 			// just match a rune
 			table = makeRuneRangeNFA(qa.runes, nextStep, sharedNullPrinter)
+			pp.labelTable(table, fmt.Sprintf("RR %x/%x, %d-%d", qa.runes[0].Lo, qa.runes[0].Hi, qa.quantMin, qa.quantMax))
 
+			if qa.quantMax == regexpQuantifierMax {
+				panic("+ and * in regexp not supported")
+			}
+			if qa.quantMax > 1 {
+				panic("{lo,hi} quantifiers not supported")
+			}
 			step = &faState{table: table}
+		}
+		if qa.quantMin == 0 {
+			// for now, means '?'
+			table.epsilons = []*faState{nextStep}
 		}
 		nextStep = step
 	}
 	if forField {
 		firstState := &faState{table: table}
 		table = makeSmallTable(nil, []byte{'"'}, []*faState{firstState})
+		pp.labelTable(table, "<Field>")
 	}
 	return table
 }
@@ -206,6 +217,14 @@ func makeRuneRangeNFA(rr RuneRange, next *faState, pp printer) *smallTable {
 		addRuneTreeEntry(root, r, next)
 	}
 	return nfaFromRuneTree(root, pp)
+}
+
+func makeByteDotFA(dest *faState, pp printer) *smallTable {
+	ceilings := []byte{0xC0, 0xC2, 0xF5, 0xF6}
+	steps := []*faState{dest, nil, dest, nil}
+	t := &smallTable{ceilings: ceilings, steps: steps}
+	pp.labelTable(t, " ")
+	return t
 }
 
 func makeDotFA(dest *faState) *smallTable {

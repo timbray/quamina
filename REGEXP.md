@@ -40,11 +40,11 @@ current release are bold-faced.
 
 `()` : **parenthetized sub-regexp**
 
+`?` : **optional matcher**
+
 `*` : zero-or-more matcher
 
 `+` : one-or-more matcher
-
-`?` : optional matcher
 
 `{lo,hi}` : occurrence-count matcher
 

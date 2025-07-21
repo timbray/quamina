@@ -35,18 +35,6 @@ func (m *fieldMatcher) update(fields *fmFields) {
 	m.updateable.Store(fields)
 }
 
-func (m *fieldMatcher) gatherMetadata(meta *nfaMetadata) {
-	for _, vm := range m.fields().transitions {
-		vm.gatherMetadata(meta)
-	}
-	for _, fm := range m.fields().existsTrue {
-		fm.gatherMetadata(meta)
-	}
-	for _, fm := range m.fields().existsFalse {
-		fm.gatherMetadata(meta)
-	}
-}
-
 func (m *fieldMatcher) addMatch(x X) {
 	current := m.fields()
 	newFields := &fmFields{
@@ -141,7 +129,7 @@ func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fi
 // or nil if no transitions are possible.  An example of name/value that could produce multiple next states
 // would be if you had the pattern { "a": [ "foo" ] } and another pattern that matched any value with
 // a prefix of "f".
-func (m *fieldMatcher) transitionOn(field *Field, bufs *bufpair) []*fieldMatcher {
+func (m *fieldMatcher) transitionOn(field *Field, bufs *nfaBuffers) []*fieldMatcher {
 	// are there transitions on this field name?
 	valMatcher, ok := m.fields().transitions[string(field.Path)]
 	if !ok {

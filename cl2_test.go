@@ -299,10 +299,8 @@ func (bm *benchmarker) addRules(rules []string, wanted []int, report bool) {
 		_ = bm.q.AddPattern(rname, rule)
 		bm.wanted[rname] = wanted[i]
 	}
-	cm.analyze()
 	if report {
 		fmt.Println(matcherStats(cm))
-		fmt.Printf("MaxParallel: %d\n", cm.fields().nfaMeta.maxOutDegree)
 	}
 }
 

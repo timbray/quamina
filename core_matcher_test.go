@@ -326,3 +326,13 @@ func TestSimpleaddPattern(t *testing.T) {
 		t.Error("No trans from start on 'a'")
 	}
 }
+
+// a lot of tests add and test patterns through the top-level coreMatcher interfaces,
+// which means the finite automata are hidden deep inside the coreMatcher instance
+// and hard to get at.  This helper routine fetches the value-matcher automaton
+// corresponding to the "path" argument
+func fetchFAForPath(t *testing.T, cm *coreMatcher, path string) *smallTable {
+	t.Helper()
+	vm := cm.fields().state.fields().transitions[path]
+	return vm.fields().startTable
+}

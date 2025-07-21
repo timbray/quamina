@@ -318,9 +318,7 @@ number of patterns an instance can carry.
 I used to say that the performance of
 `MatchesForEvent` was O(1) in the number of
 Patterns. That’s probably a reasonable way to think
-about it, because it’s *almost* right, except in the
-case where a very large number of `wildcard` patterns
-have been added; this is discussed in the next section.
+about it, because it’s *almost* right.
 
 To be correct, the performance is a little worse than
 O(N) where N is the average number of unique fields in an
@@ -362,23 +360,6 @@ is at most N, the number of fields left after discarding.
 So, adding a new Pattern that only mentions fields which are
 already mentioned in previous Patterns is effectively free,
 i.e. O(1) in terms of run-time performance.
-
-### Quamina instances with large numbers of `wildcard` Patterns
-
-A study of the theory of finite automata reveals that processing
-regular-expression constructs such as `*` increases the complexity of
-the automata necessary to match them. It develops that when
-a large number of such automata are compiled together, the merged
-output can contain a high degree of nondeterminism which can result
-in a drastic slowdown.
-
-A fuzz test which adds a pattern for each of 12,959 5-letter words with
-one `*` embedded in each at a random offset slows matching speed down to 
-below 10,000/second, in stark contrast to most Quamina instances, which 
-can achieve millions of matches/second.
-
-This slowdown is under active investigation and it is possible that the
-situation will improve.
 
 ### Further documentation
 

@@ -27,7 +27,7 @@ const valueTerminator byte = 0xf5
 // ranges of bytes.  This could be done simply with an array of size byteCeiling for each state in the machine,
 // or a map[byte]S, but both would be size-inefficient, particularly in the case where you're implementing
 // ranges.  Now, the step function is O(N) in the number of entries, but empirically, the average number of entries is
-// small even in large automata, so skipping throgh the ceilings list is measurably about the same speed as a map
+// small even in large automata, so skipping through the ceilings list is measurably about the same speed as a map
 // or array construct. One could imagine making step() smarter and do a binary search in the case where there are
 // more than some number of entries. But I'm dubious, the ceilings field is []byte and running through a single-digit
 // number of those has a good chance of minimizing memory fetches.
@@ -36,10 +36,27 @@ const valueTerminator byte = 0xf5
 // NFAs in theory can branch to two or more other states on a single input symbol, but that can always be
 // handled with epsilons. For example, if the symbol 'b' should branch to both s1 and s2, that can be handled
 // by branching on 'b' to a state that has no byte transitions but two epsilons, one each for s1 and s2.
+//
+// There's a special-purpose hack driven by the needs of shell_style and wildcard patterns,
+// where the '*' really stands for regexp ".*". This is implemented as a "spin" state with an
+// epsilon pointing to itself and various transitions to "escape" states based on byte values.
+// so "a*b" has a state that recognizes an "a" and transitions to the spin state, which has an
+// epsilon looping back to itself and a "b" transition transferring away.
+// This is all fine. But consider what happens when we're merging two such states, i.e. suppose
+// we have all of "ab", "a*b" and "a*z". It turns out we can use the same spin state for "a*b"
+// and "a*z". So we'd want a start state that transitions on "a" to what let's call a "spinout"
+// state. This state has a direct transition on "b" to match the first pattern, then an epsilon
+// transition to a "spin" state which has an epsilon loop to itself and then "exit" transitions
+// on "b" and "z".  A little thought shows that this works for "a*bx" and "a*by" and so on.
+// Now, at FA construction and merge time, you could probably programmatically probe around and
+// detect the existence of a spinout state, but let's mark it explicitly with a field in the
+// smallTable.
+
 type smallTable struct {
 	ceilings []byte
 	steps    []*faState
-	epsilon  []*faState
+	epsilons []*faState
+	spinout  *faState
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
@@ -51,9 +68,13 @@ func newSmallTable() *smallTable {
 	}
 }
 
+func (t *smallTable) isEpsilonOnly() bool {
+	return len(t.epsilons) > 0 && len(t.ceilings) == 1
+}
+
 type stepOut struct {
-	step    *faState
-	epsilon []*faState
+	step     *faState
+	epsilons []*faState
 }
 
 var forbiddenBytes = map[byte]bool{
@@ -62,13 +83,18 @@ var forbiddenBytes = map[byte]bool{
 	0xFB: true, 0xFC: true, 0xFD: true, 0xFE: true, 0xFF: true,
 }
 
+func (t *smallTable) isJustEpsilons() bool {
+	// TODO I think the second half of the condition is unnecessary
+	return len(t.steps) == 1 && t.steps[0] == nil
+}
+
 // step finds the list of states that result from a transition on the utf8Byte argument. The states can come
 // as a result of looking in the table structure, and also the "epsilon" transitions that occur on every
 // input byte.  Since this is the white-hot center of Quamina's runtime CPU, we don't want to be merging
 // the two lists. So to avoid any memory allocation, the caller passes in a structure with the two lists
 // and step fills them in.
 func (t *smallTable) step(utf8Byte byte, out *stepOut) {
-	out.epsilon = t.epsilon
+	out.epsilons = t.epsilons
 	for index, ceiling := range t.ceilings {
 		if utf8Byte < ceiling {
 			out.step = t.steps[index]
@@ -125,16 +151,46 @@ func makeSmallTable(defaultStep *faState, indices []byte, steps []*faState) *sma
 	return &t
 }
 
-func (t *smallTable) gatherMetadata(meta *nfaMetadata) {
-	eps := len(t.epsilon)
-	for _, step := range t.steps {
-		if step != nil {
-			if (eps + 1) > meta.maxOutDegree {
-				meta.maxOutDegree = eps + 1
-			}
-			step.table.gatherMetadata(meta)
-		}
+// For manipulating larger-scale machines, the performance starts to be dominated by
+// the unpack/pack overhead required for addByteStep, specifically by creating lots of
+// garbage-collection work.  stIterator provides a cheap way to cycle through all the
+// legal byte values without unpacking the smallTable.
+type stIterator struct {
+	table        *smallTable
+	ceilingIndex int
+	byteIndex    byte
+}
+
+func newSTIterator(t *smallTable, iter *stIterator) stIterator {
+	// make new iterator
+	if iter == nil {
+		return stIterator{table: t, byteIndex: 0, ceilingIndex: 0}
 	}
+
+	// reuse existing iterator
+	iter.table = t
+	iter.byteIndex = 0
+	iter.ceilingIndex = 0
+	return *iter
+}
+func (si *stIterator) hasNext() bool {
+	return si.byteIndex < byte(byteCeiling)
+}
+func (si *stIterator) next() (byte, *faState) {
+	utf8byte := byte(si.byteIndex)
+	si.byteIndex++
+	if utf8byte == si.table.ceilings[si.ceilingIndex] {
+		si.ceilingIndex++
+	}
+	return utf8byte, si.table.steps[si.ceilingIndex]
+}
+func (si *stIterator) nextState() *faState {
+	utf8byte := byte(si.byteIndex)
+	si.byteIndex++
+	if utf8byte == si.table.ceilings[si.ceilingIndex] {
+		si.ceilingIndex++
+	}
+	return si.table.steps[si.ceilingIndex]
 }
 
 // unpackedTable replicates the data in the smallTable ceilings and states arrays.  It's quite hard to
