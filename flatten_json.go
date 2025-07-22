@@ -205,7 +205,6 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 			}
 		case fjMemberValueState:
 			// bypass space between colon and value. A bit klunky but allows for immense simplification
-			// TODO: Investigate if there's a more efficient way to say this, or should just trust Go compiler
 			for fj.isSpace[ch] {
 				if fj.step() != nil {
 					return fj.error("event truncated after colon")

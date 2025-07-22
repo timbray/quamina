@@ -74,9 +74,10 @@ func readWildcardSpecial(pb *patternBuild, valsIn []typedVal) ([]typedVal, error
 
 // makeWildcardFA is a replacement for shellstyle patterns, the only difference being that escaping is
 // provided for * and \.
-func makeWildcardFA(val []byte, printer printer) (start *smallTable, nextField *fieldMatcher) {
-	table := newSmallTable()
-	start = table
+func makeWildCardFA(val []byte, pp printer) (start *smallTable, nextField *fieldMatcher) {
+	state := &faState{table: newSmallTable()}
+	start = state.table
+	pp.labelTable(start, "WILDCARD")
 	nextField = newFieldMatcher()
 
 	// for each byte in the pattern. \-escape processing is simplified because illegal constructs such as \a and \
@@ -90,42 +91,30 @@ func makeWildcardFA(val []byte, printer printer) (start *smallTable, nextField *
 			ch = val[valIndex]
 		}
 		if ch == '*' && !escaped {
-			// special-case handling for string ending in '*"' - transition to field match on any character.
-			// we know the trailing '"' will be there because of JSON syntax.  We could use an epsilon state
-			// but then the matcher will process through all the rest of the bytes, when it doesn't need to
-			if valIndex == len(val)-2 {
-				step := &faState{
-					table:            newSmallTable(),
-					fieldTransitions: []*fieldMatcher{nextField},
-				}
-				table.epsilon = []*faState{step}
-				printer.labelTable(table, fmt.Sprintf("prefix escape at %d", valIndex))
-				return
-			}
-			globStep := &faState{table: table}
-			printer.labelTable(table, fmt.Sprintf("gS at %d", valIndex))
-			table.epsilon = []*faState{globStep}
+			spinout := &faState{table: newSmallTable()}
+			spinout.table.epsilons = []*faState{spinout}
+			pp.labelTable(spinout.table, "Spinout")
+			state.table.epsilons = []*faState{spinout}
+			state.table.spinout = spinout
+			pp.labelTable(state.table, "on *")
 
 			valIndex++
-			// ** is forbidden, if we're seeing *\* then the second * is non-magic, if we're seeing *\\, it
-			// just means \, so either way, all we need to do is hop over this \
-			if val[valIndex] == '\\' {
-				valIndex++
-			}
-			globNext := &faState{table: newSmallTable()}
-			printer.labelTable(globNext.table, fmt.Sprintf("gX on %c at %d", val[valIndex], valIndex))
-			table.addByteStep(val[valIndex], globNext)
-			table = globNext.table
+			spinEscape := &faState{table: newSmallTable()}
+			pp.labelTable(spinEscape.table, fmt.Sprintf("spinEscape on %c at %d", val[valIndex], valIndex))
+			spinout.table.addByteStep(val[valIndex], spinEscape)
+			state = spinEscape
 		} else {
 			nextStep := &faState{table: newSmallTable()}
-			printer.labelTable(nextStep.table, fmt.Sprintf("on %c at %d", val[valIndex], valIndex))
-			table.addByteStep(ch, nextStep)
-			table = nextStep.table
+			pp.labelTable(nextStep.table, fmt.Sprintf("on %c at %d", val[valIndex], valIndex))
+			state.table.addByteStep(ch, nextStep)
+			state = nextStep
 		}
 		valIndex++
 	}
 	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
-	printer.labelTable(lastStep.table, fmt.Sprintf("last step at %d", valIndex))
-	table.addByteStep(valueTerminator, lastStep)
+	pp.labelTable(lastStep.table, fmt.Sprintf("last step at %d", valIndex))
+	state.table.addByteStep(valueTerminator, lastStep)
+
+	// start = nfa2Dfa(start, pp).table
 	return
 }

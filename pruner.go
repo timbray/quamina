@@ -221,14 +221,14 @@ func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
 	if err != nil {
 		return nil, err
 	}
-	return m.matchesForFields(fs)
+	return m.matchesForFields(fs, newNfaBuffers())
 }
 
 // MatchesForFields calls the underlying
 // quamina.coreMatcher.matchesForFields and then maybe rebuilds the
 // index.
-func (m *prunerMatcher) matchesForFields(fields []Field) ([]X, error) {
-	xs, err := m.Matcher.matchesForFields(fields)
+func (m *prunerMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, error) {
+	xs, err := m.Matcher.matchesForFields(fields, bufs)
 	if err != nil {
 		return nil, err
 	}

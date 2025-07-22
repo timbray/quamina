@@ -116,6 +116,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 // exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
 func TestBigShellStyle(t *testing.T) {
 	lines := getCityLotsLines(t)
+	bufs := newNfaBuffers()
 	m := newCoreMatcher()
 
 	wanted := map[X]int{
@@ -154,7 +155,7 @@ func TestBigShellStyle(t *testing.T) {
 		if err != nil {
 			t.Error("Flatten: " + err.Error())
 		}
-		matches, err := m.matchesForFields(fields)
+		matches, err := m.matchesForFields(fields, bufs)
 		if err != nil {
 			t.Error("Matches4JSON: " + err.Error())
 		}
@@ -188,7 +189,6 @@ func TestBigShellStyle(t *testing.T) {
 // performance is totally dominated by the garbage-collector thrashing, in particular it has to allocate
 // ~220K smallTables.  Tried https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap/
 // but it doesn't seem to help.
-// TODO: Add shellstyle patterns
 func TestPatternAddition(t *testing.T) {
 	w := worder{0, readWWords(t)}
 

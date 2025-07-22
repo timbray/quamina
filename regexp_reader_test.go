@@ -1,7 +1,6 @@
 package quamina
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -176,7 +175,6 @@ func TestBasicRegexpFeatureRead(t *testing.T) {
 	var parse *regexpParse
 	var err error
 	for _, w := range tfw {
-		fmt.Println("RX: " + w.rx)
 		parse, err = readRegexp(w.rx)
 		if err != nil {
 			t.Errorf("botch on %s: %s", w.rx, err.Error())
@@ -242,7 +240,7 @@ func TestAddRegexpTransition(t *testing.T) {
 		"a.",
 	}
 	bads := []string{
-		"a?", "a*", "a+", "a?",
+		"a*", "a+",
 		"a{1,3}", "~p{Lu}", "[^abc]",
 	}
 	template := `{"a":[{"regexp": "FOO"}]}`

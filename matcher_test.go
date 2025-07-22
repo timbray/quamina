@@ -18,7 +18,7 @@ func TestMatcherInterface(t *testing.T) {
 	}
 	event := `{"x": [3, 1]}`
 	fields, _ := newJSONFlattener().Flatten([]byte(event), m.getSegmentsTreeTracker())
-	matches, _ := m.matchesForFields(fields)
+	matches, _ := m.matchesForFields(fields, newNfaBuffers())
 	if len(matches) != 1 || matches[0] != x {
 		t.Error("missed match")
 	}

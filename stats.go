@@ -2,7 +2,28 @@ package quamina
 
 import "fmt"
 
-// TODO: add stats for average and max smallTable fanout
+/*
+func nfaBufStats(bufs *nfaBuffers) (string, *faState) {
+	b1 := fmt.Sprintf("buf1 %d", cap(bufs.buf1))
+	b2 := fmt.Sprintf("buf2 %d", cap(bufs.buf2))
+	ecLen := len(bufs.eClosure.closures)
+	tot := 0
+	longest := 0
+	var lState *faState
+	for s, ec := range bufs.eClosure.closures {
+		l := len(ec)
+		if l > longest {
+			longest = l
+			lState = s
+		}
+		tot += l
+	}
+	avg := float64(tot) / float64(ecLen)
+	ec := fmt.Sprintf("ec l=%d, avg=%0.1f, max=%d", ecLen, avg, longest)
+	return "b1=" + b1 + ", b2=" + b2 + ", " + ec, lState
+}
+*/
+
 type statsAccum struct {
 	fmCount    int
 	fmTblCount int
@@ -17,9 +38,10 @@ type statsAccum struct {
 	stMax      int
 	stDepth    int
 	stEpsilon  int
-	stEpMax    int
+	stepMax    int
 	stVisited  map[*smallTable]bool
 	siCount    int
+	splices    int
 }
 
 func (s *statsAccum) stStats() string {
@@ -50,8 +72,8 @@ func matcherStats(m *coreMatcher) string {
 	}
 	fmPart := fmt.Sprintf("Field matchers: %d (avg size %s, max %d)", s.fmCount, avgFmSize, s.fmMax)
 	vmPart := fmt.Sprintf("Value matchers: %d", s.vmCount)
-	stPart := fmt.Sprintf("SmallTables %d (unique %d, avg %s, max %d, epsilon avg %s, max %d) singletons %d",
-		s.stCount, len(s.stVisited), avgStSize, s.stMax, avgEpSize, s.stEpMax, s.siCount)
+	stPart := fmt.Sprintf("SmallTables %d (unique %d, splices %d ,avg %s, max %d, epsilons avg %s, max %d) singletons %d",
+		s.stCount, len(s.stVisited), s.splices, avgStSize, s.stMax, avgEpSize, s.stepMax, s.siCount)
 
 	return fmPart + "\n" + vmPart + "\n" + stPart
 }
@@ -98,21 +120,27 @@ func faStats(t *smallTable, s *statsAccum) {
 		return
 	}
 	s.stVisited[t] = true
-	tSize := len(t.ceilings)
+	tSize := len(t.ceilings) + len(t.epsilons)
+	if t.isJustEpsilons() {
+		s.splices++
+	}
 	if tSize > 1 {
 		if tSize > s.stMax {
 			s.stMax = tSize
 		}
 		s.stTblCount++
 		s.stEntries += len(t.ceilings)
-		s.stEpsilon += len(t.epsilon)
-		if len(t.epsilon) > s.stEpMax {
-			s.stEpMax = len(t.epsilon)
+		s.stEpsilon += len(t.epsilons)
+		if len(t.epsilons) > s.stepMax {
+			s.stepMax = len(t.epsilons)
 		}
 	}
 	for _, next := range t.steps {
 		if next != nil {
 			faStats(next.table, s)
 		}
+	}
+	for _, epsilon := range t.epsilons {
+		faStats(epsilon.table, s)
 	}
 }

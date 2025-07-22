@@ -34,6 +34,19 @@ const (
 	rxfOrBar        regexpFeature = "|-separated logical alternatives"
 )
 
+type regexpFeatureChecker struct {
+	implemented map[regexpFeature]bool
+	found       map[regexpFeature]bool
+}
+
+var implementedRegexpFeatures = map[regexpFeature]bool{
+	rxfDot:        true,
+	rxfClass:      true,
+	rxfOrBar:      true,
+	rxfParenGroup: true,
+	rxfQM:         true,
+}
+
 const regexpQuantifierMax = 100 // TODO: make this into an option
 
 const Escape rune = '~'
@@ -83,18 +96,6 @@ func readRegexpSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 	_, err = pb.jd.Token()
 
 	return
-}
-
-type regexpFeatureChecker struct {
-	implemented map[regexpFeature]bool
-	found       map[regexpFeature]bool
-}
-
-var implementedRegexpFeatures = map[regexpFeature]bool{
-	rxfDot:        true,
-	rxfClass:      true,
-	rxfOrBar:      true,
-	rxfParenGroup: true,
 }
 
 func defaultRegexpFeatureChecker() *regexpFeatureChecker {
@@ -187,7 +188,6 @@ func readBranches(parse *regexpParse) error {
 			parse.features.recordFeature(rxfOrBar)
 			continue
 		} else if b == ')' {
-			// TODO: Figure out how to work into tree
 			parse.backup1(b)
 			return nil
 		}

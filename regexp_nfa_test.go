@@ -95,6 +95,33 @@ func containsFM(t *testing.T, fms []*fieldMatcher, wanted *fieldMatcher) bool {
 	}
 	return false
 }
+func containsState(t *testing.T, states []*faState, wanted *faState) bool {
+	t.Helper()
+	for _, state := range states {
+		if state == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func TestMakeByteDotFA(t *testing.T) {
+	dest := &faState{}
+	st := makeByteDotFA(dest, sharedNullPrinter)
+	for i := 0; i < 256; i++ {
+		b := byte(i)
+		got := st.dStep(b)
+		if forbiddenBytes[b] {
+			if got != nil {
+				t.Errorf("accepted %x", b)
+			}
+		} else {
+			if got == nil {
+				t.Errorf("rejected %x", b)
+			}
+		}
+	}
+}
 
 func TestMakeDotRegexpNFA(t *testing.T) {
 	runes := []rune{0x26, 0x416, 0x4e2d, 0x10346} // 1, 2, 3, & 4 bytes in UTF-8
@@ -108,12 +135,12 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse " + err.Error())
 		}
-		st, wanted := makeRegexpNFA(parsed.tree, false)
-		bufs := &bufpair{}
+		st, wanted := makeRegexpNFA(parsed.tree, false, sharedNullPrinter)
+		bufs := newNfaBuffers()
 		for _, r := range runes {
 			// func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *bufpair) []*fieldMatcher {
 			toMatch := strings.Replace(match, "X", string([]rune{r}), 1)
-			found := traverseNFA(st, []byte(toMatch), nil, bufs)
+			found := traverseNFA(st, []byte(toMatch), nil, bufs, sharedNullPrinter)
 			if len(found) == 0 {
 				t.Errorf("struck out matching %s to /%s/", match, re)
 			}
@@ -132,10 +159,10 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse " + err.Error())
 		}
-		st, _ := makeRegexpNFA(parsed.tree, false)
-		bufs := &bufpair{}
+		st, _ := makeRegexpNFA(parsed.tree, false, sharedNullPrinter)
+		bufs := newNfaBuffers()
 		for _, nonMatch := range nonMatches {
-			found := traverseNFA(st, []byte(nonMatch), nil, bufs)
+			found := traverseNFA(st, []byte(nonMatch), nil, bufs, sharedNullPrinter)
 			if len(found) != 0 {
 				t.Errorf("false match to %s to /%s/", nonMatch, re)
 			}
@@ -150,14 +177,14 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		"....非常道。名可名",
 		"道可道，非常...可名",
 	}
-	bufs := &bufpair{}
+	bufs := newNfaBuffers()
 	for _, pat := range daodechingpatterns {
 		parsed, err := readRegexp(pat)
 		if err != nil {
 			t.Error("Parse failure: " + pat)
 		}
-		st, wanted := makeRegexpNFA(parsed.tree, false)
-		found := traverseNFA(st, []byte(daodechingorig), nil, bufs)
+		st, wanted := makeRegexpNFA(parsed.tree, false, sharedNullPrinter)
+		found := traverseNFA(st, []byte(daodechingorig), nil, bufs, sharedNullPrinter)
 		if len(found) != 1 {
 			t.Errorf("Failed to match ")
 		}
@@ -196,7 +223,6 @@ func TestMultiLengthRR(t *testing.T) {
 
 		dest := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
 		st := makeRuneRangeNFA(rr, dest, sharedNullPrinter)
-		//fmt.Printf("T: %s\n", pp.printNFA(st))
 
 		matchers := []*fieldMatcher{}
 		var got []*fieldMatcher
@@ -232,14 +258,14 @@ func nfaSizeStep(t *testing.T, st *smallTable, s *statsAccum, depth int) {
 		}
 		s.stTblCount++
 		s.stEntries += len(st.ceilings)
-		s.stEpsilon += len(st.epsilon)
-		if len(st.epsilon) > s.stEpMax {
-			s.stEpMax = len(st.epsilon)
+		s.stEpsilon += len(st.epsilons)
+		if len(st.epsilons) > s.stepMax {
+			s.stepMax = len(st.epsilons)
 		}
 	}
-	for _, next := range st.steps {
-		if next != nil {
-			nfaSizeStep(t, next.table, s, depth+1)
+	for _, step := range st.steps {
+		if step != nil {
+			nfaSizeStep(t, step.table, s, depth+1)
 		}
 	}
 }
@@ -264,6 +290,19 @@ func showUTF8(t *testing.T, lo rune, hi rune) {
 }
 */
 
+func TestZeroBasedRuneRange(t *testing.T) {
+	tests := []regexpSample{
+		{
+			regex:     "xa?b?c?",
+			matches:   []string{"xa", "xab", "xabc", "xb", "xbc", "xc"},
+			nomatches: []string{"b", "Á"},
+		},
+		{regex: "ab?c", matches: []string{"ac", "abc"}, nomatches: []string{"bc", "Ác"}},
+		{regex: "a?", matches: []string{"a", ""}, nomatches: []string{"b", "Á"}},
+	}
+	testRegexpMatches(t, tests)
+}
+
 func TestSimpleRegexpMerging(t *testing.T) {
 	// I peeked into the machine for the RE below and it was horribly wrong
 	re := "(a|b)c"
@@ -271,7 +310,7 @@ func TestSimpleRegexpMerging(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	fa, fm := makeRegexpNFA(parse.tree, false)
+	fa, fm := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
 	tr := []*fieldMatcher{}
 	out := traverseDFA(fa, []byte("ac"), tr)
 	if len(out) != 1 || out[0] != fm {
@@ -307,14 +346,4 @@ func TestRRiterator(t *testing.T) {
 			t.Errorf("mismatch at %d, %c != %c", index, r, wanted)
 		}
 	}
-}
-
-func TestBasicRRNFABuilding(t *testing.T) {
-	rr := RuneRange{{'a', 'c'}}
-	pp := newPrettyPrinter(2335)
-	wantFM := newFieldMatcher()
-	dest := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
-
-	st := makeRuneRangeNFA(rr, dest, pp)
-	fmt.Println("ST: " + pp.printNFA(st))
 }

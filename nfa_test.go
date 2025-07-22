@@ -82,3 +82,72 @@ func TestFocusedMerge(t *testing.T) {
 		fmt.Println(s.stStats())
 	}
 }
+
+func TestNfa2Dfa(t *testing.T) {
+	type n2dtest struct {
+		pattern string
+		shoulds []string
+		nopes   []string
+	}
+	tests := []n2dtest{
+		{
+			pattern: "*abc",
+			shoulds: []string{"abc", "fooabc", "abcabc"},
+			nopes:   []string{"abd", "fooac"},
+		},
+		{
+			pattern: "a*bc",
+			shoulds: []string{"abc", "axybc", "abcbc"},
+			nopes:   []string{"abd", "fooac"},
+		},
+		{
+			pattern: "ab*c",
+			shoulds: []string{"abc", "abxyxc", "abbbbbc"},
+			nopes:   []string{"abd", "abcxy"},
+		},
+		{
+			pattern: "abc*",
+			shoulds: []string{"abc", "abcfoo"},
+			nopes:   []string{"xabc", "abxbar"},
+		},
+	}
+	pp := newPrettyPrinter(4567)
+	transitions := []*fieldMatcher{}
+	bufs := newNfaBuffers()
+	for _, test := range tests {
+		nfa, _ := makeShellStyleFA(asQuotedBytes(t, test.pattern), pp)
+		//fmt.Println("NFA: " + pp.printNFA(nfa))
+
+		for _, should := range test.shoulds {
+			matched := traverseNFA(nfa, asQuotedBytes(t, should), transitions, bufs, pp)
+			if len(matched) != 1 {
+				t.Errorf("NFA %s didn't %s: ", test.pattern, should)
+			}
+		}
+		for _, nope := range test.nopes {
+			matched := traverseNFA(nfa, asQuotedBytes(t, nope), transitions, bufs, pp)
+			if len(matched) != 0 {
+				t.Errorf("NFA %s matched %s", test.pattern, nope)
+			}
+		}
+		dfa := nfa2Dfa(nfa)
+		// fmt.Println("DFA: " + pp.printNFA(dfa.table))
+		for _, should := range test.shoulds {
+			matched := traverseDFA(dfa.table, asQuotedBytes(t, should), transitions)
+			if len(matched) != 1 {
+				t.Errorf("DFA %s didn't match %s ", test.pattern, should)
+			}
+		}
+		for _, nope := range test.nopes {
+			matched := traverseDFA(dfa.table, asQuotedBytes(t, nope), transitions)
+			if len(matched) != 0 {
+				t.Errorf("DFA %s matched %s", test.pattern, nope)
+			}
+		}
+	}
+}
+func asQuotedBytes(t *testing.T, s string) []byte {
+	t.Helper()
+	s = `"` + s + `"`
+	return []byte(s)
+}

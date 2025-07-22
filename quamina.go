@@ -10,6 +10,7 @@ import (
 // Quamina instance concurrently in multiple goroutines, create copies using the Copy API.
 type Quamina struct {
 	flattener          Flattener
+	bufs               *nfaBuffers
 	matcher            matcher
 	mediaTypeSpecified bool
 	deletionSpecified  bool
@@ -105,6 +106,7 @@ func New(opts ...Option) (*Quamina, error) {
 	if !q.deletionSpecified {
 		q.matcher = newCoreMatcher()
 	}
+	q.bufs = newNfaBuffers()
 	return &q, nil
 }
 
@@ -112,7 +114,7 @@ func New(opts ...Option) (*Quamina, error) {
 // goroutines.  Copy'ed instances share the same underlying data structures, so a pattern added to any instance
 // with AddPattern will be visible in all of them.
 func (q *Quamina) Copy() *Quamina {
-	return &Quamina{matcher: q.matcher, flattener: q.flattener.Copy()}
+	return &Quamina{matcher: q.matcher, flattener: q.flattener.Copy(), bufs: newNfaBuffers()}
 }
 
 // X is used in the AddPattern and MatchesForEvent APIs to identify the patterns that are added to
@@ -144,5 +146,5 @@ func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	if err != nil {
 		return nil, err
 	}
-	return q.matcher.matchesForFields(fields)
+	return q.matcher.matchesForFields(fields, q.bufs)
 }

@@ -36,13 +36,14 @@ func testConcurrency(t *testing.T, m matcher) {
 	query := func(verify bool) {
 		f := newJSONFlattener()
 
+		bufs := newNfaBuffers()
 		for i := 0; i < n; i++ {
 			e := fmt.Sprintf(`{"like":"tacos","want":%d}`, i)
 			fs, err := f.Flatten([]byte(e), m.(*coreMatcher).getSegmentsTreeTracker())
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, err := m.matchesForFields(fs); err != nil {
+			if got, err := m.matchesForFields(fs, bufs); err != nil {
 				t.Fatal(err)
 			} else if verify && len(got) != 1 {
 				t.Fatal(got)
