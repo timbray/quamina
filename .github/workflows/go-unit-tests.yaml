@@ -27,7 +27,7 @@ jobs:
             coveropts: "-coverprofile=coverage.txt -covermode=atomic"
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 20
+    timeout-minutes: 20 
 
     steps:
       - name: Checkout repository
