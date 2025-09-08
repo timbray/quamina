@@ -16,7 +16,7 @@ jobs:
     name: Unit Tests
     strategy:
       matrix:
-        go-version: ["1.22"]
+        go-version: ["1.23"]
         platform: ["ubuntu-latest"]
         type: ["Tests","Cover"] # run coverage as separate job w/out -race to avoid killing process
         include:
@@ -27,7 +27,7 @@ jobs:
             coveropts: "-coverprofile=coverage.txt -covermode=atomic"
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 20
+    timeout-minutes: 20 
 
     steps:
       - name: Checkout repository
