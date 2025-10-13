@@ -12,7 +12,7 @@ There is one important syntactic difference. The backslash character “\” com
 used in regexp constructs for escaping metacharacters (as in `Stop\.`) and in such 
 constructs such as `\P{Lu}`, is “~” in Quamina regexps.
 
-“~” is used for this purpose because “\” is also used in Go string literals and
+“\~” is used for this purpose because “\” is also used in Go string literals and
 in JSON. Thus, complexity is added to unit testing and fragments such as `\\\\` and even
 `\\\\\\\\` are regularly needed.  Conventional regexps may be turned into Quamina regexps
 by replacing occurrences of “\” with “~” wherever “\” is being used as a metacharacter. If a
