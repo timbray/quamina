@@ -33,7 +33,6 @@ current release are bold-faced.
 
 `.` : **single-character matcher**
 
-
 `|` : **logical alternatives**
 
 `[]` : **character-class matcher**
@@ -42,9 +41,9 @@ current release are bold-faced.
 
 `?` : **optional matcher**
 
-`*` : zero-or-more matcher
+`*` : **zero-or-more matcher**
 
-`+` : one-or-more matcher
+`+` : **one-or-more matcher**
 
 `{lo,hi}` : occurrence-count matcher
 

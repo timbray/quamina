@@ -91,17 +91,16 @@ func makeWildCardFA(val []byte, pp printer) (start *smallTable, nextField *field
 			ch = val[valIndex]
 		}
 		if ch == '*' && !escaped {
-			spinout := &faState{table: newSmallTable()}
-			spinout.table.epsilons = []*faState{spinout}
-			pp.labelTable(spinout.table, "Spinout")
-			state.table.epsilons = []*faState{spinout}
-			state.table.spinout = spinout
-			pp.labelTable(state.table, "on *")
+			spinner := state
+			spinner.isSpinner = true
 
 			valIndex++
 			spinEscape := &faState{table: newSmallTable()}
+			spinEscape.table.epsilons = []*faState{spinner}
+			spinner.table = makeByteDotFA(spinner, pp)
+			spinner.table.addByteStep(val[valIndex], spinEscape)
+			pp.labelTable(spinner.table, "*-Spinner")
 			pp.labelTable(spinEscape.table, fmt.Sprintf("spinEscape on %c at %d", val[valIndex], valIndex))
-			spinout.table.addByteStep(val[valIndex], spinEscape)
 			state = spinEscape
 		} else {
 			nextStep := &faState{table: newSmallTable()}

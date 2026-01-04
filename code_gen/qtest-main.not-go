@@ -95,6 +95,11 @@ var xmlBuiltin = map[string]rune{
 	"&quot;": '"',
 }
 
+/*
+var withStarShouldMatchEmptyString map[string]bool {
+
+}*/
+
 func main() {
 
 	testCase, err := regexp.Compile("<test-case")

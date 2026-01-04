@@ -190,17 +190,6 @@ func TestBasicRegexpFeatureRead(t *testing.T) {
 			}
 		}
 	}
-	parse, _ = readRegexp("a*b")
-	unimpl := parse.features.foundUnimplemented()
-	foundStar := false
-	for _, u := range unimpl {
-		if u == rxfStar {
-			foundStar = true
-		}
-	}
-	if !foundStar {
-		t.Error("Didn't find Star")
-	}
 }
 
 func TestRegexpErrors(t *testing.T) {
@@ -237,10 +226,9 @@ func TestRegexpErrors(t *testing.T) {
 func TestAddRegexpTransition(t *testing.T) {
 	// TODO: Keep adding/subtracting from this as we add features
 	goods := []string{
-		"a.",
+		"a.", "a?", "a+",
 	}
 	bads := []string{
-		"a*", "a+",
 		"a{1,3}", "~p{Lu}", "[^abc]",
 	}
 	template := `{"a":[{"regexp": "FOO"}]}`

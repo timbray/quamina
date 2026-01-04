@@ -9,10 +9,9 @@ func TestPP(t *testing.T) {
 	table, _ := makeShellStyleFA([]byte(`"x*9"`), pp)
 	pp.labelTable(table, "START HERE")
 	wanted := ` 884[START HERE] '22/"' → 914[on " at 0]
- 914[on " at 0] '78/x' → 384[on *]
- 384[on *] ε → 696[Spinout]
- 696[Spinout] ε → 696[Spinout] / '39/9' → 322[spinEscape on 9 at 3]
- 322[spinEscape on 9 at 3] '22/"' → 769[on " at 4]
+ 914[on " at 0] '78/x' → 384[*-Spinner]
+ 384[*-Spinner] '39/9' → 322[spinEscape on 9 at 3] / ★ → 384[*-Spinner]
+ 322[spinEscape on 9 at 3] ε → 384[*-Spinner] / '22/"' → 769[on " at 4]
  769[on " at 4] 'f5/ℵ' → 301[last step at 5]
  301[last step at 5]  [1 transition(s)]
 `
