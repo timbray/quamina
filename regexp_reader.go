@@ -45,6 +45,8 @@ var implementedRegexpFeatures = map[regexpFeature]bool{
 	rxfOrBar:      true,
 	rxfParenGroup: true,
 	rxfQM:         true,
+	rxfPlus:       true,
+	rxfStar:       true,
 }
 
 const regexpQuantifierMax = 100 // TODO: make this into an option
@@ -236,7 +238,7 @@ func atomType(qa *quantifiedAtom) string {
 	if qa == nil {
 		return "NIL"
 	}
-	if qa.isDot {
+	if qa.dotRunes {
 		return "DOT"
 	}
 	if qa.subtree != nil {
@@ -251,7 +253,7 @@ func dumpTree(tree regexpRoot, depth int) string {
 	}
 	for _, branch := range tree {
 		for _, qa := range branch {
-			if qa.isDot {
+			if qa.dotRunes {
 				out += "."
 			} else if qa.subtree != nil {
 				out += dumpTree(qa.subtree, depth+1)
@@ -281,7 +283,7 @@ func readAtom(parse *regexpParse) (*quantifiedAtom, error) {
 	case b == '.':
 		// charClass = "." / SingleCharEsc / charClassEsc / charClassExpr
 		parse.features.recordFeature(rxfDot)
-		qa.isDot = true
+		qa.dotRunes = true
 		qa.quantMin, qa.quantMax = 1, 1
 		return &qa, nil
 	case b == '(':

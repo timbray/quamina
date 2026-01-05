@@ -223,6 +223,8 @@ func TestExerciseMatching(t *testing.T) {
 		`{"Image": { "Title": [ { "regexp": "View from .... Floor" } ]  } }`,
 		`{"Image": { "Title": [ { "regexp": "View from [0-9][0-9][rtn][dh] Floor" } ]  } }`,
 		`{"Image": { "Title": [ { "regexp": "View from 15th (Floor|Storey)" } ]  } }`,
+		`{"Image": { "Title": [ { "regexp": "(View)?( down)? from 15th Floor" } ]  } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "regexp": "https://www.example.com/image/[1-9]+" } ] } } }`,
 	}
 
 	var err error

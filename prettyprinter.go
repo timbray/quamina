@@ -13,6 +13,7 @@ type printer interface {
 	labelTable(table *smallTable, label string)
 	printNFA(table *smallTable) string
 	shortPrintNFA(table *smallTable) string
+	tableSerial(t *smallTable) uint
 	// printSerial(table *smallTable) string
 	// printState(state *faState) string
 }
@@ -31,6 +32,7 @@ func (*nullPrinter) printNFA(_ *smallTable) string {
 func (*nullPrinter) shortPrintNFA(_ *smallTable) string {
 	return noPP
 }
+func (*nullPrinter) tableSerial(_ *smallTable) uint { return 0 }
 
 // func (*nullPrinter) printSerial(_ *smallTable) string { return noPP }
 // func (*nullPrinter) printState(_ *faState) string     { return noPP }
@@ -123,7 +125,6 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 
 	defTrans := unpacked[0]
 
-	// TODO: Try to generate an NFA with a state with multiple epsilons
 	if len(t.epsilons) != 0 {
 		fas := ""
 		for i, eps := range t.epsilons {

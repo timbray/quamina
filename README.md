@@ -152,6 +152,16 @@ The following Patterns would match it:
   }
 }
 ```
+
+```json
+{
+  "Image": {
+    "Thumbnail": {
+      "Url": [ "a", { "regexp": "https://www.example.com/image/[1-9]+" } ] }
+  }
+} 
+```
+
 The syntax and semantics of Patterns are fully specified
 in [Patterns in Quamina](PATTERNS.md).
 

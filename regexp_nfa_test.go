@@ -7,6 +7,56 @@ import (
 	"unicode"
 )
 
+func faFromRegexp(t *testing.T, r string, pp printer) *smallTable {
+	t.Helper()
+	parse, err := readRegexp(r)
+	if err != nil {
+		t.Error("bad regexp " + r)
+	}
+	if parse == nil {
+		t.Error("nil parse")
+		return nil
+	}
+	fa, _ := makeRegexpNFA(parse.tree, true, pp)
+	return fa
+}
+
+func TestRegexpPlus(t *testing.T) {
+	res := []string{
+		"[123]",
+		"[123]+",
+		"[abc]+",
+		"[123]+|[abc]+",
+	}
+	pp := newPrettyPrinter(4623)
+	var fa *smallTable
+	for _, re := range res {
+		fa = faFromRegexp(t, re, pp)
+	}
+	goods := []string{
+		`"123"`,
+		`"abc"`,
+	}
+	bads := []string{
+		"1a",
+		"a1",
+	}
+	trans := []*fieldMatcher{}
+	bufs := newNfaBuffers()
+	for _, good := range goods {
+		res := traverseNFA(fa, []byte(good), trans, bufs, pp)
+		if len(res) != 1 {
+			t.Errorf("missed good %s", good)
+		}
+	}
+	for _, bad := range bads {
+		res := traverseNFA(fa, []byte(bad), trans, bufs, pp)
+		if len(res) != 0 {
+			t.Error("matched bad " + bad)
+		}
+	}
+}
+
 func TestExploreUTF8Form(t *testing.T) {
 	bads := [][]byte{
 		{0xc0, 0x80},             //0

@@ -155,7 +155,14 @@ func containsX(matches []X, wanteds ...string) bool {
 }
 
 func TestShellStyleBuildTime(t *testing.T) {
-	words := readWWords(t)
+	// Back in the day when I didn't have real epsilons, I could load up the whole 13K lines of
+	// wwords.txt and the machine would run at tens of thousands of matches/second. Introducing real
+	// epsilon processing, required by ?, +, and *, seems to lead to either pathologically slow O(2**N)
+	// automaton building or very slow (~2K/second) matching.  The current version settles for the
+	// latter. With a thousand patterns the automaton building is instant and the matching runs at
+	// ~16K/second.  I retain optimism that
+	// TODO: the machine can be built with many fewer epsilons and states and thus run much faster.
+	words := readWWords(t)[:1000]
 
 	fmt.Printf("WC %d\n", len(words))
 	starWords := make([]string, 0, len(words))
@@ -176,19 +183,22 @@ func TestShellStyleBuildTime(t *testing.T) {
 
 	q, _ := New()
 	before := time.Now()
-	cm := q.matcher.(*coreMatcher)
+	// pp := newPrettyPrinter(44)
 	for i := range words {
 		err := q.AddPattern(starWords[i], patterns[i])
+		// fmt.Println("P: " + patterns[i])
 		if err != nil {
 			t.Error("AddP: " + err.Error())
 		}
+		// fa := fetchFAForPath(t, cm, "x")
+		// fmt.Println(pp.printNFA(fa))
 	}
+
 	fmt.Println("Done adding patterns")
 	elapsed := float64(time.Since(before).Milliseconds())
 	eps := float64(len(words)) / (elapsed / 1000.0)
 	fmt.Printf("Patterns/sec: %.1f\n", eps)
-
-	fmt.Println(matcherStats(cm))
+	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
 
 	// make sure that all the words actually are matched
 	before = time.Now()
@@ -201,9 +211,7 @@ func TestShellStyleBuildTime(t *testing.T) {
 		if len(matches) == 0 {
 			t.Error("no matches for " + record)
 		}
-		if len(matches) > 1 {
-			fmt.Printf("%d matches for %s\n", len(matches), word)
-		}
+
 		record = fmt.Sprintf(`{"x": "%s"}`, expandedWords[i])
 		matches, err = q.MatchesForEvent([]byte(record))
 		if err != nil {
@@ -211,9 +219,6 @@ func TestShellStyleBuildTime(t *testing.T) {
 		}
 		if len(matches) == 0 {
 			t.Error("no matches for " + record)
-		}
-		if len(matches) > 1 {
-			fmt.Printf("%d matches for %s\n", len(matches), word)
 		}
 	}
 	elapsed = float64(time.Since(before).Milliseconds())

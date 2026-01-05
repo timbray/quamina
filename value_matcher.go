@@ -7,7 +7,7 @@ import (
 )
 
 // valueMatcher represents a byte-driven finite automaton (FA).  The table needs to be the
-// equivalent of a map[byte][]nextState and is represented by smallTable.
+// equivalent of a map[byte]nextState and is represented by smallTable.
 // In this implementation all the FAs are nondeterministic, which means each
 // byte can cause transfers to multiple other states. We compute the FA
 // for a pattern and merge with any existing FA.

@@ -36,13 +36,6 @@ func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
 // All the forms of quantifiers can be described by pairs of numbers. ? is [0,1]. + is [1,♾️]. * is [0,♾️].
 // {m,n} ranges also, obviously.
 
-type quantifiedAtom struct {
-	isDot    bool
-	runes    RuneRange
-	quantMin int
-	quantMax int
-	subtree  regexpRoot // if non-nil, ()-enclosed subtree here
-}
 type regexpBranch []*quantifiedAtom
 type regexpRoot []regexpBranch
 
@@ -65,7 +58,7 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp p
 	if len(root) == 0 {
 		return makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
 	}
-	fa := newSmallTable()
+	var fa *smallTable
 	for _, branch := range root {
 		var nextBranch *smallTable
 		if len(branch) == 0 {
@@ -74,7 +67,11 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp p
 		} else {
 			nextBranch = makeOneRegexpBranchFA(branch, nextStep, forField, pp)
 		}
-		fa = mergeFAs(fa, nextBranch, pp)
+		if fa != nil {
+			fa = mergeFAs(fa, nextBranch, pp)
+		} else {
+			fa = nextBranch
+		}
 	}
 	return fa
 }
@@ -91,33 +88,60 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faState, forField bool
 	var step *faState
 	var table *smallTable
 
-	// TODO: Assuming this works, rewrite a bunch of other make*NFA calls in this style, without recursion
+	// When you're computing the FA for one piece of a regexp, it's useful to know which faState is the
+	// next step. You can do this by recursing to compute the next step and yield the target, but this
+	// could lead to very deep recursion on long regexps. So instead, the code works through the atoms
+	// in a branch back to front. After you've built the FA for the Nth step, you know the target for
+	// the N-1th step.  Since the nextStep argument to the function gives you the target of the last
+	// step, this should work well.  As I write this comment, Quamina's FA-constructions use a
+	// variety of approaches but I think I'd like to converge on this one.
 	for index := len(branch) - 1; index >= 0; index-- {
+		// The following implements the Thompson construction as described in
+		// https://swtch.com/%7Ersc/regexp/regexp1.html
 		qa := branch[index]
-		if qa.isDot {
-			table = makeDotFA(nextStep)
-			pp.labelTable(table, "Dot")
-			step = &faState{table: table}
-		} else if qa.subtree != nil {
-			table = makeNFAFromBranches(qa.subtree, nextStep, false, sharedNullPrinter)
-			step = &faState{table: table}
-		} else {
-			// just match a rune
-			table = makeRuneRangeNFA(qa.runes, nextStep, sharedNullPrinter)
-			pp.labelTable(table, fmt.Sprintf("RR %x/%x, %d-%d", qa.runes[0].Lo, qa.runes[0].Hi, qa.quantMin, qa.quantMax))
+		plusLoopback := &faState{} // unnecessary but shuts up annoying JetBrains warning
+		var starNext *faState
+		step = &faState{}
 
-			if qa.quantMax == regexpQuantifierMax {
-				panic("+ and * in regexp not supported")
-			}
-			if qa.quantMax > 1 {
-				panic("{lo,hi} quantifiers not supported")
-			}
-			step = &faState{table: table}
+		// setting the stage for Thompson construction before making this step's FA
+		if qa.isPlus() {
+			// the + construction requires a loopback state in front of the state table
+			plusLoopback = &faState{table: newSmallTable()}
+			plusLoopback.table.epsilons = []*faState{nextStep}
+			pp.labelTable(plusLoopback.table, "PlusLoopback")
+			nextStep = plusLoopback
+		} else if qa.isStar() {
+			// the * construction requires that the generated FA points back to itself
+			starNext = nextStep
+			nextStep = step
 		}
-		if qa.quantMin == 0 {
-			// for now, means '?'
-			table.epsilons = []*faState{nextStep}
+
+		// now we make the step FA
+		table = qa.makeFA(nextStep, pp)
+		if table == nil {
+			panic("makeFA returned nil")
 		}
+		step.table = table
+
+		// now more epsilon shuffling to complete quantification construction
+		switch {
+		case qa.isSingleton():
+			// we're good
+		case qa.isPlus():
+			// for the + case, need to loop back to the newly created state
+			plusLoopback.table.epsilons = append(plusLoopback.table.epsilons, step)
+		case qa.isQM():
+			// for the ? case, forward epsilon
+			table.epsilons = append(table.epsilons, nextStep)
+		case qa.isStar():
+			// the * construct requires an epsilon transition forward
+			table.epsilons = append(step.table.epsilons, starNext)
+		case qa.isPlus():
+			// +, no-op, but avoids default case
+		default:
+			panic("unhandled quantification case")
+		}
+
 		nextStep = step
 	}
 	if forField {
@@ -223,7 +247,7 @@ func makeByteDotFA(dest *faState, pp printer) *smallTable {
 	ceilings := []byte{0xC0, 0xC2, 0xF5, 0xF6}
 	steps := []*faState{dest, nil, dest, nil}
 	t := &smallTable{ceilings: ceilings, steps: steps}
-	pp.labelTable(t, " ")
+	pp.labelTable(t, " · ")
 	return t
 }
 

@@ -8,12 +8,7 @@ func newEpsilonClosure() *epsilonClosure {
 	return &epsilonClosure{make(map[*faState][]*faState)}
 }
 
-func getEpsilonClosure(state *faState) []*faState {
-	emptyEC := &epsilonClosure{closures: nil}
-	return emptyEC.getAndCacheClosure(state)
-}
-
-func (ec *epsilonClosure) getAndCacheClosure(state *faState) []*faState {
+func (ec *epsilonClosure) getClosure(state *faState) []*faState {
 	var closure []*faState
 	var ok bool
 	if ec.closures != nil {

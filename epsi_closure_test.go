@@ -26,15 +26,15 @@ func TestEpsilonClosure(t *testing.T) {
 	aFM := newFieldMatcher()
 	aSc.fieldTransitions = []*fieldMatcher{aFM}
 	aEC := newEpsilonClosure()
-	ec = aEC.getAndCacheClosure(aSa)
+	ec = aEC.getClosure(aSa)
 	if len(ec) != 1 || !containsState(t, ec, aSa) {
 		t.Errorf("len(ec) = %d; want 0", len(ec))
 	}
-	ec = aEC.getAndCacheClosure(aSstar)
+	ec = aEC.getClosure(aSstar)
 	if len(ec) != 1 || !containsState(t, ec, aSstar) {
 		t.Error("aSstar")
 	}
-	ec = aEC.getAndCacheClosure(aSc)
+	ec = aEC.getClosure(aSc)
 	if len(ec) != 1 || !containsState(t, ec, aSc) {
 		t.Error("aSc")
 	}
@@ -71,13 +71,13 @@ func TestEpsilonClosure(t *testing.T) {
 	bEcShouldBeZero := []*faState{bSa, bSb, bSx, bSstar}
 	zNames := []string{"bSa", "bSb", "bSx", "bSstar"}
 	for i, shouldBeZero := range bEcShouldBeZero {
-		ec = aEC.getAndCacheClosure(shouldBeZero)
+		ec = aEC.getClosure(shouldBeZero)
 		if len(ec) != 1 || !containsState(t, ec, shouldBeZero) {
 			t.Errorf("should be Zero for %s, isn't", zNames[i])
 		}
 	}
 
-	ec = aEC.getAndCacheClosure(bSsplice)
+	ec = aEC.getClosure(bSsplice)
 	if len(ec) != 2 || !containsState(t, ec, bSa) || !containsState(t, ec, bSstar) {
 		t.Error("wrong EC for b")
 	}
@@ -108,7 +108,7 @@ func TestEpsilonClosure(t *testing.T) {
 	}
 	// fmt.Println("C machine: " + pp.printNFA(cStart.table))
 	cWantInEC := []*faState{cStart, cSa, cSb, cSc, cSz}
-	ec = aEC.getAndCacheClosure(cStart)
+	ec = aEC.getClosure(cStart)
 	if len(ec) != 5 {
 		t.Errorf("len B ec %d wanted 5", len(ec))
 	}

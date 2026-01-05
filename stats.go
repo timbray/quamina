@@ -52,6 +52,26 @@ func (s *statsAccum) stStats() string {
 	return fmt.Sprintf("SmallTables %d (avg size %s, max %d), singletons %d", s.stCount, avgStSize, s.stMax, s.siCount)
 }
 
+/*
+func saStatsPart(t *smallTable) string {
+	s := statsAccum{
+		fmVisited: make(map[*fieldMatcher]bool),
+		vmVisited: make(map[*valueMatcher]bool),
+		stVisited: make(map[*smallTable]bool),
+	}
+	faStats(t, &s)
+	var avgStSize, avgEpSize string
+	if s.stTblCount > 0 {
+		avgStSize = fmt.Sprintf("%.3f", float64(s.stEntries)/float64(s.stTblCount))
+	}
+	if s.stEpsilon > 0 {
+		avgEpSize = fmt.Sprintf("%.3f", float64(s.stEpsilon)/float64(s.stTblCount))
+	}
+	return fmt.Sprintf("SmallTables %d (splices %d, avg %s, max %d, epsilons avg %s, max %d) singletons %d",
+		len(s.stVisited), s.splices, avgStSize, s.stMax, avgEpSize, s.stepMax, s.siCount)
+}
+*/
+
 // matcherStats gathers statistics about the size of a coreMatcher, including the average and max fanout sizes of
 // the transition tables, returning this information in string form
 func matcherStats(m *coreMatcher) string {
@@ -72,8 +92,8 @@ func matcherStats(m *coreMatcher) string {
 	}
 	fmPart := fmt.Sprintf("Field matchers: %d (avg size %s, max %d)", s.fmCount, avgFmSize, s.fmMax)
 	vmPart := fmt.Sprintf("Value matchers: %d", s.vmCount)
-	stPart := fmt.Sprintf("SmallTables %d (unique %d, splices %d ,avg %s, max %d, epsilons avg %s, max %d) singletons %d",
-		s.stCount, len(s.stVisited), s.splices, avgStSize, s.stMax, avgEpSize, s.stepMax, s.siCount)
+	stPart := fmt.Sprintf("SmallTables %d (splices %d, avg %s, max %d, epsilons avg %s, max %d) singletons %d",
+		len(s.stVisited), s.splices, avgStSize, s.stMax, avgEpSize, s.stepMax, s.siCount)
 
 	return fmPart + "\n" + vmPart + "\n" + stPart
 }

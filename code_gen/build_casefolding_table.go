@@ -77,11 +77,11 @@ func main() {
 		}
 		_, err = strconv.ParseInt(string(matches[1]), 16, 64)
 		if err != nil {
-			fatalF("failed to parse hex string in %s", line)
+			fatalf("failed to parse hex string in %s", line)
 		}
 		_, err = strconv.ParseInt(string(matches[2]), 16, 64)
 		if err != nil {
-			fatalF("failed to parse hex string in %s", line)
+			fatalf("failed to parse hex string in %s", line)
 		}
 		_, ok := mappings[string(matches[1])]
 		if !ok {
@@ -112,7 +112,7 @@ func main() {
 	fmt.Printf("Rebuilt case_folding.go with %d codepoint pairs.\n", len(mappings))
 	err = os.Rename(CaseFoldingDB+".tmp", CaseFoldingDB)
 	if err != nil {
-		fatalF("Error switching in %s: ", err.Error())
+		fatalf("Error switching in %s: ", err.Error())
 	}
 }
 
@@ -120,7 +120,7 @@ func fatal(message string) {
 	_, _ = fmt.Fprintln(os.Stderr, message)
 	os.Exit(1)
 }
-func fatalF(format string, args ...any) {
+func fatalf(format string, args ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, format, args...)
 	os.Exit(1)
 }

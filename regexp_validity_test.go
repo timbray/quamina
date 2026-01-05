@@ -52,6 +52,29 @@ func TestEmptyRegexp(t *testing.T) {
 	}
 }
 
+func TestToxicStack(t *testing.T) {
+	var table *smallTable
+	pp := newPrettyPrinter(34897)
+
+	re3 := "(([~.~~~?~*~+~{~}~[~]~(~)~|]?)*)+"
+	parse := newRxParseState([]byte(re3))
+
+	str := `".~?*+{}[]()|.~?*+{}[]()|.~?*+{}[]()|"`
+
+	parse, err := readRegexpWithParse(parse)
+	if err != nil {
+		t.Error("OOPS: " + err.Error())
+	}
+	table, _ = makeRegexpNFA(parse.tree, true, pp)
+
+	var transitions []*fieldMatcher
+	bufs := newNfaBuffers()
+	trans := traverseNFA(table, []byte(str), transitions, bufs, sharedNullPrinter)
+	if len(trans) != 1 {
+		t.Error("Toxic stack failure")
+	}
+}
+
 func TestRegexpValidity(t *testing.T) {
 	t.Helper()
 	problems := 0
@@ -60,10 +83,29 @@ func TestRegexpValidity(t *testing.T) {
 	correctlyMatched := 0
 	correctlyNotMatched := 0
 
+	var starSamplesMatchingEmpty = map[string]bool{
+		"(([~.~~~?~*~+~{~}~[~]~(~)~|]?)*)+":     true,
+		"[~~~|~.~?~*~+~(~)~{~}~-~[~]~^]*":       true,
+		"[~*a]*":                                true,
+		"[a-]*":                                 true,
+		"[~n~r~t~~~|~.~-~^~?~*~+~{~}~[~]~(~)]*": true,
+		"[a~*]*":                                true,
+		"[0-9]*":                                true,
+		"(([a-d]*)|([a-z]*))":                   true,
+		"(([d-f]*)|([c-e]*))":                   true,
+		"(([c-e]*)|([d-f]*))":                   true,
+		"(([a-d]*)|(.*))":                       true,
+		"(([d-f]*)|(.*))":                       true,
+		"(([c-e]*)|(.*))":                       true,
+		"(.*)":                                  true,
+	}
+
+	featureMatchTests := make(map[regexpFeature]int)
+	featureNotMatchTests := make(map[regexpFeature]int)
+
 	for _, sample := range regexpSamples {
 		tests++
 		parse := newRxParseState([]byte(sample.regex))
-		//fmt.Println("Sample: " + sample.regex)
 
 		parse, err := readRegexpWithParse(parse)
 		if sample.valid {
@@ -84,6 +126,15 @@ func TestRegexpValidity(t *testing.T) {
 						}
 					} else {
 						correctlyMatched++
+						for feature := range parse.features.found {
+							count, ok := featureMatchTests[feature]
+							if !ok {
+								count = 1
+							} else {
+								count++
+							}
+							featureMatchTests[feature] = count
+						}
 					}
 				}
 				for _, shouldNot := range sample.nomatches {
@@ -91,10 +142,23 @@ func TestRegexpValidity(t *testing.T) {
 					bufs := newNfaBuffers()
 					fields := traverseNFA(table, []byte(shouldNot), transitions, bufs, sharedNullPrinter)
 					if len(fields) != 0 {
-						t.Errorf("<%s> matched /%s/", shouldNot, sample.regex)
-						problems++
+						// similarly, it says quite a lot of empty strins should not match regexps that
+						// have stars and *should* match them
+						if len(shouldNot) == 0 && !starSamplesMatchingEmpty[sample.regex] {
+							t.Errorf("<%s> matched /%s/", shouldNot, sample.regex)
+							problems++
+						}
 					} else {
 						correctlyNotMatched++
+						for feature := range parse.features.found {
+							count, ok := featureNotMatchTests[feature]
+							if !ok {
+								count = 1
+							} else {
+								count++
+							}
+							featureNotMatchTests[feature] = count
+						}
 					}
 				}
 			}
@@ -111,6 +175,14 @@ func TestRegexpValidity(t *testing.T) {
 		if problems == 10 {
 			return
 		}
+	}
+	fmt.Println("Feature match test counts:")
+	for feature, count := range featureMatchTests {
+		fmt.Printf(" %d %s\n", count, feature)
+	}
+	fmt.Println("Feature non-match test counts:")
+	for feature, count := range featureNotMatchTests {
+		fmt.Printf(" %d %s\n", count, feature)
 	}
 	fmt.Printf("tests: %d, implemented: %d, matches/nonMatches: %d/%d\n", tests, implemented,
 		correctlyMatched, correctlyNotMatched)

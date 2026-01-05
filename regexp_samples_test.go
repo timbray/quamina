@@ -6,7 +6,7 @@ import (
 
 // This file produced by processing a set of XSD regexp syntax samples by Michael Kay
 // from the repo https://github.com/qt4cg/xslt40-test - thanks to Michael!
-// The code may be found in codegen/qtest-main.not-go. It is fairly horrible and my assumption
+// The code may be found in codegen/qtest-main.go. It is fairly horrible and my assumption
 // is that it will never be run again; there is plenty of room for more regexp-related testing
 // but I think as much benefit has been extracted from this sample set as is reasonable to expect.
 

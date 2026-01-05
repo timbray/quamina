@@ -36,27 +36,11 @@ const valueTerminator byte = 0xf5
 // NFAs in theory can branch to two or more other states on a single input symbol, but that can always be
 // handled with epsilons. For example, if the symbol 'b' should branch to both s1 and s2, that can be handled
 // by branching on 'b' to a state that has no byte transitions but two epsilons, one each for s1 and s2.
-//
-// There's a special-purpose hack driven by the needs of shell_style and wildcard patterns,
-// where the '*' really stands for regexp ".*". This is implemented as a "spin" state with an
-// epsilon pointing to itself and various transitions to "escape" states based on byte values.
-// so "a*b" has a state that recognizes an "a" and transitions to the spin state, which has an
-// epsilon looping back to itself and a "b" transition transferring away.
-// This is all fine. But consider what happens when we're merging two such states, i.e. suppose
-// we have all of "ab", "a*b" and "a*z". It turns out we can use the same spin state for "a*b"
-// and "a*z". So we'd want a start state that transitions on "a" to what let's call a "spinout"
-// state. This state has a direct transition on "b" to match the first pattern, then an epsilon
-// transition to a "spin" state which has an epsilon loop to itself and then "exit" transitions
-// on "b" and "z".  A little thought shows that this works for "a*bx" and "a*by" and so on.
-// Now, at FA construction and merge time, you could probably programmatically probe around and
-// detect the existence of a spinout state, but let's mark it explicitly with a field in the
-// smallTable.
 
 type smallTable struct {
 	ceilings []byte
 	steps    []*faState
 	epsilons []*faState
-	spinout  *faState
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
