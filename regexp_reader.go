@@ -40,13 +40,14 @@ type regexpFeatureChecker struct {
 }
 
 var implementedRegexpFeatures = map[regexpFeature]bool{
-	rxfDot:        true,
-	rxfClass:      true,
-	rxfOrBar:      true,
-	rxfParenGroup: true,
-	rxfQM:         true,
-	rxfPlus:       true,
-	rxfStar:       true,
+	rxfDot:          true,
+	rxfClass:        true,
+	rxfOrBar:        true,
+	rxfParenGroup:   true,
+	rxfQM:           true,
+	rxfPlus:         true,
+	rxfStar:         true,
+	rxfNegatedClass: true,
 }
 
 const regexpQuantifierMax = 100 // TODO: make this into an option
@@ -353,28 +354,47 @@ func readAtom(parse *regexpParse) (*quantifiedAtom, error) {
 func readCharClassExpr(parse *regexpParse) (RuneRange, error) {
 	// starting after the "["
 	var err error
-	bypassed, err := parse.bypassOptional('^')
+	isNegated, err := parse.bypassOptional('^')
 	if errors.Is(err, errRegexpEOF) {
 		err = errors.New("empty character class []")
 	}
 	if err != nil {
 		return nil, err
 	}
-	if bypassed {
-		parse.features.recordFeature(rxfNegatedClass)
-	}
 	rr, err := readCCE1s(parse)
 	if err != nil {
 		return nil, err
 	}
-	bypassed, _ = parse.bypassOptional('-') // already probed
-	if bypassed {
+	trailingHyphen, _ := parse.bypassOptional('-') // already probed
+	if trailingHyphen {
 		rr = append(rr, RunePair{Lo: '-', Hi: '-'})
 	}
 	if err = parse.require(']'); err != nil {
 		return nil, err
 	}
+	if isNegated {
+		parse.features.recordFeature(rxfNegatedClass)
+		rr = invertRuneRange(rr)
+	}
 	return rr, nil
+}
+
+func invertRuneRange(rr RuneRange) RuneRange {
+	sort.Slice(rr, func(i, j int) bool {
+		return rr[i].Lo < rr[j].Lo
+	})
+	var inverted RuneRange
+	var point rune = 0
+	for _, pair := range rr {
+		if pair.Lo > point {
+			inverted = append(inverted, RunePair{point, pair.Lo - 1})
+		}
+		point = pair.Hi + 1
+	}
+	if point < runeMax {
+		inverted = append(inverted, RunePair{point, runeMax})
+	}
+	return inverted
 }
 
 // readCCE1s proceeds forward until the next chunk is not a CCE1

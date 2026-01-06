@@ -97,15 +97,7 @@ The following Patterns would match it:
 {
   "Image": {
     "Thumbnail": { "Url":
-      [ { "wildcard": "http://www.example.com/*" } ] }
-  }
-}
-```
-```json
-{
-  "Image": {
-    "Thumbnail": { "Url":
-      [ { "wildcard": "http://www.example.*/*9943" } ] }
+      [ { "wildcard": "https://www.example.*/*9943" } ] }
   }
 }
 ```
@@ -134,30 +126,22 @@ The following Patterns would match it:
 ```json
 {
   "Image": {
-    "Title": [ { "regexp": "View from .... Floor" } ]
+    "Title": [ { "regexp": "View .... [0-9][0-9][rtn][dh] Floor" } ]
   }
 }
 ```
 ```json
 {
   "Image": {
-    "Title": [ { "regexp": "View from [0-9][0-9][rtn][dh] Floor" } ]
+    "Title": [ { "regexp": "(View)?( down)? from 15th (Floor|Storey)" } ]
   }
 }
 ```
-```json
-{
-  "Image": {
-    "Title": [ { "regexp": "View from 15th (Floor|Storey)" } ]
-  }
-}
-```
-
 ```json
 {
   "Image": {
     "Thumbnail": {
-      "Url": [ "a", { "regexp": "https://www.example.com/image/[1-9]+" } ] }
+      "Url": [ "a", { "regexp": "https://www.example.com/[^0-9/]+/[1-9]+" } ] }
   }
 } 
 ```

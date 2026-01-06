@@ -18,6 +18,8 @@ type runeRangeIterator struct {
 	inPair    rune
 }
 
+const runeMax = 0x10ffff
+
 func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
 	if len(rr) == 0 {
 		return nil, errors.New("empty range")
