@@ -207,24 +207,20 @@ func TestExerciseMatching(t *testing.T) {
           }
       }`
 	patternsFromReadme := []string{
-		`{"Image": { "Title": [ { "exists": true } ] } }`,
-		`{"Foo": [ { "exists": false } ] }"`,
 		`{"Image": {"Width": [800]}}`,
 		`{"Image": { "Animated": [ false], "Thumbnail": { "Height": [ 125 ] } } }}, "IDs": [943]}`,
+		`{"Image": { "Title": [ { "exists": true } ] } }`,
 		`{"Image": { "Width": [800], "Title": [ { "exists": true } ], "Animated": [ false ] } }`,
 		`{"Image": { "Width": [800], "IDs": [ { "exists": true } ] } }`,
-		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "*9943" } ] } } }`,
-		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*" } ] } } }`,
-		`{"Image": { "Thumbnail": { "Url": [ { "shellstyle": "https://www.example.com/*9943" } ] } } }`,
+		`{"Foo": [ { "exists": false } ] }"`,
+		`{"Image": { "Thumbnail": { "Url": [ { "wildcard": "*9943" } ] } } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "wildcard": "https://www.example.*/*9943" } ] } } }`,
 		`{"Image": { "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ]  } }`,
-		`{"Image": { "Thumbnail": { "Url": [ { "prefix": "https:" } ] } } }`,
 		`{"Image": { "Thumbnail": { "Url": [ "a", { "prefix": "https:" } ] } } }`,
 		`{"Image": { "Title": [ { "equals-ignore-case": "VIEW FROM 15th FLOOR" } ] } }`,
-		`{"Image": { "Title": [ { "regexp": "View from .... Floor" } ]  } }`,
-		`{"Image": { "Title": [ { "regexp": "View from [0-9][0-9][rtn][dh] Floor" } ]  } }`,
-		`{"Image": { "Title": [ { "regexp": "View from 15th (Floor|Storey)" } ]  } }`,
-		`{"Image": { "Title": [ { "regexp": "(View)?( down)? from 15th Floor" } ]  } }`,
-		`{"Image": { "Thumbnail": { "Url": [ { "regexp": "https://www.example.com/image/[1-9]+" } ] } } }`,
+		`{"Image": { "Title": [ { "regexp": "View .... [0-9][0-9][rtn][dh] Floor" } ]  } }`,
+		`{"Image": { "Title": [ { "regexp": "(View)?( down)? from 15th (Floor|Storey)" } ]  } }`,
+		`{"Image": { "Thumbnail": { "Url": [ { "regexp": "https://www.example.com/[^0-9/]+/[1-9]+" } ] } } }`,
 	}
 
 	var err error

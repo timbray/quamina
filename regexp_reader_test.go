@@ -87,6 +87,43 @@ func TestReadCCE1(t *testing.T) {
 	}
 }
 
+func TestInvertRuneRange(t *testing.T) {
+	ranges := []RuneRange{
+		{{Lo: 'b', Hi: 'b'}},
+		{{Lo: 'l', Hi: 'n'}},
+		{{Lo: 'b', Hi: 'n'}, {Lo: 'p', Hi: 'q'}},
+		{{Lo: 0, Hi: 'x'}, {Lo: 'z', Hi: runeMax}},
+		{{Lo: 'd', Hi: 'd'}, {Lo: 'b', Hi: 'b'}, {Lo: 'c', Hi: 'c'}},
+	}
+	wanted := []RuneRange{
+		{{Lo: 0, Hi: 'a'}, {Lo: 'c', Hi: runeMax}},
+		{{Lo: 0, Hi: 'k'}, {Lo: 'o', Hi: runeMax}},
+		{{Lo: 0, Hi: 'a'}, {Lo: 'o', Hi: 'o'}, {Lo: 'r', Hi: runeMax}},
+		{{Lo: 'y', Hi: 'y'}},
+		{{Lo: 0, Hi: 'a'}, {Lo: 'e', Hi: runeMax}},
+	}
+	for i := range ranges {
+		inverted := invertRuneRange(ranges[i])
+		if !equalRR(t, inverted, wanted[i]) {
+			t.Errorf("BOTCH on %d", i)
+		}
+	}
+}
+func equalRR(t *testing.T, rr1, rr2 RuneRange) bool {
+	t.Helper()
+	sort.Slice(rr1, func(i, j int) bool {
+		return rr1[i].Lo < rr1[j].Lo
+	})
+	sort.Slice(rr2, func(i, j int) bool {
+		return rr2[i].Lo < rr2[j].Lo
+	})
+	for i := range rr1 {
+		if rr1[i].Lo != rr2[i].Lo || rr1[i].Hi != rr2[i].Hi {
+			return false
+		}
+	}
+	return true
+}
 func TestRuneRangesFromCCE1(t *testing.T) {
 	cce1s := []string{
 		"[ax]", "[a]", "[abc]",
@@ -229,7 +266,7 @@ func TestAddRegexpTransition(t *testing.T) {
 		"a.", "a?", "a+",
 	}
 	bads := []string{
-		"a{1,3}", "~p{Lu}", "[^abc]",
+		"a{1,3}", "~p{Lu}",
 	}
 	template := `{"a":[{"regexp": "FOO"}]}`
 	cm := newCoreMatcher()

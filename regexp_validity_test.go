@@ -98,6 +98,7 @@ func TestRegexpValidity(t *testing.T) {
 		"(([d-f]*)|(.*))":                       true,
 		"(([c-e]*)|(.*))":                       true,
 		"(.*)":                                  true,
+		"([^~?])*":                              true,
 	}
 
 	featureMatchTests := make(map[regexpFeature]int)

@@ -2,7 +2,6 @@ package quamina
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -41,6 +40,7 @@ func qNumFromFloat(f float64) qNumber {
 	return numbitsFromFloat64(f).toQNumber()
 }
 
+/*
 // for debugging
 func (q qNumber) String() string {
 	ret := ""
@@ -52,3 +52,4 @@ func (q qNumber) String() string {
 	}
 	return ret
 }
+*/
