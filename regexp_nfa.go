@@ -1,33 +1,5 @@
 package quamina
 
-import (
-	"errors"
-	"fmt"
-	"sort"
-)
-
-// RunePair and related types exported to facilitate building Unicode tables in code_gen
-type RunePair struct {
-	Lo, Hi rune
-}
-type RuneRange []RunePair
-
-type runeRangeIterator struct {
-	pairs     RuneRange
-	whichPair int
-	inPair    rune
-}
-
-const runeMax = 0x10ffff
-
-func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
-	if len(rr) == 0 {
-		return nil, errors.New("empty range")
-	}
-	sort.Slice(rr, func(i, j int) bool { return rr[i].Lo < rr[j].Lo })
-	return &runeRangeIterator{pairs: rr, whichPair: 0, inPair: rr[0].Lo}, nil
-}
-
 // In the regular expressions represented by the I-Regexp syntax, the | connector has the lowest
 // precedence, so at the top level, it's a slice of what the ABNF calls branches - generate an NFA
 // for each branch and then take their union.
@@ -167,84 +139,6 @@ func makeNFATrailer(nextField *fieldMatcher) *faState {
 	return &faState{table: table}
 }
 
-// plan B
-
-type runeTreeEntry struct {
-	next  *faState
-	child runeTreeNode
-}
-type runeTreeNode []*runeTreeEntry
-
-func addRuneTreeEntry(root runeTreeNode, r rune, dest *faState) {
-	// this works because no UTF-8 representation of a code point can be a prefix of any other
-	node := root
-	bytes, err := runeToUTF8(r)
-	// Invalid bytes should be caught at another level, but if they show up here, silently ignore
-	if err != nil {
-		return
-	}
-
-	// find or make entry
-	for i, b := range bytes {
-		if node[b] != nil {
-			node = node[b].child
-			continue
-		}
-		// need to make a new node
-		entry := &runeTreeEntry{}
-		node[b] = entry
-		if i == len(bytes)-1 {
-			entry.next = dest
-		} else {
-			entry.child = make([]*runeTreeEntry, byteCeiling)
-		}
-		node = entry.child
-	}
-}
-
-func nfaFromRuneTree(root runeTreeNode, pp printer) *smallTable {
-	return tableFromRuneTreeNode(root, pp)
-}
-
-func tableFromRuneTreeNode(node runeTreeNode, pp printer) *smallTable {
-	var unpacked unpackedTable
-	for b, entry := range node {
-		if entry == nil {
-			continue
-		}
-		if entry.next != nil {
-			unpacked[b] = entry.next
-		} else {
-			table := tableFromRuneTreeNode(entry.child, pp)
-			pp.labelTable(table, fmt.Sprintf("on %x", b))
-			unpacked[b] = &faState{table: table}
-		}
-	}
-	st := newSmallTable()
-	st.pack(&unpacked)
-	return st
-}
-
-func makeRuneRangeNFA(rr RuneRange, next *faState, pp printer) *smallTable {
-	pp.labelTable(next.table, "Next")
-
-	// turn the slice of hi/lo inclusive endpoints into a slice of utf8 encodings
-	ri, err := newRuneRangeIterator(rr)
-
-	// can't happen I think
-	if err != nil {
-		panic("Invalid rune range")
-	}
-
-	var root runeTreeNode = make([]*runeTreeEntry, byteCeiling)
-
-	// for each rune
-	for r := ri.next(); r != -1; r = ri.next() {
-		addRuneTreeEntry(root, r, next)
-	}
-	return nfaFromRuneTree(root, pp)
-}
-
 func makeByteDotFA(dest *faState, pp printer) *smallTable {
 	ceilings := []byte{0xC0, 0xC2, 0xF5, 0xF6}
 	steps := []*faState{dest, nil, dest, nil}
@@ -323,21 +217,4 @@ func makeDotFA(dest *faState) *smallTable {
 			nil,              // 10
 		},
 	}
-}
-
-func (i *runeRangeIterator) next() rune {
-	if i.inPair <= i.pairs[i.whichPair].Hi {
-		r := i.inPair
-		i.inPair++
-		return r
-	}
-	// will blow up on empty pair, could put a check in, or just don't generate them
-	// while parsing regexp
-	i.whichPair++
-	if i.whichPair == len(i.pairs) {
-		return -1
-	}
-	r := i.pairs[i.whichPair].Lo
-	i.inPair = r + 1
-	return r
 }

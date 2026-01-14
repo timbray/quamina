@@ -87,63 +87,32 @@ The following Patterns would match it:
 {"Foo": [ { "exists": false } ] }
 ```
 ```json
-{
-  "Image": {
-    "Thumbnail": { "Url": [ { "wildcard": "*9943" } ] }
-  }
-}
+{ "Image": { "Thumbnail": { "Url": [ { "wildcard": "*9943" } ] } } }
 ```
 ```json
 {
-  "Image": {
-    "Thumbnail": { "Url":
-      [ { "wildcard": "https://www.example.*/*9943" } ] }
-  }
-}
+  "Image": { "Thumbnail": { "Url": [ { "wildcard": "https://www.example.*/*9943" } ] } } }
 ```
 ```json
-{
-  "Image": {
-    "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ]
-  }
-}
+{ "Image": { "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ] } }
 ```
 ```json
-{
-  "Image": {
-    "Thumbnail": {
-      "Url": [ "a", { "prefix": "https:" } ] }
-  }
-} 
+{ "Image": { "Thumbnail": { "Url": [ "a", { "prefix": "https:" } ] } } } 
 ```
 ```json
-{
-  "Image": {
-    "Title": [ { "equals-ignore-case": "VIEW FROM 15th FLOOR" } ] 
-  }
-}
+{ "Image": { "Title": [ { "equals-ignore-case": "VIEW FROM 15th FLOOR" } ] } }
 ```
 ```json
-{
-  "Image": {
-    "Title": [ { "regexp": "View .... [0-9][0-9][rtn][dh] Floor" } ]
-  }
-}
+{ "Image": { "Title": [ { "regexp": "View .... [0-9][0-9][rtn][dh] Floor" } ] } }
 ```
 ```json
-{
-  "Image": {
-    "Title": [ { "regexp": "(View)?( down)? from 15th (Floor|Storey)" } ]
-  }
-}
+{ "Image": { "Title": [ { "regexp": "(View)?( down)? from 15th (Floor|Storey)" } ] } }
 ```
 ```json
-{
-  "Image": {
-    "Thumbnail": {
-      "Url": [ "a", { "regexp": "https://www.example.com/[^0-9/]+/[1-9]+" } ] }
-  }
-} 
+{ "Image": { "Thumbnail": { "Url": [ "a", { "regexp": "https://www.example.com/[^0-9/]+/[1-9]+" } ] } } } 
+```
+```json
+{ "Image": { "Title": [ { "regexp": "[~p{L}~p{Zs}~p{Nd}]*" } ] } }
 ```
 
 The syntax and semantics of Patterns are fully specified
@@ -301,11 +270,19 @@ Events through it as is practical.
 
 ### `AddPattern()` Performance
 
-Tens of thousands of Patterns per second can
+Tens of thousands of Patterns per second can usually
 be added to a Quamina instance; the in-memory data structure will
 become larger, but not unreasonably so. The amount of
 available memory is the only significant limit to the
 number of patterns an instance can carry.
+
+There is one known way to make `AddPattern()` run slowly: The use
+of regular-expression Patterns such as `~p{L}` - the cost in CPU
+and memory of building a matcher for every Unicode character that
+is not some form of “Letter” is very high. There may be a way to
+reduce this cost in the future. Note that the penalty only applies
+at build-time; an instance which has had such patterns added will
+still have good Event-matching performance.
 
 ### `MatchesForEvent()` Performance
 

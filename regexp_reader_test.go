@@ -103,7 +103,7 @@ func TestInvertRuneRange(t *testing.T) {
 		{{Lo: 0, Hi: 'a'}, {Lo: 'e', Hi: runeMax}},
 	}
 	for i := range ranges {
-		inverted := invertRuneRange(ranges[i])
+		inverted := InvertRuneRange(ranges[i])
 		if !equalRR(t, inverted, wanted[i]) {
 			t.Errorf("BOTCH on %d", i)
 		}
@@ -201,7 +201,7 @@ func TestBasicRegexpFeatureRead(t *testing.T) {
 		{rx: "zzzz{0,3}", wanted: []regexpFeature{rxfRange}},
 		{rx: "zzzz{3,}", wanted: []regexpFeature{rxfRange}},
 		{rx: "a~p{Lt}", wanted: []regexpFeature{rxfProperty}},
-		{rx: "a~P{Me}", wanted: []regexpFeature{rxfProperty}},
+		{rx: "a~P{Me}", wanted: []regexpFeature{rxfNegatedProperty}},
 		{rx: "a[fox37é]z", wanted: []regexpFeature{rxfClass}},
 		{rx: "a[-fox37é-]z", wanted: []regexpFeature{rxfClass}},
 		{rx: "a[fox33-87é]z", wanted: []regexpFeature{rxfClass}},
@@ -266,7 +266,7 @@ func TestAddRegexpTransition(t *testing.T) {
 		"a.", "a?", "a+",
 	}
 	bads := []string{
-		"a{1,3}", "~p{Lu}",
+		"a{1,3}",
 	}
 	template := `{"a":[{"regexp": "FOO"}]}`
 	cm := newCoreMatcher()

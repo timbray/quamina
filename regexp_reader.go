@@ -22,16 +22,17 @@ import (
 type regexpFeature string
 
 const (
-	rxfDot          regexpFeature = "'.' single-character matcher"
-	rxfStar         regexpFeature = "'*' zero-or-more matcher"
-	rxfPlus         regexpFeature = "'+' one-or-more matcher"
-	rxfQM           regexpFeature = "'?' optional matcher"
-	rxfRange        regexpFeature = "'{}' range matcher"
-	rxfParenGroup   regexpFeature = "() parenthetized group"
-	rxfProperty     regexpFeature = "~[Pp]-prefixed {}-enclosed Unicode property matcher"
-	rxfClass        regexpFeature = "[]-enclosed character-class matcher"
-	rxfNegatedClass regexpFeature = "[^]-enclosed negative character-class matcher"
-	rxfOrBar        regexpFeature = "|-separated logical alternatives"
+	rxfDot             regexpFeature = "'.' single-character matcher"
+	rxfStar            regexpFeature = "'*' zero-or-more matcher"
+	rxfPlus            regexpFeature = "'+' one-or-more matcher"
+	rxfQM              regexpFeature = "'?' optional matcher"
+	rxfRange           regexpFeature = "'{}' range matcher"
+	rxfParenGroup      regexpFeature = "() parenthetized group"
+	rxfProperty        regexpFeature = "~p-prefixed {}-enclosed Unicode property matcher"
+	rxfNegatedProperty regexpFeature = "~P-prefixed {}-enclosed negated property matcher"
+	rxfClass           regexpFeature = "[]-enclosed character-class matcher"
+	rxfNegatedClass    regexpFeature = "[^]-enclosed negative character-class matcher"
+	rxfOrBar           regexpFeature = "|-separated logical alternatives"
 )
 
 type regexpFeatureChecker struct {
@@ -40,14 +41,16 @@ type regexpFeatureChecker struct {
 }
 
 var implementedRegexpFeatures = map[regexpFeature]bool{
-	rxfDot:          true,
-	rxfClass:        true,
-	rxfOrBar:        true,
-	rxfParenGroup:   true,
-	rxfQM:           true,
-	rxfPlus:         true,
-	rxfStar:         true,
-	rxfNegatedClass: true,
+	rxfDot:             true,
+	rxfClass:           true,
+	rxfOrBar:           true,
+	rxfParenGroup:      true,
+	rxfQM:              true,
+	rxfPlus:            true,
+	rxfStar:            true,
+	rxfNegatedClass:    true,
+	rxfProperty:        true,
+	rxfNegatedProperty: true,
 }
 
 const regexpQuantifierMax = 100 // TODO: make this into an option
@@ -330,10 +333,15 @@ func readAtom(parse *regexpParse) (*quantifiedAtom, error) {
 			qa.runes = RuneRange{RunePair{escaped, escaped}}
 			return &qa, nil
 		}
-		if c == 'p' || c == 'P' {
-			// QA not implemented yet
+		if c == 'p' {
 			parse.features.recordFeature(rxfProperty)
-			return &quantifiedAtom{}, readCategory(parse)
+			qa.runes, qa.bigRuneRangeKey, err = readProperty(parse, false)
+			return &qa, err
+		}
+		if c == 'P' {
+			parse.features.recordFeature(rxfNegatedProperty)
+			qa.runes, qa.bigRuneRangeKey, err = readProperty(parse, true)
+			return &qa, err
 		}
 		if bytes.ContainsRune([]byte("sSiIcCdDwW"), c) {
 			return nil, fmt.Errorf("multiple-character escape ~%c at %d", c, parse.lastOffset())
@@ -374,27 +382,9 @@ func readCharClassExpr(parse *regexpParse) (RuneRange, error) {
 	}
 	if isNegated {
 		parse.features.recordFeature(rxfNegatedClass)
-		rr = invertRuneRange(rr)
+		rr = InvertRuneRange(rr)
 	}
 	return rr, nil
-}
-
-func invertRuneRange(rr RuneRange) RuneRange {
-	sort.Slice(rr, func(i, j int) bool {
-		return rr[i].Lo < rr[j].Lo
-	})
-	var inverted RuneRange
-	var point rune = 0
-	for _, pair := range rr {
-		if pair.Lo > point {
-			inverted = append(inverted, RunePair{point, pair.Lo - 1})
-		}
-		point = pair.Hi + 1
-	}
-	if point < runeMax {
-		inverted = append(inverted, RunePair{point, runeMax})
-	}
-	return inverted
 }
 
 // readCCE1s proceeds forward until the next chunk is not a CCE1
@@ -469,7 +459,6 @@ func isCCchar(r rune) bool {
 // readCCE1 reads one instance of CCE1 token
 func readCCE1(parse *regexpParse, first bool) (RuneRange, error) {
 	// starts after [
-	var rr RuneRange
 	var err error
 	r, _ := parse.nextRune() // have already probed, can't fail
 
@@ -478,11 +467,17 @@ func readCCE1(parse *regexpParse, first bool) (RuneRange, error) {
 		return RuneRange{RunePair{'-', '-'}}, nil
 	} else if r == Escape {
 		r, _ = parse.nextRune() // have already probed
-		if r == 'p' || r == 'P' {
-			// maybe a good category, in which case we can't participate in range, so we're done
-			// or a malformed category
+		// maybe a good category, in which case we can't participate in range, so we're done
+		// or a malformed category
+		if r == 'p' {
 			parse.features.recordFeature(rxfProperty)
-			return rr, readCategory(parse)
+			rr, _, err := readProperty(parse, false)
+			return rr, err
+		}
+		if r == 'P' {
+			parse.features.recordFeature(rxfNegatedProperty)
+			rr, _, err := readProperty(parse, true)
+			return rr, err
 		}
 		escaped, ok := checkSingleCharEscape(r)
 		if !ok {
@@ -553,7 +548,7 @@ func readCCE1(parse *regexpParse, first bool) (RuneRange, error) {
 // Symbols = %s"S" [ ( %s"c" / %s"k" / %s"m" / %s"o" ) ]
 // Others = %s"C" [ ( %s"c" / %s"f" / %s"n" / %s"o" ) ]
 
-var regexpCatDetails = map[rune]string{
+var regexpPropDetails = map[rune]string{
 	'L': "ultmo",
 	'M': "nce",
 	'N': "dlo",
@@ -563,33 +558,49 @@ var regexpCatDetails = map[rune]string{
 	'C': "cfon",
 }
 
-func readCategory(parse *regexpParse) error {
+// TODO: Change the signature here so it leaves a signal in the quantifiedAtom so the FA
+// builder will use the shellFA cache
+func readProperty(parse *regexpParse, negated bool) (RuneRange, string, error) {
 	var err error
 	if err = parse.require('{'); err != nil {
-		return err
+		return nil, "", err
 	}
-	categoryInitial, err := parse.nextRune()
+	propertyInitial, err := parse.nextRune()
 	if err != nil {
-		return err
+		return nil, "", err
 	}
-	categoryDetail, ok := regexpCatDetails[categoryInitial]
+	propertyDetail, ok := regexpPropDetails[propertyInitial]
 	if !ok {
-		return fmt.Errorf("unknown category %c at %d", categoryInitial, parse.lastOffset())
+		return nil, "", fmt.Errorf("unknown property beginning with '%c' at %d", propertyInitial, parse.lastOffset())
 	}
-	catDetailLetter, err := parse.nextRune()
+	propDetailLetter, err := parse.nextRune()
 	if err != nil {
-		return fmt.Errorf("error in category after {%c at %d", categoryInitial, parse.lastOffset())
+		return nil, "", fmt.Errorf("error in property after {%c at %d", propertyInitial, parse.lastOffset())
 	}
-	if catDetailLetter == '}' {
-		return nil
+	var property string
+	if propDetailLetter == '}' {
+		property = string(propertyInitial)
+	} else {
+		if !bytes.ContainsRune([]byte(propertyDetail), propDetailLetter) {
+			return nil, "", fmt.Errorf("unknown property ~P{%c%c} at %d", propertyInitial, propDetailLetter, parse.lastOffset())
+		}
+		if err = parse.require('}'); err != nil {
+			return nil, "", err
+		}
+		property = string([]rune{propertyInitial, propDetailLetter})
 	}
-	if !bytes.ContainsRune([]byte(categoryDetail), catDetailLetter) {
-		return fmt.Errorf("unknown category ~P{%c%c} at %d", categoryInitial, catDetailLetter, parse.lastOffset())
+	var runes RuneRange
+
+	if negated {
+		runes, ok = negatedProperties[property]
+		property = "-" + property
+	} else {
+		runes, ok = characterProperties[property]
 	}
-	if err = parse.require('}'); err != nil {
-		return err
+	if !ok {
+		return nil, "", fmt.Errorf("unknown property %s at %d", property, parse.lastOffset())
 	}
-	return nil
+	return runes, property, nil
 }
 
 func readQuantifier(parse *regexpParse, qa *quantifiedAtom) error {

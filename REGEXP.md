@@ -37,6 +37,8 @@ current release are bold-faced.
 
 `[]` : **character-class matcher**
 
+`[^]` : **complementary character-class matcher**
+
 `()` : **parenthetized sub-regexp**
 
 `?` : **optional matcher**
@@ -45,13 +47,18 @@ current release are bold-faced.
 
 `+` : **one-or-more matcher**
 
+`~p{}` : **Unicode property matcher**
+
+`~P{}` : **Unicode property-complement matcher**
+
 `{lo,hi}` : occurrence-count matcher
 
-`~p{}` : Unicode property matcher
+## What to watch out for
 
-`~P{}` : Unicode property-complement matcher
-
-`[^]` : complementary character-class matcher
+The `-p{}` and `~P{}` patterns can require building state machines that match tens of thousands
+of characters scattered across the entire Unicode codespace. The cost in computation and memory, when
+adding such patterns, can be very high. However, the runtime performance in matching such patterns,
+once built, does not suffer.
 
 ## Semantics of “.”
 

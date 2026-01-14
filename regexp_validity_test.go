@@ -99,10 +99,17 @@ func TestRegexpValidity(t *testing.T) {
 		"(([c-e]*)|(.*))":                       true,
 		"(.*)":                                  true,
 		"([^~?])*":                              true,
+		"~p{So}*":                               true,
+		"(~p{Co})*":                             true,
+		"~p{Cn}*":                               true,
+		"~P{Cc}*":                               true,
 	}
 
 	featureMatchTests := make(map[regexpFeature]int)
 	featureNotMatchTests := make(map[regexpFeature]int)
+
+	// TODO: Was 6.42s user 0.80s system 242% cpu 2.979 total from command line
+	// TestRegexpValidity (2.53s) in JetBrains
 
 	for _, sample := range regexpSamples {
 		tests++
