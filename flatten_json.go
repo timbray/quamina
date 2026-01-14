@@ -135,7 +135,7 @@ func (fj *flattenJSON) Flatten(event []byte, tracker SegmentsTreeTracker) ([]Fie
 
 // readObject - process through a JSON object, recursing if necessary into sub-objects. pathNode is used to
 // determine whether any particular object member is used, and skipping tracks that status up and down the stack.
-// This is all done to allow the parser to skip node nodes which do not appear in any Patterns and thus
+// This is all done to allow the parser to skip child nodes which do not appear in any Patterns and thus
 // minimize the cost of the Flatten call.
 func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	var err error

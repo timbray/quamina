@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"regexp"
@@ -107,6 +108,9 @@ func buildCharPropsTable() {
 		if err != nil {
 			fatalf("failed to parse hex string in %s", line)
 		}
+		if r64 < 0 || r64 > math.MaxInt32 {
+			fatalf("codepoint out of range: %d", r64)
+		}
 		property := string(matches[3])
 		r := rune(r64)
 
@@ -116,6 +120,9 @@ func buildCharPropsTable() {
 			next, _ := lines.ReadBytes('\n')
 			nextMatches := re.FindSubmatch(next)
 			nextR64, _ := strconv.ParseInt(string(nextMatches[1]), 16, 64)
+			if nextR64 < 0 || nextR64 > math.MaxInt32 {
+				fatalf("codepoint out of range: %d", nextR64)
+			}
 			nextRune := rune(nextR64)
 			for i := r; i <= nextRune; i++ {
 				props[i] = property
