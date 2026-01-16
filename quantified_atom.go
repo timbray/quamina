@@ -2,14 +2,15 @@ package quamina
 
 import "fmt"
 
-// TODO: This is messy. Clean it up, dotRunes and subtree!=nil are a code smell, and
-// so is putting magic values in the quantMin/Max.
+// represents the "atom [ quantifier ]" piece of the regexp grammar. Is kind of messy but
+// faithful to the kind-of-messy regexp semantics. I blame Kleene.
 type quantifiedAtom struct {
-	dotRunes bool
-	runes    RuneRange
-	quantMin int
-	quantMax int
-	subtree  regexpRoot // if non-nil, ()-enclosed subtree here
+	runes           RuneRange
+	dotRunes        bool       // true if atom is "."
+	bigRuneRangeKey string     // for the huge character_properties RuneRanges
+	quantMin        int        // 0 means ? or *
+	quantMax        int        // the value regexpQuantifierMax means + or *, no max
+	subtree         regexpRoot // if non-nil, ()-enclosed subtree here
 }
 
 func (qa *quantifiedAtom) getSubtree() regexpRoot {
@@ -22,6 +23,10 @@ func (qa *quantifiedAtom) isSingleton() bool {
 
 func (qa *quantifiedAtom) isDot() bool {
 	return qa.dotRunes
+}
+
+func (qa *quantifiedAtom) runeRangeCache() string {
+	return qa.bigRuneRangeKey
 }
 
 func (qa *quantifiedAtom) isQM() bool {
@@ -44,10 +49,11 @@ func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) *smallTable {
 		pp.labelTable(table, "Dot")
 	case qa.getSubtree() != nil:
 		table = makeNFAFromBranches(qa.getSubtree(), nextStep, false, pp)
+	case qa.runeRangeCache() != "":
+		table = makeAndCacheRuneRangeFA(qa.runes, nextStep, qa.runeRangeCache(), pp)
 	default:
-		// if it's not a subtree, it has to boil down to a rune range
-		// we're not doing ranges yet, so for now we'll only directly index one character at a time
-		table = makeRuneRangeNFA(qa.runes, nextStep, sharedNullPrinter)
+		// if it's none of these other things, it has to boil down to a rune range
+		table = makeRuneRangeNFA(qa.runes, nextStep, pp)
 		pp.labelTable(table, fmt.Sprintf("RR %x/%x, %d-%d", qa.runes[0].Lo, qa.runes[0].Hi, qa.quantMin, qa.quantMax))
 	}
 	return table

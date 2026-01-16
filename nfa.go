@@ -205,7 +205,8 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 
 		// for toxically-complex regexps like (([abc]?)*)+ you can get a FA with epsilon loops,
 		// direct and indirect, which can lead to huge nextState buildups.  Could solve this with
-		// making it a state, but this seems to work well enough
+		// making it a set, but this seems to work well enough
+		// TODO: Investigates slices.Compact()
 		if len(nextStates) > 500 {
 			sort.Slice(nextStates, func(i, j int) bool {
 				return uintptr(unsafe.Pointer(nextStates[i])) < uintptr(unsafe.Pointer(nextStates[j]))
@@ -284,15 +285,21 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 	switch {
 	case state1.isSpinner && state2.isSpinner:
 		pp.labelTable(combined.table, "2Spinners")
-		return symmetricSpinnerMerge(state1, state2, keyMemo, pp)
+		combined = symmetricSpinnerMerge(state1, state2, keyMemo, pp)
+		keyMemo[mKey] = combined
+		return combined
 
 	case state1.isSpinner && (len(state2.table.epsilons) == 0):
 		// state2 isn't
-		return asymmetricSpinnerMerge(state1, state2, keyMemo, pp)
+		combined = asymmetricSpinnerMerge(state1, state2, keyMemo, pp)
+		keyMemo[mKey] = combined
+		return combined
 
 	case state2.isSpinner && len(state1.table.epsilons) == 0:
 		// state1 isn't
-		return asymmetricSpinnerMerge(state2, state1, keyMemo, pp)
+		combined = asymmetricSpinnerMerge(state2, state1, keyMemo, pp)
+		keyMemo[mKey] = combined
+		return combined
 	}
 
 	// If either of the states to be merged has epsilons we have to do a splice

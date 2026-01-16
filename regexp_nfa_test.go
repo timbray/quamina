@@ -7,6 +7,66 @@ import (
 	"unicode"
 )
 
+/*
+// Too slow to run with every unit test. Shows that with the cachedFaShells cache, Quamina can build the
+// ~p{L}+ machine 4K/second, as opposed to 135/second without the cache, a speedup factor of 30 or so
+// regular RR: 4338.39/second with cache, 136.69 without, speedup 31.7
+// skinny  RR: 3853.56/second with cache, 60.31 without, speedup 63.9
+//
+func TestRRCacheEffectiveness(t *testing.T) {
+	words := readWWords(t)[:2000]
+	re := "~p{L}+"
+	pp := sharedNullPrinter
+	var transitions []*fieldMatcher
+	bufs := newNfaBuffers()
+
+	before := time.Now()
+	for _, w := range words {
+		fa := faFromRegexp(t, re, pp)
+		qm := []byte(`"` + string(w) + `"`)
+		matches := traverseNFA(fa, qm, transitions, bufs, pp)
+		if len(matches) != 1 {
+			t.Errorf("missed <%s>", string(w))
+		}
+	}
+	mid := time.Now()
+	for _, w := range words {
+		fa := faFromRegexp(t, re, pp)
+		qm := []byte(`"` + string(w) + `"`)
+		matches := traverseNFA(fa, qm, transitions, bufs, pp)
+		if len(matches) != 1 {
+			t.Errorf("missed <%s>", string(w))
+		}
+		delete(cachedFaShells, "L")
+	}
+	after := time.Now()
+	elapsed1 := mid.Sub(before).Milliseconds()
+	elapsed2 := after.Sub(mid).Milliseconds()
+	perSecond1 := float64(len(words)) / (float64(elapsed1) / 1000.0)
+	perSecond2 := float64(len(words)) / (float64(elapsed2) / 1000.0)
+	fmt.Printf("\n%.2f/second with cache, %.2f without, speedup %.1f\n",
+		perSecond1, perSecond2, perSecond1/perSecond2)
+}
+*/
+
+func TestRegexpWorkbench(t *testing.T) {
+	pp := newPrettyPrinter(2355)
+	matches := applyAndRunRegexp(t, "~p{L}~p{Zs}~p{Nd}", "M 3", pp)
+	if matches != 1 {
+		t.Error("Workbench")
+	}
+}
+func applyAndRunRegexp(t *testing.T, regexp string, match string, pp printer) int {
+	t.Helper()
+	qm := []byte(`"` + match + `"`)
+	fa := faFromRegexp(t, regexp, pp)
+	//fmt.Println("FA:\n" + pp.printNFA(fa))
+	var transitions []*fieldMatcher
+	bufs := newNfaBuffers()
+	matches := traverseNFA(fa, qm, transitions, bufs, pp)
+	return len(matches)
+}
+
 func faFromRegexp(t *testing.T, r string, pp printer) *smallTable {
 	t.Helper()
 	parse, err := readRegexp(r)
