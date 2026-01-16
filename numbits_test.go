@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"math"
 	"math/rand"
-	"sort"
+	"slices"
 	"testing"
 	"unicode/utf8"
 )
@@ -59,7 +59,7 @@ func TestNumbits_Compare(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		floats = append(floats, rand.Float64())
 	}
-	sort.Float64s(floats)
+	slices.Sort(floats)
 	last := numbitsFromFloat64(floats[0])
 	for i := 1; i < len(floats); i++ {
 		this := numbitsFromFloat64(floats[i])

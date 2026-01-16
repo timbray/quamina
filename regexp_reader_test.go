@@ -1,7 +1,8 @@
 package quamina
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -111,12 +112,8 @@ func TestInvertRuneRange(t *testing.T) {
 }
 func equalRR(t *testing.T, rr1, rr2 RuneRange) bool {
 	t.Helper()
-	sort.Slice(rr1, func(i, j int) bool {
-		return rr1[i].Lo < rr1[j].Lo
-	})
-	sort.Slice(rr2, func(i, j int) bool {
-		return rr2[i].Lo < rr2[j].Lo
-	})
+	slices.SortFunc(rr1, func(a, b RunePair) int { return cmp.Compare(a.Lo, b.Lo) })
+	slices.SortFunc(rr2, func(a, b RunePair) int { return cmp.Compare(a.Lo, b.Lo) })
 	for i := range rr1 {
 		if rr1[i].Lo != rr2[i].Lo || rr1[i].Hi != rr2[i].Hi {
 			return false
@@ -174,8 +171,8 @@ func runeRangeEqual(t *testing.T, wanted RuneRange, got RuneRange) bool {
 	if len(wanted) != len(got) {
 		return false
 	}
-	sort.Slice(wanted, func(i, j int) bool { return wanted[i].Lo < wanted[j].Lo })
-	sort.Slice(got, func(i, j int) bool { return got[i].Lo < got[j].Lo })
+	slices.SortFunc(wanted, func(a, b RunePair) int { return cmp.Compare(a.Lo, b.Lo) })
+	slices.SortFunc(got, func(a, b RunePair) int { return cmp.Compare(a.Lo, b.Lo) })
 	for i, w := range wanted {
 		g := got[i]
 		if w.Lo != g.Lo || w.Hi != g.Hi {
