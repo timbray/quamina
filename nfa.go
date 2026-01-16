@@ -1,8 +1,9 @@
 package quamina
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"unsafe"
 )
 
@@ -210,8 +211,8 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 		// making it a set, but this seems to work well enough
 		// TODO: Investigates slices.Compact()
 		if len(nextStates) > 500 {
-			sort.Slice(nextStates, func(i, j int) bool {
-				return uintptr(unsafe.Pointer(nextStates[i])) < uintptr(unsafe.Pointer(nextStates[j]))
+			slices.SortFunc(nextStates, func(a, b *faState) int {
+				return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
 			})
 			uniques := 0
 			for maybes := 1; maybes < len(nextStates); maybes++ {
