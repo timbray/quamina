@@ -178,7 +178,9 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 	} else {
 		sort.Sort(fieldsList(fields))
 	}
-	matches := newMatchSet()
+	// Reuse the matchSet from buffers to reduce allocations
+	matches := bufs.matches
+	matches.reset()
 	cmFields := m.fields()
 
 	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch

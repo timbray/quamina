@@ -72,6 +72,7 @@ func (tm *transmap) all() []*fieldMatcher {
 type nfaBuffers struct {
 	buf1, buf2 []*faState
 	eClosure   *epsilonClosure
+	matches    *matchSet
 }
 
 func newNfaBuffers() *nfaBuffers {
@@ -79,6 +80,7 @@ func newNfaBuffers() *nfaBuffers {
 		buf1:     make([]*faState, 0, 16),
 		buf2:     make([]*faState, 0, 16),
 		eClosure: newEpsilonClosure(),
+		matches:  newMatchSet(),
 	}
 }
 

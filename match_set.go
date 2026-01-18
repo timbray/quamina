@@ -10,6 +10,11 @@ func newMatchSet() *matchSet {
 	return &matchSet{set: make(map[X]bool)}
 }
 
+// reset clears the matchSet for reuse, preserving the allocated map capacity.
+func (m *matchSet) reset() {
+	clear(m.set)
+}
+
 func (m *matchSet) addX(exes ...X) *matchSet {
 	if len(exes) == 0 {
 		return m
