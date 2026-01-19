@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -160,13 +160,13 @@ func TestOrdering(t *testing.T) {
 		f -= 1000000000.0
 		in = append(in, f)
 	}
-	sort.Float64s(in)
+	slices.Sort(in)
 	var out []string
 	for _, f := range in {
 		c := qNumFromFloat(f)
 		out = append(out, string(c))
 	}
-	if !sort.StringsAreSorted(out) {
+	if !slices.IsSorted(out) {
 		t.Errorf("Not sorted")
 	}
 }

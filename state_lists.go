@@ -1,7 +1,8 @@
 package quamina
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"unsafe"
 )
 
@@ -41,8 +42,8 @@ func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
 	// the strings. Which works fine but grabbing the raw bytes and pretending they're
 	// a string is going to produce keys that are exactly half the size
 	keyBytes := make([]byte, 0, len(uniques)*8)
-	sort.Slice(uniques, func(i, j int) bool {
-		return uintptr(unsafe.Pointer(uniques[i])) < uintptr(unsafe.Pointer(uniques[j]))
+	slices.SortFunc(uniques, func(a, b *faState) int {
+		return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
 	})
 
 	for _, state := range uniques {
