@@ -2,9 +2,10 @@ package quamina
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"unicode/utf8"
 )
@@ -410,7 +411,7 @@ func simplifyRuneRange(rranges RuneRange) RuneRange {
 	if len(rranges) == 0 {
 		return rranges
 	}
-	sort.Slice(rranges, func(i, j int) bool { return rranges[i].Lo < rranges[j].Lo })
+	slices.SortFunc(rranges, func(a, b RunePair) int { return cmp.Compare(a.Lo, b.Lo) })
 	var out RuneRange
 	currentPair := rranges[0]
 	for i := 1; i < len(rranges); i++ {

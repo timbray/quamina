@@ -9,8 +9,9 @@ package quamina
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
-	"sort"
+	"slices"
 	"sync"
 	"sync/atomic"
 )
@@ -64,7 +65,7 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 	}
 
 	// sort the pattern fields lexically
-	sort.Slice(patternFields, func(i, j int) bool { return patternFields[i].path < patternFields[j].path })
+	slices.SortFunc(patternFields, func(a, b *patternField) int { return cmp.Compare(a.path, b.path) })
 
 	// only one thread can be updating at a time
 	m.lock.Lock()
@@ -156,19 +157,6 @@ func emptyFields() []Field {
 	}
 }
 
-// fieldsList exists to support the sort.Sort call in matchesForFields()
-type fieldsList []Field
-
-func (a fieldsList) Len() int {
-	return len(a)
-}
-func (a fieldsList) Less(i, j int) bool {
-	return bytes.Compare(a[i].Path, a[j].Path) < 0
-}
-func (a fieldsList) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
 // matchesForFields takes a list of Field structures, sorts them by pathname, and launches the field-matching
 // process. The fields in a pattern to match are similarly sorted; thus running an automaton over them works.
 // No error can be returned but the matcher interface requires one, and it is used by the pruner implementation
@@ -176,7 +164,7 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 	if len(fields) == 0 {
 		fields = emptyFields()
 	} else {
-		sort.Sort(fieldsList(fields))
+		slices.SortFunc(fields, func(a, b Field) int { return bytes.Compare(a.Path, b.Path) })
 	}
 	// Reuse the matchSet from buffers to reduce allocations
 	matches := bufs.matches

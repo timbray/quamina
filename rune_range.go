@@ -1,10 +1,10 @@
 package quamina
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 )
 
 // It turns out that makeRuneRangeNFA is an expensive call that burns memory.  So for the big
@@ -73,7 +73,7 @@ func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
 	if len(rr) == 0 {
 		return nil, errors.New("empty range")
 	}
-	sort.Slice(rr, func(i, j int) bool { return rr[i].Lo < rr[j].Lo })
+	slices.SortFunc(rr, func(a, b RunePair) int { return cmp.Compare(a.Lo, b.Lo) })
 	return &runeRangeIterator{pairs: rr, whichPair: 0, inPair: rr[0].Lo}, nil
 }
 
@@ -113,9 +113,7 @@ func makeRuneRangeNFA(rr RuneRange, next *faState, pp printer) *smallTable {
 }
 
 func InvertRuneRange(rr RuneRange) RuneRange {
-	sort.Slice(rr, func(i, j int) bool {
-		return rr[i].Lo < rr[j].Lo
-	})
+	slices.SortFunc(rr, func(a, b RunePair) int { return cmp.Compare(a.Lo, b.Lo) })
 	var inverted RuneRange
 	var point rune = 0
 	for _, pair := range rr {
