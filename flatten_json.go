@@ -161,6 +161,17 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 
 	// memberName contains the field-name we're processing
 	var memberName []byte
+
+	// These two booleans control the "pruning" optimization logic.
+	// segmentIsUsed: Does this field name exist in ANY pattern at this level?
+	//                Used to maintain the fj.skipping counter.
+	//                If false, we increment skipping to ignore the subtree.
+	// memberIsUsed:  Should we extract and store this specific value?
+	//                True only if segmentIsUsed AND we are not currently skipping (skipping == 0).
+	//
+	// CRITICAL: If you modify the loop flow (e.g. adding breaks/continues), you MUST ensure
+	// that fj.skipping is decremented correctly if it was incremented. The skipping counter
+	// must be perfectly balanced (increment on enter, decrement on exit) for unused segments.
 	var memberIsUsed bool
 	var segmentIsUsed bool
 	isLeaf := false
