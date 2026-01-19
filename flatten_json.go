@@ -161,7 +161,19 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 
 	// memberName contains the field-name we're processing
 	var memberName []byte
+
+	// These two booleans control the "pruning" optimization logic.
+	// segmentIsUsed: Does this field name exist in ANY pattern at this level?
+	//                Used to maintain the fj.skipping counter.
+	//                If false, we increment skipping to ignore the subtree.
+	// memberIsUsed:  Should we extract and store this specific value?
+	//                True only if segmentIsUsed AND we are not currently skipping (skipping == 0).
+	//
+	// CRITICAL: If you modify the loop flow (e.g. adding breaks/continues), you MUST ensure
+	// that fj.skipping is decremented correctly if it was incremented. The skipping counter
+	// must be perfectly balanced (increment on enter, decrement on exit) for unused segments.
 	var memberIsUsed bool
+	var segmentIsUsed bool
 	isLeaf := false
 	for {
 		// if we've read all the nodes and fields tha have been mentioned in Patterns, we can stop reading this object
@@ -187,7 +199,8 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 				}
 
 				// we know the name of the next object member, use the pathNode to check if it's used
-				memberIsUsed = (fj.skipping == 0) && pathNode.IsSegmentUsed(memberName)
+				segmentIsUsed = pathNode.IsSegmentUsed(memberName)
+				memberIsUsed = (fj.skipping == 0) && segmentIsUsed
 				state = fjSeekingColonState
 			case ch == '}':
 				return nil
@@ -238,7 +251,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 				}
 				isLeaf = true
 			case '[':
-				if !pathNode.IsSegmentUsed(memberName) {
+				if !segmentIsUsed {
 					fj.skipping++
 				}
 
@@ -260,11 +273,11 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 				if err != nil {
 					return err
 				}
-				if !pathNode.IsSegmentUsed(memberName) {
+				if !segmentIsUsed {
 					fj.skipping--
 				}
 			case '{':
-				if !pathNode.IsSegmentUsed(memberName) {
+				if !segmentIsUsed {
 					fj.skipping++
 				}
 				if fj.skipping > 0 || !memberIsUsed {
@@ -285,7 +298,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 				if err != nil {
 					return err
 				}
-				if !pathNode.IsSegmentUsed(memberName) {
+				if !segmentIsUsed {
 					fj.skipping--
 				}
 			default:
@@ -436,8 +449,9 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 	// points at the first character in the number
 	numStart := fj.eventIndex
 	state := fjNumberStartState
-	for {
-		ch := fj.ch()
+
+	for i := numStart; i < len(fj.event); i++ {
+		ch := fj.event[i]
 		switch state {
 		case fjNumberStartState:
 			switch ch {
@@ -455,9 +469,10 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 			case 'e', 'E':
 				state = fjNumberAfterEState
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
-				fj.eventIndex--
-				return fj.event[numStart : fj.eventIndex+1], nil
+				fj.eventIndex = i - 1
+				return fj.event[numStart:i], nil
 			default:
+				fj.eventIndex = i
 				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case fjNumberFracState:
@@ -465,12 +480,13 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
-				fj.eventIndex--
-				bytes := fj.event[numStart : fj.eventIndex+1]
+				fj.eventIndex = i - 1
+				bytes := fj.event[numStart:i]
 				return bytes, nil
 			case 'e', 'E':
 				state = fjNumberAfterEState
 			default:
+				fj.eventIndex = i
 				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
 			}
 		case fjNumberAfterEState:
@@ -478,6 +494,7 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 			case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			default:
+				fj.eventIndex = i
 				return nil, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
 			}
 			state = fjNumberExpState
@@ -487,16 +504,16 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// no-op
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
-				fj.eventIndex--
-				return fj.event[numStart : fj.eventIndex+1], nil
+				fj.eventIndex = i - 1
+				return fj.event[numStart:i], nil
 			default:
+				fj.eventIndex = i
 				return nil, fj.error(fmt.Sprintf("illegal char '%c' in exponent", ch))
 			}
 		}
-		if fj.step() != nil {
-			return nil, fj.error("event truncated in number")
-		}
 	}
+	fj.eventIndex = len(fj.event)
+	return nil, fj.error("event truncated in number")
 }
 
 func (fj *flattenJSON) readLiteral(literal []byte) ([]byte, error) {
@@ -612,23 +629,27 @@ func (fj *flattenJSON) skipStringValue() error {
 func (fj *flattenJSON) readStringValue() ([]byte, error) {
 	// value includes leading and trailng "
 	valStart := fj.eventIndex
-	if fj.step() != nil {
+	fj.eventIndex++
+	if fj.eventIndex >= len(fj.event) {
 		return nil, fj.error("event truncated in mid-string")
 	}
-	for {
-		ch := fj.ch()
+
+	for i := fj.eventIndex; i < len(fj.event); i++ {
+		ch := fj.event[i]
 		if ch == '"' {
-			return fj.event[valStart : fj.eventIndex+1], nil
+			fj.eventIndex = i
+			return fj.event[valStart : i+1], nil
 		} else if ch == '\\' {
+			fj.eventIndex = i
 			val, err := fj.readStringValWithEscapes(valStart)
 			return val, err
 		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
+			fj.eventIndex = i
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in string value", ch))
 		}
-		if fj.step() != nil {
-			return nil, fj.error("event truncated in mid-string")
-		}
 	}
+	fj.eventIndex = len(fj.event)
+	return nil, fj.error("event truncated in mid-string")
 }
 
 func (fj *flattenJSON) readStringValWithEscapes(nameStart int) ([]byte, error) {
@@ -666,24 +687,26 @@ func (fj *flattenJSON) readStringValWithEscapes(nameStart int) ([]byte, error) {
 // but will have to find a new home for it if it has JSON \-escapes
 func (fj *flattenJSON) readMemberName() ([]byte, error) {
 	// member name starts after "
-	if fj.step() != nil {
+	fj.eventIndex++
+	if fj.eventIndex >= len(fj.event) {
 		return nil, fj.error("premature end of event")
 	}
 	nameStart := fj.eventIndex
-	for {
-		ch := fj.ch()
+	for i := nameStart; i < len(fj.event); i++ {
+		ch := fj.event[i]
 		if ch == '"' {
-			return fj.event[nameStart:fj.eventIndex], nil
+			fj.eventIndex = i
+			return fj.event[nameStart:i], nil
 		} else if ch == '\\' {
-			name, err := fj.readMemberNameWithEscapes(nameStart)
-			return name, err
+			fj.eventIndex = i
+			return fj.readMemberNameWithEscapes(nameStart)
 		} else if ch <= 0x1f || ch >= byte(byteCeiling) {
+			fj.eventIndex = i
 			return nil, fj.error(fmt.Sprintf("illegal UTF-8 byte %x in field name", ch))
 		}
-		if fj.step() != nil {
-			return nil, fj.error("premature end of event")
-		}
 	}
+	fj.eventIndex = len(fj.event)
+	return nil, fj.error("premature end of event")
 }
 
 func (fj *flattenJSON) readMemberNameWithEscapes(nameStart int) ([]byte, error) {
