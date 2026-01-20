@@ -17,10 +17,6 @@ func (qa *quantifiedAtom) getSubtree() regexpRoot {
 	return qa.subtree
 }
 
-func (qa *quantifiedAtom) isSingleton() bool {
-	return qa.quantMin == 1 && qa.quantMax == 1
-}
-
 func (qa *quantifiedAtom) isDot() bool {
 	return qa.dotRunes
 }
@@ -41,6 +37,18 @@ func (qa *quantifiedAtom) isStar() bool {
 	return qa.quantMin == 0 && qa.quantMax == regexpQuantifierMax
 }
 
+func (qa *quantifiedAtom) hasMinMax() bool {
+	return qa.quantMax != regexpQuantifierMax && qa.quantMax != regexpMinimumOnly && qa.quantMax > 1
+}
+
+func (qa *quantifiedAtom) isNoOp() bool {
+	return qa.quantMax == 0
+}
+
+func (qa *quantifiedAtom) isMinimumOnly() bool {
+	return qa.quantMax == regexpMinimumOnly
+}
+
 func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) *smallTable {
 	var table *smallTable
 	switch {
@@ -51,6 +59,8 @@ func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) *smallTable {
 		table = makeNFAFromBranches(qa.getSubtree(), nextStep, false, pp)
 	case qa.runeRangeCache() != "":
 		table = makeAndCacheRuneRangeFA(qa.runes, nextStep, qa.runeRangeCache(), pp)
+	case qa.isNoOp():
+		table = newSmallTable()
 	default:
 		// if it's none of these other things, it has to boil down to a rune range
 		table = makeRuneRangeNFA(qa.runes, nextStep, pp)
