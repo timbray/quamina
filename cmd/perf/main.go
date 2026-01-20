@@ -229,7 +229,7 @@ func main() {
 }
 
 func getCL2Lines() {
-	file, err := os.Open("../../testdata/citylots2.json.gz")
+	file, err := os.Open("./testdata/citylots2.json.gz")
 	if err != nil {
 		log.Fatalf("Can't open citylots2.json.gz: %v", err.Error())
 	}
