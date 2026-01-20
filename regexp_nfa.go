@@ -1,5 +1,9 @@
 package quamina
 
+import (
+	"fmt"
+)
+
 // In the regular expressions represented by the I-Regexp syntax, the | connector has the lowest
 // precedence, so at the top level, it's a slice of what the ABNF calls branches - generate an NFA
 // for each branch and then take their union.
@@ -39,7 +43,7 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp p
 			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
 			pp.labelTable(nextBranch, "next on len 0")
 		} else {
-			nextBranch = makeOneRegexpBranchFA(branch, nextStep, forField, pp)
+			nextBranch = faFromBranch(branch, nextStep, forField, pp)
 		}
 		if fa != nil {
 			fa = mergeFAs(fa, nextBranch, pp)
@@ -50,74 +54,9 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp p
 	return fa
 }
 
-// makeOneRegexpBranchFA - We know what the last step looks like, so we proceed back to
-// front through the members of the branch, which are quantified atoms. Each can be a runeRange (which
-// can be a single character or a dot or a subtree, in each case followed by a quantifier.
-// We know the last step, which points at the nextField argument.
-// There's a problem here. Quamina's match* methods feed string values including the enclosing "" to
-// the automaton. This is useful for a variety of reasons. But that means if the regexp is a|b, because
-// the | has the lowest precedence, it'd build an automaton that would match ("a)|(b"). So we need to
-// just build the automaton on a|b and then manually fasten "-transitions in front of and behind it.
-func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faState, forField bool, pp printer) *smallTable {
-	var step *faState
-	var table *smallTable
-
-	// When you're computing the FA for one piece of a regexp, it's useful to know which faState is the
-	// next step. You can do this by recursing to compute the next step and yield the target, but this
-	// could lead to very deep recursion on long regexps. So instead, the code works through the atoms
-	// in a branch back to front. After you've built the FA for the Nth step, you know the target for
-	// the N-1th step.  Since the nextStep argument to the function gives you the target of the last
-	// step, this should work well.  As I write this comment, Quamina's FA-constructions use a
-	// variety of approaches but I think I'd like to converge on this one.
-	for index := len(branch) - 1; index >= 0; index-- {
-		// The following implements the Thompson construction as described in
-		// https://swtch.com/%7Ersc/regexp/regexp1.html
-		qa := branch[index]
-		plusLoopback := &faState{} // unnecessary but shuts up annoying JetBrains warning
-		var starNext *faState
-		step = &faState{}
-
-		// setting the stage for Thompson construction before making this step's FA
-		if qa.isPlus() {
-			// the + construction requires a loopback state in front of the state table
-			plusLoopback = &faState{table: newSmallTable()}
-			plusLoopback.table.epsilons = []*faState{nextStep}
-			pp.labelTable(plusLoopback.table, "PlusLoopback")
-			nextStep = plusLoopback
-		} else if qa.isStar() {
-			// the * construction requires that the generated FA points back to itself
-			starNext = nextStep
-			nextStep = step
-		}
-
-		// now we make the step FA
-		table = qa.makeFA(nextStep, pp)
-		if table == nil {
-			panic("makeFA returned nil")
-		}
-		step.table = table
-
-		// now more epsilon shuffling to complete quantification construction
-		switch {
-		case qa.isSingleton():
-			// we're good
-		case qa.isPlus():
-			// for the + case, need to loop back to the newly created state
-			plusLoopback.table.epsilons = append(plusLoopback.table.epsilons, step)
-		case qa.isQM():
-			// for the ? case, forward epsilon
-			table.epsilons = append(table.epsilons, nextStep)
-		case qa.isStar():
-			// the * construct requires an epsilon transition forward
-			table.epsilons = append(step.table.epsilons, starNext)
-		case qa.isPlus():
-			// +, no-op, but avoids default case
-		default:
-			panic("unhandled quantification case")
-		}
-
-		nextStep = step
-	}
+func faFromBranch(branch regexpBranch, nextStep *faState, forField bool, pp printer) *smallTable {
+	state := faFromQuantifiedAtom(branch, 0, nextStep, pp)
+	table := state.table
 	if forField {
 		firstState := &faState{table: table}
 		table = makeSmallTable(nil, []byte{'"'}, []*faState{firstState})
@@ -126,10 +65,93 @@ func makeOneRegexpBranchFA(branch regexpBranch, nextStep *faState, forField bool
 	return table
 }
 
+// faFromQuantifiedAtom builds regular expression NFAs per the Thompson process
+func faFromQuantifiedAtom(branch regexpBranch, index int, finalStep *faState, pp printer) *faState {
+	atom := branch[index]
+	var nextState *faState
+	if index == len(branch)-1 {
+		nextState = finalStep
+	} else {
+		nextState = faFromQuantifiedAtom(branch, index+1, finalStep, pp)
+	}
+	var state *faState
+
+	switch {
+	case atom.isPlus():
+		// the + construction requires a loopback state in front of the state table
+		plusLoopback := &faState{table: newSmallTable()}
+		pp.labelTable(plusLoopback.table, "PlusLoopback")
+		state = &faState{table: atom.makeFA(plusLoopback, pp)}
+
+		// for the + case, need to loop back to the newly created state
+		plusLoopback.table.epsilons = []*faState{nextState, state}
+
+	case atom.isStar():
+		// the * construction requires that the generated FA points back to itself
+		state = &faState{}
+		state.table = atom.makeFA(state, pp)
+
+		// the * construct requires an epsilon transition forward, possibly
+		// passing over a multi-step sequence
+		state.table.epsilons = append(state.table.epsilons, nextState)
+
+	case atom.hasMinMax():
+		shellTable := atom.makeFA(PlaceholderState, pp)
+		nextMinMaxStep := nextState
+
+		for counter := atom.quantMax; counter > 0; counter-- {
+			stepTable := faFromShell(shellTable, PlaceholderState, nextMinMaxStep)
+			pp.labelTable(stepTable, fmt.Sprintf("minmax at %d", counter))
+
+			// if it's between quantMin & max, we're in optional territory
+			// so it needs an epsilon to allow jumping out
+			if counter > atom.quantMin {
+				stepTable.epsilons = append(stepTable.epsilons, nextState)
+			}
+			state = &faState{table: stepTable}
+			nextMinMaxStep = state
+		}
+
+	case atom.isQM():
+		// for the ? case, forward epsilon
+		state = &faState{table: atom.makeFA(nextState, pp)}
+		state.table.epsilons = append(state.table.epsilons, nextState)
+
+	case atom.isNoOp():
+		// when we see a{0}, which the grammar allows
+		state = &faState{table: atom.makeFA(nextState, pp)}
+		state.table.epsilons = []*faState{nextState}
+
+	case atom.isMinimumOnly():
+		shellTable := atom.makeFA(PlaceholderState, pp)
+		nextMinMaxStep := nextState
+
+		var lastState *faState
+		for counter := atom.quantMin; counter > 0; counter-- {
+			stepTable := faFromShell(shellTable, PlaceholderState, nextMinMaxStep)
+			pp.labelTable(stepTable, fmt.Sprintf("minmax at %d", counter))
+			state = &faState{table: stepTable}
+
+			// there's a chain of the minimum-count steps, but the last one has to
+			// loop back to the first one, so we have to remember the last one
+			if counter == atom.quantMin {
+				lastState = state
+			}
+
+			nextMinMaxStep = state
+		}
+		lastState.table.epsilons = append(lastState.table.epsilons, state)
+
+	default:
+		state = &faState{table: atom.makeFA(nextState, pp)}
+	}
+
+	return state
+}
+
 // makeNFATrailer generates the last two steps in every NFA, because all field values end with the
 // valueTerminator marker, so you need the field-matched state and you need another state that branches
 // to it based on valueTerminator
-// TODO: Prove that this is useful in other make*NFA scenarios
 func makeNFATrailer(nextField *fieldMatcher) *faState {
 	matchState := &faState{
 		table:            newSmallTable(),

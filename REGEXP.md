@@ -4,7 +4,7 @@
 
 ## Syntax
 
-The regexp syntax supported in Regexp Patterns are that specified in 
+The regexp syntax supported in Regexp Patterns is that specified in 
 [RFC 9485](https://datatracker.ietf.org/doc/rfc9485/), 
 *I-Regexp: An Interoperable Regular Expression Format*.
 
@@ -27,31 +27,29 @@ current release.
 
 ## Features
 
-Regexps are being added to Quamina incrementally. The following list identifies the full
-set of planned features; it is not in any particular order. Those that are supported in the
-current release are bold-faced.
+The following list identifies the features of Quamina regular expressions.
 
-`.` : **single-character matcher**
+**`.` : single-character matcher**
 
-`|` : **logical alternatives**
+**`|` : logical alternatives**
 
-`[]` : **character-class matcher**
+**`[]` : character-class matcher**
 
-`[^]` : **complementary character-class matcher**
+**`[^]` : complementary character-class matcher**
 
-`()` : **parenthetized sub-regexp**
+**`()` : parenthetized sub-regexp**
 
-`?` : **optional matcher**
+**`?` : optional matcher**
 
-`*` : **zero-or-more matcher**
+**`*` : zero-or-more matcher**
 
-`+` : **one-or-more matcher**
+**`+` : one-or-more matcher**
 
-`~p{}` : **Unicode property matcher**
+**`~p{}` : Unicode property matcher**
 
-`~P{}` : **Unicode property-complement matcher**
+**`~P{}` : Unicode property-complement matcher**
 
-`{lo,hi}` : occurrence-count matcher
+**`{lo,hi}` : occurrence-count matcher**
 
 ## What to watch out for
 
@@ -59,6 +57,10 @@ The `-p{}` and `~P{}` patterns can require building state machines that match te
 of characters scattered across the entire Unicode codespace. The cost in computation and memory, when
 adding such patterns, can be very high. However, the runtime performance in matching such patterns,
 once built, does not suffer.
+
+The {} occurrence-count matcher is limited to values between 0 and 99 inclusive. While something
+like `a{0}` is allowed by the specified, it is a no-op.  High occurrence-count matchers can produce
+large state machines. The worst case then, is something like `[~p{L}~p{Nd}~{S}]{99}`.
 
 ## Semantics of “.”
 
