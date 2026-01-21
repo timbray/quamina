@@ -11,14 +11,15 @@ import (
 )
 
 // Reads a subset of regular expressions as defined in I-Regexp, RFC 9485
-// At the current time, represents a subset of a subset. I-Regexp support will be
-// built incrementally, adding features until full compatibility is achieved. The code
-// will not allow the use of patterns containing regexps that rely on features that are
-// not yet implemented.
+// I-Regexp support was built incrementally, adding features until full compatibility
+// was achieved.
 
 // Note that since the regexp is composed of runes, i.e. Unicode code points, and since we use Go's built-in
 // utf8.Decode()/Encode() to roundtrip between UTF-8 []bytes and code points, surrogate code points can neither
 // be used in a regular expression nor will they be matched if they show up in an Event.
+
+// this feature apparatus is no longer of use now that the regexp implementation is complete
+// but I'm reluctant to just discard it, for the moment.
 
 type regexpFeature string
 
@@ -42,6 +43,7 @@ type regexpFeatureChecker struct {
 }
 
 var implementedRegexpFeatures = map[regexpFeature]bool{
+	// all of them
 	rxfDot:             true,
 	rxfClass:           true,
 	rxfOrBar:           true,
@@ -52,9 +54,12 @@ var implementedRegexpFeatures = map[regexpFeature]bool{
 	rxfNegatedClass:    true,
 	rxfProperty:        true,
 	rxfNegatedProperty: true,
+	rxfRange:           true,
 }
 
+// distinguished values to mark idioms like * and {}
 const regexpQuantifierMax = 100 // TODO: make this into an option
+const regexpMinimumOnly = 200
 
 const Escape rune = '~'
 
@@ -87,14 +92,6 @@ func readRegexpSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedVal
 	parse, err = readRegexp(regexpString)
 	if err != nil {
 		return
-	}
-	unimplemented := parse.features.foundUnimplemented()
-	if len(unimplemented) != 0 {
-		problem := "found unimplemented features:"
-		for _, ui := range unimplemented {
-			problem += " " + string(ui)
-		}
-		return nil, errors.New(problem)
 	}
 
 	val.parsedRegexp = parse.tree
@@ -559,8 +556,6 @@ var regexpPropDetails = map[rune]string{
 	'C': "cfon",
 }
 
-// TODO: Change the signature here so it leaves a signal in the quantifiedAtom so the FA
-// builder will use the shellFA cache
 func readProperty(parse *regexpParse, negated bool) (RuneRange, string, error) {
 	var err error
 	if err = parse.require('{'); err != nil {
@@ -664,6 +659,8 @@ func readRangeQuantifier(parse *regexpParse, qa *quantifiedAtom) error {
 	qa.quantMax = regexpQuantifierMax
 	switch b {
 	case '}':
+		// e.g. (whatever){2}
+		qa.quantMax = qa.quantMin
 		return nil
 	case ',':
 	// no-op, good
@@ -680,28 +677,33 @@ func readRangeQuantifier(parse *regexpParse, qa *quantifiedAtom) error {
 		return err
 	}
 	if b == '}' {
-		return nil
-	}
-	if b < '0' || b > '9' {
+		// we're good
+	} else if b < '0' || b > '9' {
 		return fmt.Errorf("invalid character '%c' in quantifier range at %d, wanted a digit", b, parse.lastOffset())
-	}
-	for b >= '0' && b <= '9' {
-		hiDigits = append(hiDigits, b)
-		b, err = parse.nextRune()
-		if errors.Is(err, errRegexpEOF) {
-			return fmt.Errorf("incomplete range quantifier at %d", parse.lastOffset())
-		}
-		if err != nil {
-			return err
+	} else {
+		for b >= '0' && b <= '9' {
+			hiDigits = append(hiDigits, b)
+			b, err = parse.nextRune()
+			if errors.Is(err, errRegexpEOF) {
+				return fmt.Errorf("incomplete range quantifier at %d", parse.lastOffset())
+			}
+			if err != nil {
+				return err
+			}
 		}
 	}
 	// have scanned digits, have to close with '}'
 	if b != '}' {
 		return fmt.Errorf("invalid character %c at %d, expected '}'", b, parse.lastOffset())
 	}
-	hi, err := strconv.ParseInt(string(hiDigits), 10, 32)
-	if err != nil {
-		return err
+	var hi int64
+	if len(hiDigits) == 0 {
+		hi = regexpMinimumOnly
+	} else {
+		hi, err = strconv.ParseInt(string(hiDigits), 10, 32)
+		if err != nil {
+			return err
+		}
 	}
 	if hi < lo {
 		return fmt.Errorf("invalid range quantifier, top must be greater than bottom")
