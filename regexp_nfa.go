@@ -119,7 +119,7 @@ func faFromQuantifiedAtom(branch regexpBranch, index int, finalStep *faState, pp
 
 	case atom.isNoOp():
 		// when we see a{0}, which the grammar allows
-		state = &faState{table: atom.makeFA(nextState, pp)}
+		state = &faState{table: newSmallTable()}
 		state.table.epsilons = []*faState{nextState}
 
 	case atom.isMinimumOnly():
