@@ -18,13 +18,20 @@ var PlaceholderState *faState = &faState{table: newSmallTable()}
 var cachedFaShells = make(map[string]*smallTable)
 
 func faFromShell(shell *smallTable, oldNext *faState, newNext *faState) *smallTable {
-	return copyShellNode(&faState{table: shell}, oldNext, newNext).table
+	return copyShellNode(&faState{table: shell}, oldNext, newNext, make(map[*faState]*faState)).table
 }
-func copyShellNode(shell *faState, oldNext *faState, newNext *faState) *faState {
+func copyShellNode(shell *faState, oldNext *faState, newNext *faState, mem map[*faState]*faState) *faState {
+	already, ok := mem[shell]
+	if ok {
+		return already
+	}
 	table := &smallTable{
 		ceilings: slices.Clone(shell.table.ceilings),
 		steps:    make([]*faState, len(shell.table.steps)),
+		epsilons: make([]*faState, len(shell.table.epsilons)),
 	}
+	state := &faState{table: table}
+	mem[shell] = state
 	for i, step := range shell.table.steps {
 		switch step {
 		case nil:
@@ -32,10 +39,20 @@ func copyShellNode(shell *faState, oldNext *faState, newNext *faState) *faState 
 		case oldNext:
 			table.steps[i] = newNext
 		default:
-			table.steps[i] = copyShellNode(step, oldNext, newNext)
+			table.steps[i] = copyShellNode(step, oldNext, newNext, mem)
 		}
 	}
-	return &faState{table: table}
+	for i, epsilon := range shell.table.epsilons {
+		switch epsilon {
+		case nil:
+		// no-op
+		case oldNext:
+			table.epsilons[i] = newNext
+		default:
+			table.epsilons[i] = copyShellNode(epsilon, oldNext, newNext, mem)
+		}
+	}
+	return state
 }
 
 // RunePair and related types exported to facilitate building Unicode tables in code_gen
@@ -147,7 +164,8 @@ type runeTreeNode []*runeTreeEntry
 //     Hmm, that tree could get pretty huge, every new level brings in another power
 //     of 246.
 // As of 2026/01, #1 above has been implemented with a cache, see cachedFaShells.
-// The "skinny" stuff below is an attempt at #2, but runs much slower than the memory burner. TODO: Investigate further
+// The "skinny" stuff below is an attempt at #2, but runs much slower than the memory burner.
+// TODO: Investigate further
 
 // only "next" or "node" is provided
 type skinnyRuneTreeEntry struct {

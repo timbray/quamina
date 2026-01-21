@@ -166,8 +166,6 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	return nextField
 }
 
-// TODO: make these simple FA builders iterative not recursive, this will recurse as deep as the longest string match
-
 func makePrefixFA(val []byte) (*smallTable, *fieldMatcher) {
 	nextField := newFieldMatcher()
 	return makeOnePrefixFAStep(val, 0, nextField), nextField
@@ -244,7 +242,6 @@ func makeFAFragment(val []byte, endAt *faState, pp printer) *faState {
 }
 
 func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher, pp printer) *smallTable {
-	// TODO: Turn this into a simple back-to-front construction and remove the recursion
 	var nextStep *faState
 	if index == len(val)-1 {
 		lastStep := &faState{

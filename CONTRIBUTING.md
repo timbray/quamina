@@ -1,4 +1,4 @@
-# Contributing to `quamina`
+# Contributing to Quamina
 
 ## Basics
 
@@ -29,9 +29,10 @@ unusual about Quamina.
 
 ### Code Style
 
-The coding style suggested by the Go community is 
-used in Quamina. See the
-[style doc](https://github.com/golang/go/wiki/CodeReviewComments) for details.
+The code style produced by `gofmt`, with all the defaults, is 
+used in Quamina. Most IDEs will take care of this for you
+and the `golangci-lint` tool mentioned below will tell you
+what's wrong and keep you from merging PRs with problems.
 
 Try to limit column width to 120 characters for both code and Markdown documents
 such as this one.
@@ -75,11 +76,24 @@ any of the [styles GitHub supports](https://docs.github.com/en/authentication/ma
 Note that you can use `git config` to arrange that your commits are
 automatically signed with the right key.
 
+### Directory structure
+
+There really isn't one; all of the .go files are at the top level,
+with the exception of the Unicode-table-generation code in the 
+`code_gen` subdirectory.
+
+This causes a mild problem in that new arrivals to Quamina have to
+scroll down a lot to get past the filenames and see the README. If
+this bothers you, propose a reorganization, none of us love the
+current setup so minds are open.
+
 ### Running Tests
 
-In any repo subdirectory, `go test` runs unit tests
+As with most Go projects `go test` runs unit tests
 with all the defaults, which is a decent check for basic
-sanity and correctness.
+sanity and correctness. They take less than 15 seconds to
+run and we really want to keep that time short to encourage
+people to run them all the time.
 
 Running the following command in the root repository runs
 all the available tests with race-detection enabled, and 
@@ -96,27 +110,30 @@ need to be free of lint errors.
 golangci-lint run  
 ```
 
-At the moment we don’t have a script for running this 
-in all the Quamina subdirectories so you’ll have to do
-this by hand.  `golangci-lint` has a home page with
-instructions for installing it.
+### Rebuilding the Unicode Tables
 
-### Rebuilding the Case-folding Table
-
-Quamina's `ignore-case` patterns rely on mappings found
-in the generated source file `case_folding.go`. Quamina
+Quamina's `ignore-case` patterns, and its regular-expression
+property matching, rely on mappings found
+in the generated source files `case_folding.go`
+and `character_properties.go`. Quamina
 includes a program called `code_gen` in the `code_gen/`
-directory. There is a `Makefile` whose only function is
-to check the mapping file and rebuild it if it is older
+directory that generates them. It is very unlikely that
+you will ever want to change them, but if you do, you
+can't change them directly, you have to re-run the program,
+whose source is in `code_gen/build_unicode_tables.go`. It’s
+not pretty.
+
+There is a `Makefile` whose only function is
+to check the Unicode files and rebuild them if they are older
 than three months, because a Unicode version release may
-have added mappings.
+have added characters.
 
 As a result, it is a good practice, sometime in the process
 of building and submitting a PR, to type `make` at some
 point, which will rebuild and re-run `code_gen`; that program
 will display a message saying whether or not it rebuilt the
 case-folding mappings. If it did rebuild those mappings, please
-include the generated `case_folding.go` source in your commmit
+include the generated files in your commmit
 and PR.
 
 ## Reporting Bugs and Creating Issues
@@ -129,7 +146,7 @@ conventions above.
 ### Automata
 
 Quamina works by compiling the Patterns together into a Nondeterministic
-Finite Automaton (NFA) which proceeds byte-at-a-time through the UTF-encoded
+Finite Automaton (NFA) which proceeds byte-at-a-time through the UTF-8-encoded
 fields and values. NFAs are nondeterministic in the sense that a byte value
 may cause multiple transitions to different states.
 
@@ -148,6 +165,9 @@ A straightforward way to test a new feature is exemplified by `TestLongCase()` i
 1. Make a `coreMatcher` by calling `newCoreMatcher()`
 2. Add patterns to it by calling `addPattern()`
 3. Make test data and examine matching behavior by calling `matchesForJSONEvent()`
+
+We track test coverage carefully and while we don't have a target coverage number,
+the majority of Quamina’s source files hit 100%. Don’t scrimp on unit tsting.
 
 ### Prettyprinting NFAs
 
@@ -168,33 +188,6 @@ real programmers debug with Print statements.
 
 ### Prettyprinter output
 
-`makeShellStyleAutomaton()` code has `prettyprinter` call-outs to
-label the states and transitions it creates, and the `TestPP()` test in
-`prettyprinter_test.go` uses this.  The pattern being matched is `"x*9"` and 
-the prettyprinter output is:
-
-```
- 758 [START HERE] '"' → [910 on " at 0]
- 910 [on " at 0] 'x' → [821 gS at 2]
- 821 [gS at 2] '9' → [551 gX on 9 at 3] / ★ → [821 gS at 2]
- 551 [gX on 9 at 3] '"' → [937 on " at 4] / '9' → [551 gX on 9 at 3] / ★ → [821 gS at 2]
- 937 [on " at 4] '9' → [551 gX on 9 at 3] / 'ℵ' → [820 last step at 5] / ★ → [821 gS at 2]
- 820 [last step at 5]  [1 transition(s)]
-```
-
-Each line represents one state.
-
-Each step gets a 3-digit number and a text description. The construct `★ →` represents
-a default transition, which occurs in the case that none of the other transitions match. The
-symbol `ℵ` represents the end of the input value.
-
-In this particular NFA, the `makeShellStyleAutomaton` code labels states corresponding to
-the `*` "glob" character with text including `gS` for "glob spin" and states that escape the
-"glob spin" state with `gX` for "glob exit".
-
-Most of the NFA-building code does not exercise the prettyprinter. Normally, you would insert
-such code while debugging a particular builder and remove it after completion. Since the 
-shell-style builder is unusually complex, the prettyprinting code is retained in anticipation
-of future issues and progress to full regular-expression NFAs.
-
+Rather than take space here to describe the prettyprinter output, read the blog
+[here](https://www.tbray.org/ongoing/When/202x/2024/06/17/Epsilon-Love#p-5).
 

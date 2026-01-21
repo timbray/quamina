@@ -160,8 +160,7 @@ func TestShellStyleBuildTime(t *testing.T) {
 	// epsilon processing, required by ?, +, and *, seems to lead to either pathologically slow O(2**N)
 	// automaton building or very slow (~2K/second) matching.  The current version settles for the
 	// latter. With a thousand patterns the automaton building is instant and the matching runs at
-	// ~16K/second.  I retain optimism that
-	// TODO: the machine can be built with many fewer epsilons and states and thus run much faster.
+	// ~16K/second.  I retain optimism that there is a path forward to win back the fast performance.
 	words := readWWords(t)[:1000]
 
 	fmt.Printf("WC %d\n", len(words))

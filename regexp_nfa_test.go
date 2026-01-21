@@ -50,8 +50,12 @@ func TestRRCacheEffectiveness(t *testing.T) {
 */
 
 func TestRegexpWorkbench(t *testing.T) {
+	// previously on the workbench:
+	// ~p{L}~p{Zs}~p{Nd}
+	// ((ab){2})?
+	// ([0-9]+(~.[0-9]+){3})
 	pp := newPrettyPrinter(2355)
-	matches := applyAndRunRegexp(t, "~p{L}~p{Zs}~p{Nd}", "M 3", pp)
+	matches := applyAndRunRegexp(t, "(ab){2,}", "ababab", pp)
 	if matches != 1 {
 		t.Error("Workbench")
 	}
@@ -60,7 +64,7 @@ func applyAndRunRegexp(t *testing.T, regexp string, match string, pp printer) in
 	t.Helper()
 	qm := []byte(`"` + match + `"`)
 	fa := faFromRegexp(t, regexp, pp)
-	//fmt.Println("FA:\n" + pp.printNFA(fa))
+	// fmt.Println("FA:\n" + pp.printNFA(fa))
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
 	matches := traverseNFA(fa, qm, transitions, bufs, pp)

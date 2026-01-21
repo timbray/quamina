@@ -117,6 +117,7 @@ func TestRegexpValidity(t *testing.T) {
 
 		parse, err := readRegexpWithParse(parse)
 		if sample.valid {
+			// fmt.Println("Sample: " + sample.regex)
 			if len(parse.features.foundUnimplemented()) == 0 {
 				implemented++
 				table, dest := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
