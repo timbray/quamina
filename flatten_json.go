@@ -155,8 +155,10 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	//  the course of reading an object
 	var arrayTrail []ArrayPos
 	if fj.skipping == 0 {
-		arrayTrail = make([]ArrayPos, len(fj.arrayTrail))
-		copy(arrayTrail, fj.arrayTrail)
+		if len(fj.arrayTrail) > 0 {
+			arrayTrail = make([]ArrayPos, len(fj.arrayTrail))
+			copy(arrayTrail, fj.arrayTrail)
+		}
 	}
 
 	// memberName contains the field-name we're processing
