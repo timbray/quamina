@@ -52,7 +52,7 @@ func newValueMatcher() *valueMatcher {
 
 func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fieldMatcher {
 	vmFields := m.fields()
-	transitions := bufs.dfaTransitions[:0]
+	transitions := bufs.transitionsBuf[:0]
 
 	val := eventField.Val
 	switch {
