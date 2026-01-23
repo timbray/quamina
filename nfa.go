@@ -75,19 +75,23 @@ func (tm *transmap) all() []*fieldMatcher {
 // the incoming event patterns and matcher structures and eventually the amount of event-matching memory
 // allocation will be reduced to nearly zero.
 type nfaBuffers struct {
-	buf1, buf2 []*faState
-	eClosure   *epsilonClosure
-	matches    *matchSet
-	transmap   *transmap
+	buf1, buf2     []*faState
+	eClosure       *epsilonClosure
+	matches        *matchSet
+	transmap       *transmap
+	resultBuf      []X
+	dfaTransitions []*fieldMatcher
 }
 
 func newNfaBuffers() *nfaBuffers {
 	return &nfaBuffers{
-		buf1:     make([]*faState, 0, 16),
-		buf2:     make([]*faState, 0, 16),
-		eClosure: newEpsilonClosure(),
-		matches:  newMatchSet(),
-		transmap: newTransMap(),
+		buf1:           make([]*faState, 0, 16),
+		buf2:           make([]*faState, 0, 16),
+		eClosure:       newEpsilonClosure(),
+		matches:        newMatchSet(),
+		transmap:       newTransMap(),
+		resultBuf:      make([]X, 0, 16),
+		dfaTransitions: make([]*fieldMatcher, 0, 16),
 	}
 }
 
@@ -97,6 +101,8 @@ func (nb *nfaBuffers) reset() {
 	nb.eClosure.reset()
 	nb.matches.reset()
 	nb.transmap.reset()
+	nb.resultBuf = nb.resultBuf[:0]
+	nb.dfaTransitions = nb.dfaTransitions[:0]
 }
 
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
@@ -165,7 +171,7 @@ func n2dNode(rawNStates []*faState, sList *stateLists, ec *epsilonClosure) *faSt
 // NFA-capable data structure, we can traverse it deterministically if we know in advance that every
 // combination of an faState with a byte will transition to at most one other faState.
 
-func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
+func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	for index := 0; index <= len(val); index++ {
 		var utf8Byte byte
 		if index < len(val) {
@@ -183,6 +189,12 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 	return transitions
 }
 
+// traverseDFAForTest is a test helper that creates its own nfaBuffers
+func traverseDFAForTest(table *smallTable, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
+	bufs := newNfaBuffers()
+	return traverseDFA(table, val, transitions, bufs)
+}
+
 // traverseNFA attempts efficient traversal of an NFA. Each step processes currentList, a list of the
 // automaton states currently active. For each element of the list, we compute its epsilon closure
 // and apply the current input byte to each state in the resulting list. The results, if any, are
@@ -190,9 +202,9 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // currentStates, nextStates, and the epsilon closure of one particular state. These are re-used
 // and should grow with use and minimize the need for memory allocation.
 func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
-	currentStates := bufs.buf1
+	currentStates := bufs.buf1[:0]
 	currentStates = append(currentStates, &faState{table: table})
-	nextStates := bufs.buf2
+	nextStates := bufs.buf2[:0]
 
 	// a lot of the transitions stuff is going to be empty, but on the other hand
 	// a * entry with a transition could end up getting added a lot. While this

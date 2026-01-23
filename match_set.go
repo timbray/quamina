@@ -46,3 +46,12 @@ func (m *matchSet) matches() []X {
 	}
 	return matches
 }
+
+// matchesInto appends matches to the provided buffer and returns it.
+// This avoids allocating a new slice for the result.
+func (m *matchSet) matchesInto(buf []X) []X {
+	for x := range m.set {
+		buf = append(buf, x)
+	}
+	return buf
+}

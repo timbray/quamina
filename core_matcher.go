@@ -187,7 +187,7 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 	for i := 0; i < len(fields); i++ {
 		tryToMatch(fields, i, cmFields.state, matches, bufs)
 	}
-	return matches.matches(), nil
+	return matches.matchesInto(bufs.resultBuf), nil
 }
 
 // tryToMatch tries to match the field at fields[index] to the provided state. If it does match and generate

@@ -133,13 +133,13 @@ func TestNfa2Dfa(t *testing.T) {
 		dfa := nfa2Dfa(nfa)
 		// fmt.Println("DFA: " + pp.printNFA(dfa.table))
 		for _, should := range test.shoulds {
-			matched := traverseDFA(dfa.table, asQuotedBytes(t, should), transitions)
+			matched := traverseDFAForTest(dfa.table, asQuotedBytes(t, should), transitions)
 			if len(matched) != 1 {
 				t.Errorf("DFA %s didn't match %s ", test.pattern, should)
 			}
 		}
 		for _, nope := range test.nopes {
-			matched := traverseDFA(dfa.table, asQuotedBytes(t, nope), transitions)
+			matched := traverseDFAForTest(dfa.table, asQuotedBytes(t, nope), transitions)
 			if len(matched) != 0 {
 				t.Errorf("DFA %s matched %s", test.pattern, nope)
 			}

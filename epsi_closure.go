@@ -2,19 +2,16 @@ package quamina
 
 type epsilonClosure struct {
 	closures map[*faState][]*faState
-	slab     []*faState
 }
 
 func newEpsilonClosure() *epsilonClosure {
 	return &epsilonClosure{
 		closures: make(map[*faState][]*faState),
-		slab:     make([]*faState, 0, 1024),
 	}
 }
 
 func (ec *epsilonClosure) reset() {
 	clear(ec.closures)
-	ec.slab = ec.slab[:0]
 }
 
 func (ec *epsilonClosure) getClosure(state *faState) []*faState {
@@ -29,10 +26,7 @@ func (ec *epsilonClosure) getClosure(state *faState) []*faState {
 
 	// not already known
 	if len(state.table.epsilons) == 0 {
-		start := len(ec.slab)
-		ec.slab = append(ec.slab, state)
-		justMe := ec.slab[start : start+1]
-
+		justMe := []*faState{state}
 		if ec.closures != nil {
 			ec.closures[state] = justMe
 		}
@@ -44,13 +38,9 @@ func (ec *epsilonClosure) getClosure(state *faState) []*faState {
 		closureStates[state] = true
 	}
 	traverseEpsilons(state, state.table.epsilons, closureStates)
-
-	start := len(ec.slab)
 	for s := range closureStates {
-		ec.slab = append(ec.slab, s)
+		closure = append(closure, s)
 	}
-	closure = ec.slab[start:]
-
 	if ec.closures != nil {
 		ec.closures[state] = closure
 	}

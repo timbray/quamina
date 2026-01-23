@@ -52,7 +52,7 @@ func newValueMatcher() *valueMatcher {
 
 func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fieldMatcher {
 	vmFields := m.fields()
-	var transitions []*fieldMatcher
+	transitions := bufs.dfaTransitions[:0]
 
 	val := eventField.Val
 	switch {
@@ -74,7 +74,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 				if vmFields.isNondeterministic {
 					return traverseNFA(vmFields.startTable, qNum, transitions, bufs, sharedNullPrinter)
 				} else {
-					return traverseDFA(vmFields.startTable, qNum, transitions)
+					return traverseDFA(vmFields.startTable, qNum, transitions, bufs)
 				}
 			}
 		}
@@ -83,7 +83,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 		if vmFields.isNondeterministic {
 			return traverseNFA(vmFields.startTable, val, transitions, bufs, sharedNullPrinter)
 		} else {
-			return traverseDFA(vmFields.startTable, val, transitions)
+			return traverseDFA(vmFields.startTable, val, transitions, bufs)
 		}
 
 	default:

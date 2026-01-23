@@ -149,7 +149,7 @@ func TestExploreUTF8Form(t *testing.T) {
 	var matchers []*fieldMatcher
 	var got []*fieldMatcher
 	for i, bad := range bads {
-		got = traverseDFA(table, bad, matchers)
+		got = traverseDFAForTest(table, bad, matchers)
 		if len(got) != 0 {
 			t.Errorf("accepted index %d", i)
 		}
@@ -168,7 +168,7 @@ func TestDotSemantics(t *testing.T) {
 		if r >= 0xD800 && r <= 0xDFFF {
 			continue
 		}
-		got = traverseDFA(table, []byte(string([]rune{r})), matchers)
+		got = traverseDFAForTest(table, []byte(string([]rune{r})), matchers)
 		if len(got) != 1 || got[0] != wantFM {
 			t.Errorf("failed on %x", r)
 		}
@@ -186,14 +186,14 @@ func TestDotSemantics(t *testing.T) {
 	}
 
 	for _, good := range goodUTF8 {
-		got = traverseDFA(table, good, matchers)
+		got = traverseDFAForTest(table, good, matchers)
 		if len(got) != 1 || got[0] != wantFM {
 			t.Errorf("failed on non-surrogate %04x", r)
 		}
 		matchers = matchers[:0]
 	}
 	for _, bad := range badUTF8 {
-		got = traverseDFA(table, bad, matchers)
+		got = traverseDFAForTest(table, bad, matchers)
 		if len(got) != 0 {
 			t.Errorf("accepted surrogate %04x", r)
 		}
@@ -342,7 +342,7 @@ func TestMultiLengthRR(t *testing.T) {
 		matchers := []*fieldMatcher{}
 		var got []*fieldMatcher
 		for _, rp := range multiLengthTest {
-			got = traverseDFA(st, []byte(string([]rune{rp.Lo})), matchers)
+			got = traverseDFAForTest(st, []byte(string([]rune{rp.Lo})), matchers)
 			if len(got) != 1 || got[0] != wantFM {
 				t.Errorf("failed on %x", rp.Lo)
 			}
@@ -427,17 +427,17 @@ func TestSimpleRegexpMerging(t *testing.T) {
 	}
 	fa, fm := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
 	tr := []*fieldMatcher{}
-	out := traverseDFA(fa, []byte("ac"), tr)
+	out := traverseDFAForTest(fa, []byte("ac"), tr)
 	if len(out) != 1 || out[0] != fm {
 		t.Error("MISS1")
 	}
 	tr = tr[:0]
-	out = traverseDFA(fa, []byte("bc"), tr)
+	out = traverseDFAForTest(fa, []byte("bc"), tr)
 	if len(out) != 1 || out[0] != fm {
 		t.Error("MISS2")
 	}
 	tr = tr[:0]
-	out = traverseDFA(fa, []byte("a"), tr)
+	out = traverseDFAForTest(fa, []byte("a"), tr)
 	if len(out) != 0 {
 		t.Error("MISS3")
 	}
