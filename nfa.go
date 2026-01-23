@@ -74,14 +74,16 @@ type nfaBuffers struct {
 	buf1, buf2 []*faState
 	eClosure   *epsilonClosure
 	matches    *matchSet
+	resultBuf  []X
 }
 
 func newNfaBuffers() *nfaBuffers {
 	return &nfaBuffers{
-		buf1:     make([]*faState, 0, 16),
-		buf2:     make([]*faState, 0, 16),
-		eClosure: newEpsilonClosure(),
-		matches:  newMatchSet(),
+		buf1:      make([]*faState, 0, 16),
+		buf2:      make([]*faState, 0, 16),
+		eClosure:  newEpsilonClosure(),
+		matches:   newMatchSet(),
+		resultBuf: make([]X, 0, 16),
 	}
 }
 
