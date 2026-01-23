@@ -189,11 +189,6 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 	return transitions
 }
 
-// traverseDFAForTest is a test helper that creates its own nfaBuffers
-func traverseDFAForTest(table *smallTable, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
-	return traverseDFA(table, val, transitions)
-}
-
 // traverseNFA attempts efficient traversal of an NFA. Each step processes currentList, a list of the
 // automaton states currently active. For each element of the list, we compute its epsilon closure
 // and apply the current input byte to each state in the resulting list. The results, if any, are

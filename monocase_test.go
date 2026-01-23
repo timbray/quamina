@@ -26,7 +26,7 @@ func permuteAndTest(t *testing.T, origS, altsS string) {
 	fa, fm := makeMonocaseFA(orig, pp)
 
 	for _, p := range permutations {
-		ff := traverseDFAForTest(fa, p, nil)
+		ff := traverseDFA(fa, p, nil)
 		if len(ff) != 1 || ff[0] != fm {
 			t.Error("FfFfAIL")
 		}

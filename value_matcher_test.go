@@ -340,7 +340,7 @@ func TestMakeFAFragment(t *testing.T) {
 		frag := makeFAFragment([]byte(datum), targetState, pp)
 		startTable := frag.table
 		var transIn []*fieldMatcher
-		transOut := traverseDFAForTest(startTable, []byte(datum)[1:], transIn)
+		transOut := traverseDFA(startTable, []byte(datum)[1:], transIn)
 		if len(transOut) != 1 || transOut[0] != targetFA {
 			t.Error("fail on ", datum)
 		}
