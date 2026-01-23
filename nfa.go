@@ -52,6 +52,10 @@ func newTransMap() *transmap {
 	return &transmap{set: make(map[*fieldMatcher]bool)}
 }
 
+func (tm *transmap) reset() {
+	clear(tm.set)
+}
+
 func (tm *transmap) add(fms []*fieldMatcher) {
 	for _, fm := range fms {
 		tm.set[fm] = true
@@ -74,6 +78,7 @@ type nfaBuffers struct {
 	buf1, buf2 []*faState
 	eClosure   *epsilonClosure
 	matches    *matchSet
+	transmap   *transmap
 }
 
 func newNfaBuffers() *nfaBuffers {
@@ -82,6 +87,7 @@ func newNfaBuffers() *nfaBuffers {
 		buf2:     make([]*faState, 0, 16),
 		eClosure: newEpsilonClosure(),
 		matches:  newMatchSet(),
+		transmap: newTransMap(),
 	}
 }
 
@@ -184,7 +190,8 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// a * entry with a transition could end up getting added a lot. While this
 	// involves memory allocation, in the vast majority of cases matching an event
 	// will turn up a tiny number of unique matches, so allocation should be minimal
-	newTransitions := newTransMap()
+	newTransitions := bufs.transmap
+	newTransitions.reset()
 	newTransitions.add(transitions)
 
 	stepResult := &stepOut{}
