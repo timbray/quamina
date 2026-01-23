@@ -71,17 +71,19 @@ func (tm *transmap) all() []*fieldMatcher {
 // the incoming event patterns and matcher structures and eventually the amount of event-matching memory
 // allocation will be reduced to nearly zero.
 type nfaBuffers struct {
-	buf1, buf2 []*faState
-	eClosure   *epsilonClosure
-	matches    *matchSet
+	buf1, buf2     []*faState
+	eClosure       *epsilonClosure
+	matches        *matchSet
+	dfaTransitions []*fieldMatcher
 }
 
 func newNfaBuffers() *nfaBuffers {
 	return &nfaBuffers{
-		buf1:     make([]*faState, 0, 16),
-		buf2:     make([]*faState, 0, 16),
-		eClosure: newEpsilonClosure(),
-		matches:  newMatchSet(),
+		buf1:           make([]*faState, 0, 16),
+		buf2:           make([]*faState, 0, 16),
+		eClosure:       newEpsilonClosure(),
+		matches:        newMatchSet(),
+		dfaTransitions: make([]*fieldMatcher, 0, 16),
 	}
 }
 
