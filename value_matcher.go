@@ -74,7 +74,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 				if vmFields.isNondeterministic {
 					return traverseNFA(vmFields.startTable, qNum, transitions, bufs, sharedNullPrinter)
 				} else {
-					return traverseDFA(vmFields.startTable, qNum, transitions, bufs)
+					return traverseDFA(vmFields.startTable, qNum, transitions)
 				}
 			}
 		}
@@ -83,7 +83,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 		if vmFields.isNondeterministic {
 			return traverseNFA(vmFields.startTable, val, transitions, bufs, sharedNullPrinter)
 		} else {
-			return traverseDFA(vmFields.startTable, val, transitions, bufs)
+			return traverseDFA(vmFields.startTable, val, transitions)
 		}
 
 	default:

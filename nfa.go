@@ -171,7 +171,7 @@ func n2dNode(rawNStates []*faState, sList *stateLists, ec *epsilonClosure) *faSt
 // NFA-capable data structure, we can traverse it deterministically if we know in advance that every
 // combination of an faState with a byte will transition to at most one other faState.
 
-func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
+func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
 	for index := 0; index <= len(val); index++ {
 		var utf8Byte byte
 		if index < len(val) {
@@ -191,8 +191,7 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 
 // traverseDFAForTest is a test helper that creates its own nfaBuffers
 func traverseDFAForTest(table *smallTable, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
-	bufs := newNfaBuffers()
-	return traverseDFA(table, val, transitions, bufs)
+	return traverseDFA(table, val, transitions)
 }
 
 // traverseNFA attempts efficient traversal of an NFA. Each step processes currentList, a list of the
