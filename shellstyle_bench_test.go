@@ -18,23 +18,41 @@ func BenchmarkShellstyleMultiMatch(b *testing.B) {
 	}
 
 	// Add some funky patterns with multiple wildcards that trigger more complex NFA traversal
-	q.AddPattern("funky1", `{"STREET": [ {"shellstyle": "*E*E*E*"} ]}`)
-	q.AddPattern("funky2", `{"STREET": [ {"shellstyle": "*A*B*"} ]}`)
-	q.AddPattern("funky3", `{"STREET": [ {"shellstyle": "*N*P*"} ]}`)
-	q.AddPattern("funky4", `{"STREET": [ {"shellstyle": "*O*O*O*"} ]}`)
+	funkyPatterns := map[string]string{
+		"funky1": "*E*E*E*",
+		"funky2": "*A*B*",
+		"funky3": "*N*P*",
+		"funky4": "*O*O*O*",
+	}
+	for name, shellstyle := range funkyPatterns {
+		pattern := fmt.Sprintf(`{"STREET": [ {"shellstyle": "%s"} ]}`, shellstyle)
+		q.AddPattern(name, pattern)
+	}
 
 	// Add CJK patterns to test Unicode handling
-	q.AddPattern("jp1", `{"STREET": [ {"shellstyle": "*東京*"} ]}`)
-	q.AddPattern("jp2", `{"STREET": [ {"shellstyle": "新*"} ]}`)
-	q.AddPattern("cn1", `{"STREET": [ {"shellstyle": "*北京*"} ]}`)
-	q.AddPattern("cn2", `{"STREET": [ {"shellstyle": "上海*"} ]}`)
-	q.AddPattern("kr1", `{"STREET": [ {"shellstyle": "*서울*"} ]}`)
+	cjkPatterns := map[string]string{
+		"jp1": "*東京*",
+		"jp2": "新*",
+		"cn1": "*北京*",
+		"cn2": "上海*",
+		"kr1": "*서울*",
+	}
+	for name, shellstyle := range cjkPatterns {
+		pattern := fmt.Sprintf(`{"STREET": [ {"shellstyle": "%s"} ]}`, shellstyle)
+		q.AddPattern(name, pattern)
+	}
 
 	// Add emoji patterns to test multi-byte UTF-8 sequences
-	q.AddPattern("emoji1", `{"STREET": [ {"shellstyle": "*🎉*"} ]}`)
-	q.AddPattern("emoji2", `{"STREET": [ {"shellstyle": "🚀*"} ]}`)
-	q.AddPattern("emoji3", `{"STREET": [ {"shellstyle": "*❤️*"} ]}`)
-	q.AddPattern("emoji4", `{"STREET": [ {"shellstyle": "*🌟*🎯*"} ]}`)
+	emojiPatterns := map[string]string{
+		"emoji1": "*🎉*",
+		"emoji2": "🚀*",
+		"emoji3": "*❤️*",
+		"emoji4": "*🌟*🎯*",
+	}
+	for name, shellstyle := range emojiPatterns {
+		pattern := fmt.Sprintf(`{"STREET": [ {"shellstyle": "%s"} ]}`, shellstyle)
+		q.AddPattern(name, pattern)
+	}
 
 	// Events that will match and require NFA traversal
 	events := [][]byte{
