@@ -60,6 +60,7 @@ func TestRegexpWorkbench(t *testing.T) {
 		t.Error("Workbench")
 	}
 }
+
 func applyAndRunRegexp(t *testing.T, regexp string, match string, pp printer) int {
 	t.Helper()
 	qm := []byte(`"` + match + `"`)

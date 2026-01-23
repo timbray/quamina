@@ -5,13 +5,10 @@
 [![codecov](https://codecov.io/gh/timbray/quamina/branch/main/graph/badge.svg?token=TC7MW723JO)](https://codecov.io/gh/timbray/quamina)
 [![Go Report Card](https://goreportcard.com/badge/quamina.net/go/quamina)](https://goreportcard.com/report/quamina.net/go/quamina)
 [![timbray/quamina](https://img.shields.io/github/go-mod/go-version/timbray/quamina)](https://github.com/timbray/quamina)
-[![Go Reference](https://pkg.go.dev/badge/quamina.net/go/quamina.svg)](https://pkg.go.dev/quamina.net/go/quamina)
-[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![0 dependencies!](https://0dependencies.dev/0dependencies.svg)](https://0dependencies.dev)
 
 ### Fast pattern-matching library
 
-\
 **Quamina** implements a data type with APIs to
 create an instance and add multiple **Patterns** to it,
 and then query data objects called **Events** to
@@ -26,7 +23,7 @@ Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
 
-This is version 1.5.1 of Quamina. In future, the API will be changed only additively.
+This is version 2 of Quamina. In future, the API will be changed only additively.
 
 Note that we have documented more APIs than are actually
 fully implemented, with the intent of showing direction.

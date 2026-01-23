@@ -68,8 +68,8 @@ var forbiddenBytes = map[byte]bool{
 }
 
 func (t *smallTable) isJustEpsilons() bool {
-	// TODO I think the second half of the condition is unnecessary
-	return len(t.steps) == 1 && t.steps[0] == nil
+	// TODO I think the second of the three conditions is unnecessary
+	return len(t.steps) == 1 && t.steps[0] == nil && len(t.epsilons) != 0
 }
 
 // step finds the list of states that result from a transition on the utf8Byte argument. The states can come
