@@ -26,9 +26,9 @@ func BenchmarkCoreMatcherTransmap(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		// matchesForJSONWithFlattener is the lower-level API that:
-		// 1. Before PR: Allocated new nfaBuffers every time
+		// 1. Before PR #478: Allocated new nfaBuffers every time
 		// 2. Inside traverseNFA: Allocated new transmap every time
-		// 3. After PR: Reuses everything from sync.Pool
+		// 3. After PR #478: Reuses everything from sync.Pool
 		_, err := cm.matchesForJSONWithFlattener(event, flattener)
 		if err != nil {
 			b.Fatal(err)
