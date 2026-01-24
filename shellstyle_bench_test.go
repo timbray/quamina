@@ -14,7 +14,9 @@ func BenchmarkShellstyleMultiMatch(b *testing.B) {
 	// Add multiple shellstyle patterns like in TestBigShellStyle
 	for _, letter := range []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"} {
 		pattern := fmt.Sprintf(`{"STREET": [ {"shellstyle": "%s*"} ]}`, letter)
-		q.AddPattern(letter, pattern)
+		if err := q.AddPattern(letter, pattern); err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	// Add some funky patterns with multiple wildcards that trigger more complex NFA traversal
@@ -26,7 +28,9 @@ func BenchmarkShellstyleMultiMatch(b *testing.B) {
 	}
 	for name, shellstyle := range funkyPatterns {
 		pattern := fmt.Sprintf(`{"STREET": [ {"shellstyle": "%s"} ]}`, shellstyle)
-		q.AddPattern(name, pattern)
+		if err := q.AddPattern(name, pattern); err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	// Add CJK patterns to test Unicode handling
@@ -39,7 +43,9 @@ func BenchmarkShellstyleMultiMatch(b *testing.B) {
 	}
 	for name, shellstyle := range cjkPatterns {
 		pattern := fmt.Sprintf(`{"STREET": [ {"shellstyle": "%s"} ]}`, shellstyle)
-		q.AddPattern(name, pattern)
+		if err := q.AddPattern(name, pattern); err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	// Add emoji patterns to test multi-byte UTF-8 sequences
@@ -51,7 +57,9 @@ func BenchmarkShellstyleMultiMatch(b *testing.B) {
 	}
 	for name, shellstyle := range emojiPatterns {
 		pattern := fmt.Sprintf(`{"STREET": [ {"shellstyle": "%s"} ]}`, shellstyle)
-		q.AddPattern(name, pattern)
+		if err := q.AddPattern(name, pattern); err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	// Events that will match and require NFA traversal
