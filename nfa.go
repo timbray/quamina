@@ -95,6 +95,16 @@ func newNfaBuffers() *nfaBuffers {
 	}
 }
 
+func (nb *nfaBuffers) reset() {
+	nb.buf1 = nb.buf1[:0]
+	nb.buf2 = nb.buf2[:0]
+	nb.eClosure.reset()
+	nb.matches.reset()
+	nb.transmap.reset()
+	nb.resultBuf = nb.resultBuf[:0]
+	nb.transitionsBuf = nb.transitionsBuf[:0]
+}
+
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
 func nfa2Dfa(nfaTable *smallTable) *faState {
 	startNfa := []*faState{{table: nfaTable}}

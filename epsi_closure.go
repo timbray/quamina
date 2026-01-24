@@ -8,6 +8,10 @@ func newEpsilonClosure() *epsilonClosure {
 	return &epsilonClosure{make(map[*faState][]*faState)}
 }
 
+func (ec *epsilonClosure) reset() {
+	clear(ec.closures)
+}
+
 func (ec *epsilonClosure) getClosure(state *faState) []*faState {
 	var closure []*faState
 	var ok bool
