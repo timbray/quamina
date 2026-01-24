@@ -75,6 +75,7 @@ type nfaBuffers struct {
 	eClosure       *epsilonClosure
 	matches        *matchSet
 	transitionsBuf []*fieldMatcher
+	resultBuf      []X
 }
 
 func newNfaBuffers() *nfaBuffers {
@@ -84,6 +85,7 @@ func newNfaBuffers() *nfaBuffers {
 		eClosure:       newEpsilonClosure(),
 		matches:        newMatchSet(),
 		transitionsBuf: make([]*fieldMatcher, 0, 16),
+		resultBuf:      make([]X, 0, 16),
 	}
 }
 
