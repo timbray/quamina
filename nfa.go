@@ -63,7 +63,10 @@ func (tm *transmap) add(fms []*fieldMatcher) {
 }
 
 func (tm *transmap) all() []*fieldMatcher {
-	var all []*fieldMatcher
+	if len(tm.set) == 0 {
+		return nil
+	}
+	all := make([]*fieldMatcher, 0, len(tm.set))
 	for fm := range tm.set {
 		all = append(all, fm)
 	}
