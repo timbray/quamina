@@ -144,6 +144,9 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	// there's already a table, thus an out-degree > 1
 	if fields.startTable != nil {
 		fields.startTable = mergeFAs(fields.startTable, newFA, printer)
+		if fields.isNondeterministic {
+			precomputeEpsilonClosures(fields.startTable)
+		}
 		m.update(fields)
 		return nextField
 	}
@@ -156,11 +159,17 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 
 		// now table is ready for use, nuke singleton to signal threads to use it
 		fields.startTable = mergeFAs(singletonAutomaton, newFA, sharedNullPrinter)
+		if fields.isNondeterministic {
+			precomputeEpsilonClosures(fields.startTable)
+		}
 		fields.singletonMatch = nil
 		fields.singletonTransition = nil
 	} else {
 		// empty valueMatcher, no special cases, just jam in the new FA
 		fields.startTable = newFA
+		if fields.isNondeterministic {
+			precomputeEpsilonClosures(fields.startTable)
+		}
 	}
 	m.update(fields)
 	return nextField

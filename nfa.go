@@ -16,6 +16,7 @@ type faState struct {
 	table            *smallTable
 	fieldTransitions []*fieldMatcher
 	isSpinner        bool
+	epsilonClosure   []*faState // precomputed epsilon closure including self
 }
 
 /*
@@ -181,7 +182,14 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // and should grow with use and minimize the need for memory allocation.
 func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
 	currentStates := bufs.buf1
-	currentStates = append(currentStates, &faState{table: table})
+	startState := &faState{table: table}
+	// Compute closure for the start state inline to avoid map lookup
+	if len(table.epsilons) == 0 {
+		startState.epsilonClosure = []*faState{startState}
+	} else {
+		startState.epsilonClosure = bufs.eClosure.getClosure(startState)
+	}
+	currentStates = append(currentStates, startState)
 	nextStates := bufs.buf2
 
 	// a lot of the transitions stuff is going to be empty, but on the other hand
@@ -200,7 +208,11 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 			utf8Byte = valueTerminator
 		}
 		for _, state := range currentStates {
-			closure := bufs.eClosure.getClosure(state)
+			closure := state.epsilonClosure
+			if closure == nil {
+				// fallback for states without precomputed closure (e.g., in tests)
+				closure = bufs.eClosure.getClosure(state)
+			}
 			for _, ecState := range closure {
 				newTransitions.add(ecState.fieldTransitions)
 				ecState.table.step(utf8Byte, stepResult)
@@ -238,7 +250,10 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// we've run out of input bytes so we need to check the current states and their
 	// epsilon closures for matches
 	for _, state := range currentStates {
-		closure := bufs.eClosure.getClosure(state)
+		closure := state.epsilonClosure
+		if closure == nil {
+			closure = bufs.eClosure.getClosure(state)
+		}
 		for _, ecState := range closure {
 			newTransitions.add(ecState.fieldTransitions)
 		}
@@ -247,6 +262,68 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	bufs.buf1 = currentStates[:0]
 	bufs.buf2 = nextStates[:0]
 	return newTransitions.all()
+}
+
+// precomputeEpsilonClosures walks the automaton starting from the given table
+// and precomputes the epsilon closure for every reachable faState.
+func precomputeEpsilonClosures(table *smallTable) {
+	visited := make(map[*smallTable]bool)
+	precomputeClosuresRecursive(table, visited)
+}
+
+func precomputeClosuresRecursive(table *smallTable, visited map[*smallTable]bool) {
+	if visited[table] {
+		return
+	}
+	visited[table] = true
+
+	// Process each faState reachable via byte transitions
+	for _, state := range table.steps {
+		if state != nil {
+			computeClosureForState(state)
+			precomputeClosuresRecursive(state.table, visited)
+		}
+	}
+	// Process each faState reachable via epsilon transitions
+	for _, eps := range table.epsilons {
+		computeClosureForState(eps)
+		precomputeClosuresRecursive(eps.table, visited)
+	}
+}
+
+func computeClosureForState(state *faState) {
+	if state.epsilonClosure != nil {
+		return // already computed
+	}
+
+	if len(state.table.epsilons) == 0 {
+		state.epsilonClosure = []*faState{state}
+		return
+	}
+
+	closureSet := make(map[*faState]bool)
+	if !state.table.isEpsilonOnly() {
+		closureSet[state] = true
+	}
+	traverseEpsilonsForClosure(state, state.table.epsilons, closureSet)
+
+	closure := make([]*faState, 0, len(closureSet))
+	for s := range closureSet {
+		closure = append(closure, s)
+	}
+	state.epsilonClosure = closure
+}
+
+func traverseEpsilonsForClosure(start *faState, epsilons []*faState, closureSet map[*faState]bool) {
+	for _, eps := range epsilons {
+		if eps == start || closureSet[eps] {
+			continue
+		}
+		if !eps.table.isEpsilonOnly() {
+			closureSet[eps] = true
+		}
+		traverseEpsilonsForClosure(start, eps.table.epsilons, closureSet)
+	}
 }
 
 type faStepKey struct {
