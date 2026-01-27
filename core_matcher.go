@@ -167,7 +167,7 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 		slices.SortFunc(fields, func(a, b Field) int { return bytes.Compare(a.Path, b.Path) })
 	}
 	// Reuse the matchSet from buffers to reduce allocations
-	matches := bufs.matches
+	matches := bufs.getMatches()
 	matches.reset()
 	cmFields := m.fields()
 
