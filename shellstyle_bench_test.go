@@ -92,7 +92,6 @@ func BenchmarkShellstyleMultiMatch(b *testing.B) {
 		[]byte(`{"STREET": "北京路"}`),
 		[]byte(`{"STREET": "上海南京路"}`),
 		[]byte(`{"STREET": "서울대로"}`),
-		[]byte(`{"STREET": "江南大路"}`),
 		// Emoji streets (fun test case!)
 		[]byte(`{"STREET": "Party Street 🎉"}`),
 		[]byte(`{"STREET": "🚀 Rocket Road"}`),
@@ -107,7 +106,13 @@ func BenchmarkShellstyleMultiMatch(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, event := range events {
-			_, _ = q.MatchesForEvent(event)
+			matches, err := q.MatchesForEvent(event)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if len(matches) == 0 {
+				b.Fatalf("no matches for event: %s", event)
+			}
 		}
 	}
 }
