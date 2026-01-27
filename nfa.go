@@ -125,26 +125,6 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 	return nb.transmap
 }
 
-func (nb *nfaBuffers) reset() {
-	if nb.buf1 != nil {
-		nb.buf1 = nb.buf1[:0]
-	}
-	if nb.buf2 != nil {
-		nb.buf2 = nb.buf2[:0]
-	}
-	if nb.eClosure != nil {
-		nb.eClosure.reset()
-	}
-	if nb.matches != nil {
-		nb.matches.reset()
-	}
-	if nb.transmap != nil {
-		nb.transmap.reset()
-	}
-	nb.resultBuf = nb.resultBuf[:0]
-	nb.transitionsBuf = nb.transitionsBuf[:0]
-}
-
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
 func nfa2Dfa(nfaTable *smallTable) *faState {
 	startNfa := []*faState{{table: nfaTable}}
