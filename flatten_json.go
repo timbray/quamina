@@ -16,14 +16,15 @@ import (
 // There is an exception, namely strings that contain \-prefixed JSON escapes; since we want to work with the
 // actual UTF-8 bytes, this requires re-writing such strings into memory we have to allocate.
 type flattenJSON struct {
-	event      []byte     // event being processed, treated as immutable
-	eventIndex int        // current byte index into the event
-	fields     []Field    // the under-construction return value of the Flatten method
-	skipping   int        // track whether we're within the scope of a segment that isn't used
-	arrayTrail []ArrayPos // current array-position cookie crumbs
-	arrayCount int32      // how many arrays we've seen, used in building arrayTrail
-	cleanSheet bool       // initially true, don't have to call Reset()
-	isSpace    [256]bool
+	event          []byte     // event being processed, treated as immutable
+	eventIndex     int        // current byte index into the event
+	fields         []Field    // the under-construction return value of the Flatten method
+	skipping       int        // track whether we're within the scope of a segment that isn't used
+	arrayTrail     []ArrayPos // current array-position cookie crumbs
+	arrayCount     int32      // how many arrays we've seen, used in building arrayTrail
+	arrayPosBuffer []ArrayPos // batch allocation buffer for ArrayTrail slices
+	cleanSheet     bool       // initially true, don't have to call Reset()
+	isSpace        [256]bool
 }
 
 // Reset a flattenJSON struct so  that it can be re-used and won't need to be reconstructed for each event
@@ -34,6 +35,7 @@ func (fj *flattenJSON) reset() {
 	fj.skipping = 0
 	fj.arrayTrail = fj.arrayTrail[:0]
 	fj.arrayCount = 0
+	fj.arrayPosBuffer = fj.arrayPosBuffer[:0]
 }
 
 // JSON literals
@@ -837,12 +839,17 @@ func (fj *flattenJSON) readHexUTF16(from int) ([]byte, int, error) {
 }
 
 // storeArrayElementField adds a field to be returned to the Flatten caller, straightforward except for the field needs
-// its own snapshot of the array-trail data, because it'll be different for each array element
-// NOTE: The profiler says this is the most expensive function in the whole matchesForJSONEvent universe, presumably
-// because of the necessity to construct a new arrayTrail for each element.
+// its own snapshot of the array-trail data, because it'll be different for each array element.
+// Uses batch allocation via arrayPosBuffer to avoid per-element allocations.
 func (fj *flattenJSON) storeArrayElementField(path []byte, val []byte, isNumber bool) {
-	f := Field{Path: path, ArrayTrail: make([]ArrayPos, len(fj.arrayTrail)), Val: val, IsNumber: isNumber}
-	copy(f.ArrayTrail, fj.arrayTrail)
+	start := len(fj.arrayPosBuffer)
+	fj.arrayPosBuffer = append(fj.arrayPosBuffer, fj.arrayTrail...)
+	f := Field{
+		Path:       path,
+		ArrayTrail: fj.arrayPosBuffer[start:len(fj.arrayPosBuffer):len(fj.arrayPosBuffer)],
+		Val:        val,
+		IsNumber:   isNumber,
+	}
 	fj.fields = append(fj.fields, f)
 }
 
