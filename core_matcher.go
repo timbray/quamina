@@ -25,7 +25,6 @@ import (
 type coreMatcher struct {
 	updateable atomic.Pointer[coreFields]
 	lock       sync.Mutex
-	bufferPool sync.Pool
 }
 
 // coreFields groups the updateable fields in coreMatcher.
@@ -39,13 +38,7 @@ type coreFields struct {
 }
 
 func newCoreMatcher() *coreMatcher {
-	m := coreMatcher{
-		bufferPool: sync.Pool{
-			New: func() any {
-				return newNfaBuffers()
-			},
-		},
-	}
+	m := coreMatcher{}
 	m.updateable.Store(&coreFields{
 		state:        newFieldMatcher(),
 		segmentsTree: newSegmentsIndex(),
@@ -146,10 +139,7 @@ func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
 // because newJSONFlattener() is fairly heavyweight and you want it out of the benchmark loop
 func (m *coreMatcher) matchesForJSONWithFlattener(event []byte, f Flattener) ([]X, error) {
 	fields, _ := f.Flatten(event, m.getSegmentsTreeTracker())
-	bufs := m.bufferPool.Get().(*nfaBuffers)
-	bufs.reset()
-	defer m.bufferPool.Put(bufs)
-	return m.matchesForFields(fields, bufs)
+	return m.matchesForFields(fields, newNfaBuffers())
 }
 
 // emptyFields returns a fake []Field list containing a single field whose name is lexically greater than any that
@@ -177,7 +167,7 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 		slices.SortFunc(fields, func(a, b Field) int { return bytes.Compare(a.Path, b.Path) })
 	}
 	// Reuse the matchSet from buffers to reduce allocations
-	matches := bufs.matches
+	matches := bufs.getMatches()
 	matches.reset()
 	cmFields := m.fields()
 
