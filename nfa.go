@@ -52,6 +52,10 @@ func newTransMap() *transmap {
 	return &transmap{set: make(map[*fieldMatcher]bool)}
 }
 
+func (tm *transmap) reset() {
+	clear(tm.set)
+}
+
 func (tm *transmap) add(fms []*fieldMatcher) {
 	for _, fm := range fms {
 		tm.set[fm] = true
@@ -59,7 +63,10 @@ func (tm *transmap) add(fms []*fieldMatcher) {
 }
 
 func (tm *transmap) all() []*fieldMatcher {
-	var all []*fieldMatcher
+	if len(tm.set) == 0 {
+		return nil
+	}
+	all := make([]*fieldMatcher, 0, len(tm.set))
 	for fm := range tm.set {
 		all = append(all, fm)
 	}
@@ -76,17 +83,49 @@ type nfaBuffers struct {
 	matches        *matchSet
 	transitionsBuf []*fieldMatcher
 	resultBuf      []X
+	transmap       *transmap
 }
 
 func newNfaBuffers() *nfaBuffers {
 	return &nfaBuffers{
-		buf1:           make([]*faState, 0, 16),
-		buf2:           make([]*faState, 0, 16),
-		eClosure:       newEpsilonClosure(),
-		matches:        newMatchSet(),
 		transitionsBuf: make([]*fieldMatcher, 0, 16),
 		resultBuf:      make([]X, 0, 16),
 	}
+}
+
+func (nb *nfaBuffers) getBuf1() []*faState {
+	if nb.buf1 == nil {
+		nb.buf1 = make([]*faState, 0, 16)
+	}
+	return nb.buf1
+}
+
+func (nb *nfaBuffers) getBuf2() []*faState {
+	if nb.buf2 == nil {
+		nb.buf2 = make([]*faState, 0, 16)
+	}
+	return nb.buf2
+}
+
+func (nb *nfaBuffers) getEClosure() *epsilonClosure {
+	if nb.eClosure == nil {
+		nb.eClosure = newEpsilonClosure()
+	}
+	return nb.eClosure
+}
+
+func (nb *nfaBuffers) getMatches() *matchSet {
+	if nb.matches == nil {
+		nb.matches = newMatchSet()
+	}
+	return nb.matches
+}
+
+func (nb *nfaBuffers) getTransmap() *transmap {
+	if nb.transmap == nil {
+		nb.transmap = newTransMap()
+	}
+	return nb.transmap
 }
 
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
@@ -180,15 +219,16 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // currentStates, nextStates, and the epsilon closure of one particular state. These are re-used
 // and should grow with use and minimize the need for memory allocation.
 func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
-	currentStates := bufs.buf1
+	currentStates := bufs.getBuf1()
 	currentStates = append(currentStates, &faState{table: table})
-	nextStates := bufs.buf2
+	nextStates := bufs.getBuf2()
 
 	// a lot of the transitions stuff is going to be empty, but on the other hand
 	// a * entry with a transition could end up getting added a lot. While this
 	// involves memory allocation, in the vast majority of cases matching an event
 	// will turn up a tiny number of unique matches, so allocation should be minimal
-	newTransitions := newTransMap()
+	newTransitions := bufs.getTransmap()
+	newTransitions.reset()
 	newTransitions.add(transitions)
 
 	stepResult := &stepOut{}
@@ -200,7 +240,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 			utf8Byte = valueTerminator
 		}
 		for _, state := range currentStates {
-			closure := bufs.eClosure.getClosure(state)
+			closure := bufs.getEClosure().getClosure(state)
 			for _, ecState := range closure {
 				newTransitions.add(ecState.fieldTransitions)
 				ecState.table.step(utf8Byte, stepResult)
@@ -238,7 +278,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// we've run out of input bytes so we need to check the current states and their
 	// epsilon closures for matches
 	for _, state := range currentStates {
-		closure := bufs.eClosure.getClosure(state)
+		closure := bufs.getEClosure().getClosure(state)
 		for _, ecState := range closure {
 			newTransitions.add(ecState.fieldTransitions)
 		}
