@@ -27,7 +27,6 @@ func TestEmptyRegexp(t *testing.T) {
 		fmt.Println("OOPS: " + err.Error())
 	}
 	table, _ := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
-	precomputeEpsilonClosures(table)
 	// raw empty string should NOT match
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
@@ -67,7 +66,6 @@ func TestToxicStack(t *testing.T) {
 		t.Error("OOPS: " + err.Error())
 	}
 	table, _ = makeRegexpNFA(parse.tree, true, pp)
-	precomputeEpsilonClosures(table)
 
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
@@ -123,7 +121,6 @@ func TestRegexpValidity(t *testing.T) {
 			if len(parse.features.foundUnimplemented()) == 0 {
 				implemented++
 				table, dest := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
-				precomputeEpsilonClosures(table)
 				for _, should := range sample.matches {
 					var transitions []*fieldMatcher
 					bufs := newNfaBuffers()

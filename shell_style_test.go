@@ -60,7 +60,6 @@ func TestMakeShellStyleFA(t *testing.T) {
 
 	for i, pattern := range patterns {
 		a, wanted := makeShellStyleFA([]byte(pattern), sharedNullPrinter)
-		precomputeEpsilonClosures(a)
 		vm := newValueMatcher()
 		vmf := vmFields{startTable: a}
 		vm.update(&vmf)

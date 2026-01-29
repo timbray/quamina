@@ -18,11 +18,9 @@ func TestSkinnyRuneTree(t *testing.T) {
 	addSkinnyRuneTreeEntry(srt, r+1, dest)
 	addSkinnyRuneTreeEntry(srt, r+3, dest)
 	fa := nfaFromSkinnyRuneTree(srt, pp)
-	precomputeEpsilonClosures(fa)
 	fmt.Println("FA:\n" + pp.printNFA(fa))
 	trans := []*fieldMatcher{}
-	bufs := newNfaBuffers()
-	matches := traverseNFA(fa, utf8, trans, bufs, pp)
+	matches := traverseDFA(fa, utf8, trans)
 	if len(matches) != 1 {
 		t.Error("MISSED")
 	}

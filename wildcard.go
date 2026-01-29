@@ -113,7 +113,6 @@ func makeWildCardFA(val []byte, pp printer) (start *smallTable, nextField *field
 	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 	pp.labelTable(lastStep.table, fmt.Sprintf("last step at %d", valIndex))
 	state.table.addByteStep(valueTerminator, lastStep)
-
-	// start = nfa2Dfa(start, pp).table
+	precomputeEpsilonClosures(start)
 	return
 }

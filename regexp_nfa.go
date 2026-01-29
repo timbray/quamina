@@ -29,7 +29,9 @@ func makeRegexpNFA(root regexpRoot, forField bool, pp printer) (*smallTable, *fi
 		pp.labelTable(table, "</Field>")
 		nextStep = &faState{table: table}
 	}
-	return makeNFAFromBranches(root, nextStep, forField, pp), nextField
+	fa := makeNFAFromBranches(root, nextStep, forField, pp)
+	precomputeEpsilonClosures(fa)
+	return fa, nextField
 }
 func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp printer) *smallTable {
 	// completely empty regexp

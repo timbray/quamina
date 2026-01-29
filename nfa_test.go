@@ -116,7 +116,6 @@ func TestNfa2Dfa(t *testing.T) {
 	bufs := newNfaBuffers()
 	for _, test := range tests {
 		nfa, _ := makeShellStyleFA(asQuotedBytes(t, test.pattern), pp)
-		precomputeEpsilonClosures(nfa)
 		//fmt.Println("NFA: " + pp.printNFA(nfa))
 
 		for _, should := range test.shoulds {
