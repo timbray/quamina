@@ -80,7 +80,6 @@ func (tm *transmap) all() []*fieldMatcher {
 // allocation will be reduced to nearly zero.
 type nfaBuffers struct {
 	buf1, buf2     []*faState
-	eClosure       *epsilonClosure
 	matches        *matchSet
 	transitionsBuf []*fieldMatcher
 	resultBuf      []X
@@ -106,13 +105,6 @@ func (nb *nfaBuffers) getBuf2() []*faState {
 		nb.buf2 = make([]*faState, 0, 16)
 	}
 	return nb.buf2
-}
-
-func (nb *nfaBuffers) getEClosure() *epsilonClosure {
-	if nb.eClosure == nil {
-		nb.eClosure = newEpsilonClosure()
-	}
-	return nb.eClosure
 }
 
 func (nb *nfaBuffers) getMatches() *matchSet {
@@ -222,12 +214,7 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
 	startState := &faState{table: table}
-	// Compute closure for the start state inline to avoid map lookup
-	if len(table.epsilons) == 0 {
-		startState.epsilonClosure = []*faState{startState}
-	} else {
-		startState.epsilonClosure = bufs.getEClosure().getClosure(startState)
-	}
+	computeClosureForState(startState)
 	currentStates = append(currentStates, startState)
 	nextStates := bufs.getBuf2()
 
@@ -248,12 +235,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 			utf8Byte = valueTerminator
 		}
 		for _, state := range currentStates {
-			closure := state.epsilonClosure
-			if closure == nil {
-				// fallback for states without precomputed closure (e.g., in tests)
-				closure = bufs.getEClosure().getClosure(state)
-			}
-			for _, ecState := range closure {
+			for _, ecState := range state.epsilonClosure {
 				newTransitions.add(ecState.fieldTransitions)
 				ecState.table.step(utf8Byte, stepResult)
 				if stepResult.step != nil {
@@ -290,11 +272,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// we've run out of input bytes so we need to check the current states and their
 	// epsilon closures for matches
 	for _, state := range currentStates {
-		closure := state.epsilonClosure
-		if closure == nil {
-			closure = bufs.getEClosure().getClosure(state)
-		}
-		for _, ecState := range closure {
+		for _, ecState := range state.epsilonClosure {
 			newTransitions.add(ecState.fieldTransitions)
 		}
 	}
