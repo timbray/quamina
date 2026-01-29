@@ -30,7 +30,7 @@ func makeRegexpNFA(root regexpRoot, forField bool, pp printer) (*smallTable, *fi
 		nextStep = &faState{table: table}
 	}
 	fa := makeNFAFromBranches(root, nextStep, forField, pp)
-	precomputeEpsilonClosures(fa)
+	epsilonClosure(fa)
 	return fa, nextField
 }
 func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp printer) *smallTable {
