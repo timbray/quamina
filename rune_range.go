@@ -145,28 +145,6 @@ func InvertRuneRange(rr RuneRange) RuneRange {
 	return inverted
 }
 
-type runeTreeEntry struct {
-	next  *faState
-	child runeTreeNode
-}
-type runeTreeNode []*runeTreeEntry
-
-// This burns memory like crazy, we build a 246-entry x 64-bit table for
-// each smallTable-to-be, which makes it slow in dealing with things like
-// ~p{L}. TODO: Here are ideas:
-//  1. For things like ~{L}, build the FA with a distinguished *faState "dest"
-//     value, then recursively copy all the faStates and smallTablss but replace
-//     the distinguished pointer with the real "next" value.
-//  2. Don't use a dumbass make([]*runeTreeEntry, byteCeiling) slice, but
-//     rather a list of byte/pointer pairs. Way less memory.
-//  3. Use a slightly less dumbass [byteCeiling]*faState and ideally in such a way
-//     that it comes off the stack.
-//     Hmm, that tree could get pretty huge, every new level brings in another power
-//     of 246.
-// As of 2026/01, #1 above has been implemented with a cache, see cachedFaShells.
-// The "skinny" stuff below is an attempt at #2, but runs much slower than the memory burner.
-// TODO: Investigate further
-
 // only "next" or "node" is provided
 type skinnyRuneTreeEntry struct {
 	next *faState
