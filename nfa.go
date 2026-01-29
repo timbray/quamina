@@ -125,7 +125,7 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 // Requires that precomputeEpsilonClosures has been called on the NFA.
 func nfa2Dfa(nfaTable *smallTable) *faState {
 	startState := &faState{table: nfaTable}
-	computeClosureForState(startState)
+	closureForState(startState)
 	startNfa := []*faState{startState}
 	return n2dNode(startNfa, newStateLists())
 }
@@ -216,7 +216,7 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
 	startState := &faState{table: table}
-	computeClosureForState(startState)
+	closureForState(startState)
 	currentStates = append(currentStates, startState)
 	nextStates := bufs.getBuf2()
 

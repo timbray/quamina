@@ -25,15 +25,15 @@ func TestEpsilonClosure(t *testing.T) {
 	aFM := newFieldMatcher()
 	aSc.fieldTransitions = []*fieldMatcher{aFM}
 
-	computeClosureForState(aSa)
+	closureForState(aSa)
 	if len(aSa.epsilonClosure) != 1 || !containsState(t, aSa.epsilonClosure, aSa) {
 		t.Errorf("len(ec) = %d; want 1", len(aSa.epsilonClosure))
 	}
-	computeClosureForState(aSstar)
+	closureForState(aSstar)
 	if len(aSstar.epsilonClosure) != 1 || !containsState(t, aSstar.epsilonClosure, aSstar) {
 		t.Error("aSstar")
 	}
-	computeClosureForState(aSc)
+	closureForState(aSc)
 	if len(aSc.epsilonClosure) != 1 || !containsState(t, aSc.epsilonClosure, aSc) {
 		t.Error("aSc")
 	}
@@ -69,13 +69,13 @@ func TestEpsilonClosure(t *testing.T) {
 	bEcShouldBeOne := []*faState{bSa, bSb, bSx, bSstar}
 	zNames := []string{"bSa", "bSb", "bSx", "bSstar"}
 	for i, state := range bEcShouldBeOne {
-		computeClosureForState(state)
+		closureForState(state)
 		if len(state.epsilonClosure) != 1 || !containsState(t, state.epsilonClosure, state) {
 			t.Errorf("should be 1 for %s, isn't", zNames[i])
 		}
 	}
 
-	computeClosureForState(bSsplice)
+	closureForState(bSsplice)
 	if len(bSsplice.epsilonClosure) != 2 || !containsState(t, bSsplice.epsilonClosure, bSa) || !containsState(t, bSsplice.epsilonClosure, bSstar) {
 		t.Error("wrong EC for b")
 	}
@@ -105,7 +105,7 @@ func TestEpsilonClosure(t *testing.T) {
 		pp.labelTable(st, name)
 	}
 
-	computeClosureForState(cStart)
+	closureForState(cStart)
 	cWantInEC := []*faState{cStart, cSa, cSb, cSc, cSz}
 	if len(cStart.epsilonClosure) != 5 {
 		t.Errorf("len B ec %d wanted 5", len(cStart.epsilonClosure))

@@ -4,10 +4,10 @@ package quamina
 // and precomputes the epsilon closure for every reachable faState.
 func precomputeEpsilonClosures(table *smallTable) {
 	visited := make(map[*smallTable]bool)
-	computeClosureForNfa(table, visited)
+	closureForNfa(table, visited)
 }
 
-func computeClosureForNfa(table *smallTable, visited map[*smallTable]bool) {
+func closureForNfa(table *smallTable, visited map[*smallTable]bool) {
 	if visited[table] {
 		return
 	}
@@ -16,18 +16,18 @@ func computeClosureForNfa(table *smallTable, visited map[*smallTable]bool) {
 	// Process each faState reachable via byte transitions
 	for _, state := range table.steps {
 		if state != nil {
-			computeClosureForState(state)
-			computeClosureForNfa(state.table, visited)
+			closureForState(state)
+			closureForNfa(state.table, visited)
 		}
 	}
 	// Process each faState reachable via epsilon transitions
 	for _, eps := range table.epsilons {
-		computeClosureForState(eps)
-		computeClosureForNfa(eps.table, visited)
+		closureForState(eps)
+		closureForNfa(eps.table, visited)
 	}
 }
 
-func computeClosureForState(state *faState) {
+func closureForState(state *faState) {
 	if state.epsilonClosure != nil {
 		return // already computed
 	}
