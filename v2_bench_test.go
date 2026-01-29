@@ -9,8 +9,7 @@ import (
 
 // Benchmarks designed to work with Go's 1.24 testing.B.Loop().  Note: When doing this kind of benchmarking, always
 // call quamina.MatchesForEvent, as opposed to working directly with the coreMatcher, because the top-level function
-// is clever about re-using the nfaBuffers structure, which in particular includes the epsilonClosure cache. If you
-// work directly with coreMatcher your CPU and memory profiles will be dominated by epsilonClosure.
+// is clever about re-using the nfaBuffers structure.
 
 func Benchmark8259Example(b *testing.B) {
 	j := `{

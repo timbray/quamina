@@ -1,54 +1,63 @@
 package quamina
 
-type epsilonClosure struct {
-	closures map[*faState][]*faState
+// precomputeEpsilonClosures walks the automaton starting from the given table
+// and precomputes the epsilon closure for every reachable faState.
+func precomputeEpsilonClosures(table *smallTable) {
+	visited := make(map[*smallTable]bool)
+	precomputeClosuresRecursive(table, visited)
 }
 
-func newEpsilonClosure() *epsilonClosure {
-	return &epsilonClosure{make(map[*faState][]*faState)}
-}
+func precomputeClosuresRecursive(table *smallTable, visited map[*smallTable]bool) {
+	if visited[table] {
+		return
+	}
+	visited[table] = true
 
-func (ec *epsilonClosure) getClosure(state *faState) []*faState {
-	var closure []*faState
-	var ok bool
-	if ec.closures != nil {
-		closure, ok = ec.closures[state]
-		if ok {
-			return closure
+	// Process each faState reachable via byte transitions
+	for _, state := range table.steps {
+		if state != nil {
+			computeClosureForState(state)
+			precomputeClosuresRecursive(state.table, visited)
 		}
 	}
+	// Process each faState reachable via epsilon transitions
+	for _, eps := range table.epsilons {
+		computeClosureForState(eps)
+		precomputeClosuresRecursive(eps.table, visited)
+	}
+}
 
-	// not already known
+func computeClosureForState(state *faState) {
+	if state.epsilonClosure != nil {
+		return // already computed
+	}
+
 	if len(state.table.epsilons) == 0 {
-		justMe := []*faState{state}
-		if ec.closures != nil {
-			ec.closures[state] = justMe
-		}
-		return justMe
+		state.epsilonClosure = []*faState{state}
+		return
 	}
 
-	var closureStates = make(map[*faState]bool)
+	closureSet := make(map[*faState]bool)
 	if !state.table.isEpsilonOnly() {
-		closureStates[state] = true
+		closureSet[state] = true
 	}
-	traverseEpsilons(state, state.table.epsilons, closureStates)
-	for s := range closureStates {
+	traverseEpsilons(state, state.table.epsilons, closureSet)
+
+	closure := make([]*faState, 0, len(closureSet))
+	for s := range closureSet {
 		closure = append(closure, s)
 	}
-	if ec.closures != nil {
-		ec.closures[state] = closure
-	}
-	return closure
+	state.epsilonClosure = closure
 }
 
-func traverseEpsilons(start *faState, epsilons []*faState, closureStates map[*faState]bool) {
+func traverseEpsilons(start *faState, epsilons []*faState, closureSet map[*faState]bool) {
 	for _, eps := range epsilons {
-		if eps == start || closureStates[eps] {
+		if eps == start || closureSet[eps] {
 			continue
 		}
 		if !eps.table.isEpsilonOnly() {
-			closureStates[eps] = true
+			closureSet[eps] = true
 		}
-		traverseEpsilons(start, eps.table.epsilons, closureStates)
+		traverseEpsilons(start, eps.table.epsilons, closureSet)
 	}
 }

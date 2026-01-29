@@ -122,10 +122,12 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 }
 
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
+// Requires that precomputeEpsilonClosures has been called on the NFA.
 func nfa2Dfa(nfaTable *smallTable) *faState {
-	startNfa := []*faState{{table: nfaTable}}
-	ec := newEpsilonClosure()
-	return n2dNode(startNfa, newStateLists(), ec)
+	startState := &faState{table: nfaTable}
+	computeClosureForState(startState)
+	startNfa := []*faState{startState}
+	return n2dNode(startNfa, newStateLists())
 }
 
 // n2dNode input is a list of NFA states, which are all the states that are either the
@@ -133,11 +135,11 @@ func nfa2Dfa(nfaTable *smallTable) *faState {
 // a byte transition.
 // It returns a DFA state (i.e. no epsilons) that corresponds to this aggregation of
 // NFA states.
-func n2dNode(rawNStates []*faState, sList *stateLists, ec *epsilonClosure) *faState {
+func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 	// we expand the raw list of states by adding the epsilon closure of each
 	nStates := make([]*faState, 0, len(rawNStates))
 	for _, rawNState := range rawNStates {
-		nStates = append(nStates, ec.getClosure(rawNState)...)
+		nStates = append(nStates, rawNState.epsilonClosure...)
 	}
 
 	// the collection of states may have duplicates and, deduplicated, considered'
@@ -170,7 +172,7 @@ func n2dNode(rawNStates []*faState, sList *stateLists, ec *epsilonClosure) *faSt
 			rawStates = append(rawStates, ingredients[ingredient].table.epsilons...)
 		}
 		if len(rawStates) > 0 {
-			dfaState.table.addByteStep(byte(utf8byte), n2dNode(rawStates, sList, ec))
+			dfaState.table.addByteStep(byte(utf8byte), n2dNode(rawStates, sList))
 		}
 	}
 
@@ -280,68 +282,6 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	bufs.buf1 = currentStates[:0]
 	bufs.buf2 = nextStates[:0]
 	return newTransitions.all()
-}
-
-// precomputeEpsilonClosures walks the automaton starting from the given table
-// and precomputes the epsilon closure for every reachable faState.
-func precomputeEpsilonClosures(table *smallTable) {
-	visited := make(map[*smallTable]bool)
-	precomputeClosuresRecursive(table, visited)
-}
-
-func precomputeClosuresRecursive(table *smallTable, visited map[*smallTable]bool) {
-	if visited[table] {
-		return
-	}
-	visited[table] = true
-
-	// Process each faState reachable via byte transitions
-	for _, state := range table.steps {
-		if state != nil {
-			computeClosureForState(state)
-			precomputeClosuresRecursive(state.table, visited)
-		}
-	}
-	// Process each faState reachable via epsilon transitions
-	for _, eps := range table.epsilons {
-		computeClosureForState(eps)
-		precomputeClosuresRecursive(eps.table, visited)
-	}
-}
-
-func computeClosureForState(state *faState) {
-	if state.epsilonClosure != nil {
-		return // already computed
-	}
-
-	if len(state.table.epsilons) == 0 {
-		state.epsilonClosure = []*faState{state}
-		return
-	}
-
-	closureSet := make(map[*faState]bool)
-	if !state.table.isEpsilonOnly() {
-		closureSet[state] = true
-	}
-	traverseEpsilonsForClosure(state, state.table.epsilons, closureSet)
-
-	closure := make([]*faState, 0, len(closureSet))
-	for s := range closureSet {
-		closure = append(closure, s)
-	}
-	state.epsilonClosure = closure
-}
-
-func traverseEpsilonsForClosure(start *faState, epsilons []*faState, closureSet map[*faState]bool) {
-	for _, eps := range epsilons {
-		if eps == start || closureSet[eps] {
-			continue
-		}
-		if !eps.table.isEpsilonOnly() {
-			closureSet[eps] = true
-		}
-		traverseEpsilonsForClosure(start, eps.table.epsilons, closureSet)
-	}
 }
 
 type faStepKey struct {

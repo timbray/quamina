@@ -6,7 +6,6 @@ import (
 
 func TestEpsilonClosure(t *testing.T) {
 	var st *smallTable
-	var ec []*faState
 
 	pp := newPrettyPrinter(4589)
 
@@ -25,17 +24,17 @@ func TestEpsilonClosure(t *testing.T) {
 	pp.labelTable(aSc.table, "aSc")
 	aFM := newFieldMatcher()
 	aSc.fieldTransitions = []*fieldMatcher{aFM}
-	aEC := newEpsilonClosure()
-	ec = aEC.getClosure(aSa)
-	if len(ec) != 1 || !containsState(t, ec, aSa) {
-		t.Errorf("len(ec) = %d; want 0", len(ec))
+
+	computeClosureForState(aSa)
+	if len(aSa.epsilonClosure) != 1 || !containsState(t, aSa.epsilonClosure, aSa) {
+		t.Errorf("len(ec) = %d; want 1", len(aSa.epsilonClosure))
 	}
-	ec = aEC.getClosure(aSstar)
-	if len(ec) != 1 || !containsState(t, ec, aSstar) {
+	computeClosureForState(aSstar)
+	if len(aSstar.epsilonClosure) != 1 || !containsState(t, aSstar.epsilonClosure, aSstar) {
 		t.Error("aSstar")
 	}
-	ec = aEC.getClosure(aSc)
-	if len(ec) != 1 || !containsState(t, ec, aSc) {
+	computeClosureForState(aSc)
+	if len(aSc.epsilonClosure) != 1 || !containsState(t, aSc.epsilonClosure, aSc) {
 		t.Error("aSc")
 	}
 
@@ -66,19 +65,18 @@ func TestEpsilonClosure(t *testing.T) {
 	pp.labelTable(bSstar.table, "bSstar")
 	pp.labelTable(bSx.table, "bSx")
 	pp.labelTable(bSsplice.table, "bSsplice")
-	//fmt.Println("B machine: " + pp.printNFA(bSsplice.table))
 
-	bEcShouldBeZero := []*faState{bSa, bSb, bSx, bSstar}
+	bEcShouldBeOne := []*faState{bSa, bSb, bSx, bSstar}
 	zNames := []string{"bSa", "bSb", "bSx", "bSstar"}
-	for i, shouldBeZero := range bEcShouldBeZero {
-		ec = aEC.getClosure(shouldBeZero)
-		if len(ec) != 1 || !containsState(t, ec, shouldBeZero) {
-			t.Errorf("should be Zero for %s, isn't", zNames[i])
+	for i, state := range bEcShouldBeOne {
+		computeClosureForState(state)
+		if len(state.epsilonClosure) != 1 || !containsState(t, state.epsilonClosure, state) {
+			t.Errorf("should be 1 for %s, isn't", zNames[i])
 		}
 	}
 
-	ec = aEC.getClosure(bSsplice)
-	if len(ec) != 2 || !containsState(t, ec, bSa) || !containsState(t, ec, bSstar) {
+	computeClosureForState(bSsplice)
+	if len(bSsplice.epsilonClosure) != 2 || !containsState(t, bSsplice.epsilonClosure, bSa) || !containsState(t, bSsplice.epsilonClosure, bSstar) {
 		t.Error("wrong EC for b")
 	}
 
@@ -106,14 +104,14 @@ func TestEpsilonClosure(t *testing.T) {
 		st = states[i].table
 		pp.labelTable(st, name)
 	}
-	// fmt.Println("C machine: " + pp.printNFA(cStart.table))
+
+	computeClosureForState(cStart)
 	cWantInEC := []*faState{cStart, cSa, cSb, cSc, cSz}
-	ec = aEC.getClosure(cStart)
-	if len(ec) != 5 {
-		t.Errorf("len B ec %d wanted 5", len(ec))
+	if len(cStart.epsilonClosure) != 5 {
+		t.Errorf("len B ec %d wanted 5", len(cStart.epsilonClosure))
 	}
 	for i, want := range cWantInEC {
-		if !containsState(t, ec, want) {
+		if !containsState(t, cStart.epsilonClosure, want) {
 			t.Errorf("C missed %s", names[i])
 		}
 	}
