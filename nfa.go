@@ -123,7 +123,11 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
 func nfa2Dfa(nfaTable *smallTable) *faState {
-	startState := epsilonClosure(nfaTable)
+	// The start state always has a trivial epsilon closure (just itself) because
+	// all Quamina automata begin by matching the opening quote (0x22). The start
+	// table therefore has a single transition on `"` and never has epsilons.
+	startState := &faState{table: nfaTable}
+	startState.epsilonClosure = []*faState{startState}
 	startNfa := []*faState{startState}
 	return n2dNode(startNfa, newStateLists())
 }
@@ -213,8 +217,11 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // and should grow with use and minimize the need for memory allocation.
 func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
+	// The start state always has a trivial epsilon closure (just itself) because
+	// all Quamina automata begin by matching the opening quote (0x22). The start
+	// table therefore has a single transition on `"` and never has epsilons.
 	startState := &faState{table: table}
-	closureForState(startState)
+	startState.epsilonClosure = []*faState{startState}
 	currentStates = append(currentStates, startState)
 	nextStates := bufs.getBuf2()
 

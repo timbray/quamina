@@ -18,22 +18,20 @@ type regexpBranch []*quantifiedAtom
 type regexpRoot []regexpBranch
 
 // makeRegexpNFA traverses the parsed regexp tree and generates a finite automaton
-// that matches it. If forField is true, then the FA will have states that match " at the beginning
-// and end.
-func makeRegexpNFA(root regexpRoot, forField bool, pp printer) (*smallTable, *fieldMatcher) {
+// that matches it. The FA has states that match " at the beginning and end because
+// all Quamina field values are enclosed in quotes.
+func makeRegexpNFA(root regexpRoot, pp printer) (*smallTable, *fieldMatcher) {
 	nextField := newFieldMatcher()
 	nextStep := makeNFATrailer(nextField)
 	pp.labelTable(nextStep.table, "Trailer")
-	if forField {
-		table := makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
-		pp.labelTable(table, "</Field>")
-		nextStep = &faState{table: table}
-	}
-	fa := makeNFAFromBranches(root, nextStep, forField, pp)
+	table := makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
+	pp.labelTable(table, "</Field>")
+	nextStep = &faState{table: table}
+	fa := makeNFAFromBranches(root, nextStep, true, pp)
 	epsilonClosure(fa)
 	return fa, nextField
 }
-func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp printer) *smallTable {
+func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition bool, pp printer) *smallTable {
 	// completely empty regexp
 	if len(root) == 0 {
 		return makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
@@ -45,7 +43,7 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp p
 			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
 			pp.labelTable(nextBranch, "next on len 0")
 		} else {
-			nextBranch = faFromBranch(branch, nextStep, forField, pp)
+			nextBranch = faFromBranch(branch, nextStep, addQuoteTransition, pp)
 		}
 		if fa != nil {
 			fa = mergeFAs(fa, nextBranch, pp)
@@ -56,10 +54,10 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, forField bool, pp p
 	return fa
 }
 
-func faFromBranch(branch regexpBranch, nextStep *faState, forField bool, pp printer) *smallTable {
+func faFromBranch(branch regexpBranch, nextStep *faState, addQuoteTransition bool, pp printer) *smallTable {
 	state := faFromQuantifiedAtom(branch, 0, nextStep, pp)
 	table := state.table
-	if forField {
+	if addQuoteTransition {
 		firstState := &faState{table: table}
 		table = makeSmallTable(nil, []byte{'"'}, []*faState{firstState})
 		pp.labelTable(table, "<Field>")

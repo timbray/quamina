@@ -135,7 +135,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		newFA, nextField = makeMonocaseFA(valBytes, printer)
 	case regexpType:
 		fields.isNondeterministic = true
-		newFA, nextField = makeRegexpNFA(val.parsedRegexp, true, sharedNullPrinter)
+		newFA, nextField = makeRegexpNFA(val.parsedRegexp, sharedNullPrinter)
 		printer.labelTable(newFA, "RX start")
 	default:
 		panic("unknown value type")
