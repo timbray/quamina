@@ -2,8 +2,12 @@ package quamina
 
 // epsilonClosure walks the automaton starting from the given table
 // and precomputes the epsilon closure for every reachable faState.
-func epsilonClosure(table *smallTable) {
+// It returns an faState wrapping the start table with its closure computed.
+func epsilonClosure(table *smallTable) *faState {
+	startState := &faState{table: table}
+	closureForState(startState)
 	closureForNfa(table, make(map[*smallTable]bool))
+	return startState
 }
 
 func closureForNfa(table *smallTable, visited map[*smallTable]bool) {
@@ -12,23 +16,22 @@ func closureForNfa(table *smallTable, visited map[*smallTable]bool) {
 	}
 	visited[table] = true
 
-	// Process each faState reachable via byte transitions
 	for _, state := range table.steps {
 		if state != nil {
 			closureForState(state)
 			closureForNfa(state.table, visited)
 		}
 	}
-	// Process each faState reachable via epsilon transitions
 	for _, eps := range table.epsilons {
 		closureForState(eps)
 		closureForNfa(eps.table, visited)
 	}
 }
 
+// closureForState computes the epsilon closure for a single state.
 func closureForState(state *faState) {
 	if state.epsilonClosure != nil {
-		return // already computed
+		return
 	}
 
 	if len(state.table.epsilons) == 0 {

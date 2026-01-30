@@ -122,10 +122,8 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 }
 
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
-// Requires that precomputeEpsilonClosures has been called on the NFA.
 func nfa2Dfa(nfaTable *smallTable) *faState {
-	startState := &faState{table: nfaTable}
-	closureForState(startState)
+	startState := epsilonClosure(nfaTable)
 	startNfa := []*faState{startState}
 	return n2dNode(startNfa, newStateLists())
 }
