@@ -116,13 +116,13 @@ func makeAndCacheRuneRangeFA(rr RuneRange, next *faState, name string, pp printe
 		panic("Invalid rune range")
 	}
 
-	var root runeTreeNode = make([]*runeTreeEntry, byteCeiling)
+	root := &skinnyRuneTreeNode{}
 
 	// for each rune
 	for r := ri.next(); r != -1; r = ri.next() {
-		addRuneTreeEntry(root, r, next)
+		addSkinnyRuneTreeEntry(root, r, next)
 	}
-	return nfaFromRuneTree(root, pp)
+	return nfaFromSkinnyRuneTree(root, pp)
 }
 
 func makeRuneRangeNFA(rr RuneRange, next *faState, pp printer) *smallTable {
@@ -145,28 +145,6 @@ func InvertRuneRange(rr RuneRange) RuneRange {
 	return inverted
 }
 
-type runeTreeEntry struct {
-	next  *faState
-	child runeTreeNode
-}
-type runeTreeNode []*runeTreeEntry
-
-// This burns memory like crazy, we build a 246-entry x 64-bit table for
-// each smallTable-to-be, which makes it slow in dealing with things like
-// ~p{L}. TODO: Here are ideas:
-//  1. For things like ~{L}, build the FA with a distinguished *faState "dest"
-//     value, then recursively copy all the faStates and smallTablss but replace
-//     the distinguished pointer with the real "next" value.
-//  2. Don't use a dumbass make([]*runeTreeEntry, byteCeiling) slice, but
-//     rather a list of byte/pointer pairs. Way less memory.
-//  3. Use a slightly less dumbass [byteCeiling]*faState and ideally in such a way
-//     that it comes off the stack.
-//     Hmm, that tree could get pretty huge, every new level brings in another power
-//     of 246.
-// As of 2026/01, #1 above has been implemented with a cache, see cachedFaShells.
-// The "skinny" stuff below is an attempt at #2, but runs much slower than the memory burner.
-// TODO: Investigate further
-
 // only "next" or "node" is provided
 type skinnyRuneTreeEntry struct {
 	next *faState
@@ -187,12 +165,15 @@ func addSkinnyRuneTreeEntry(root *skinnyRuneTreeNode, r rune, dest *faState) {
 	// find or make entry
 	for runeByteIndex, runeByte := range runeBytes {
 		var nextEntry *skinnyRuneTreeEntry
-		for byteValsIndex, byteVal := range node.byteVals {
-			if runeByte == byteVal {
-				nextEntry = node.entries[byteValsIndex]
-				break
-			}
+
+		// this looks weird but depends on runes being added in increasing order, in which
+		// case the skinnyTreeNode byteVals & entries get deposited sequentially and if a new
+		// one has an existing match, it has to be in the last position
+		lastIndex := len(node.byteVals) - 1
+		if lastIndex >= 0 && runeByte == node.byteVals[lastIndex] {
+			nextEntry = node.entries[lastIndex]
 		}
+
 		if nextEntry == nil {
 			// have to make a new entry
 			nextEntry = &skinnyRuneTreeEntry{}
@@ -220,56 +201,6 @@ func tableFromSkinnyRuneTreeNode(node *skinnyRuneTreeNode, pp printer) *smallTab
 			table := tableFromSkinnyRuneTreeNode(entry.node, pp)
 			pp.labelTable(table, fmt.Sprintf("on %x", byteVal))
 			unpacked[byteVal] = &faState{table: table}
-		}
-	}
-	st := newSmallTable()
-	st.pack(&unpacked)
-	return st
-}
-
-func addRuneTreeEntry(root runeTreeNode, r rune, dest *faState) {
-	// this works because no UTF-8 representation of a code point can be a prefix of any other
-	node := root
-	bytes, err := runeToUTF8(r)
-	// Invalid bytes should be caught at another level, but if they show up here, silently ignore
-	if err != nil {
-		return
-	}
-
-	// find or make entry
-	for i, b := range bytes {
-		if node[b] != nil {
-			node = node[b].child
-			continue
-		}
-		// need to make a new node
-		entry := &runeTreeEntry{}
-		node[b] = entry
-		if i == len(bytes)-1 {
-			entry.next = dest
-		} else {
-			entry.child = make([]*runeTreeEntry, byteCeiling)
-		}
-		node = entry.child
-	}
-}
-
-func nfaFromRuneTree(root runeTreeNode, pp printer) *smallTable {
-	return tableFromRuneTreeNode(root, pp)
-}
-
-func tableFromRuneTreeNode(node runeTreeNode, pp printer) *smallTable {
-	var unpacked unpackedTable
-	for b, entry := range node {
-		if entry == nil {
-			continue
-		}
-		if entry.next != nil {
-			unpacked[b] = entry.next
-		} else {
-			table := tableFromRuneTreeNode(entry.child, pp)
-			pp.labelTable(table, fmt.Sprintf("on %x", b))
-			unpacked[b] = &faState{table: table}
 		}
 	}
 	st := newSmallTable()

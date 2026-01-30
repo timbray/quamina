@@ -54,9 +54,10 @@ func TestRegexpWorkbench(t *testing.T) {
 	// ~p{L}~p{Zs}~p{Nd}
 	// ((ab){2})?
 	// ([0-9]+(~.[0-9]+){3})
+	// (ab){2,}
 	pp := newPrettyPrinter(2355)
-	matches := applyAndRunRegexp(t, "(ab){2,}", "ababab", pp)
-	if matches != 1 {
+	matches := applyAndRunRegexp(t, "a?", "b", pp)
+	if matches != 0 {
 		t.Error("Workbench")
 	}
 }
@@ -65,7 +66,7 @@ func applyAndRunRegexp(t *testing.T, regexp string, match string, pp printer) in
 	t.Helper()
 	qm := []byte(`"` + match + `"`)
 	fa := faFromRegexp(t, regexp, pp)
-	// fmt.Println("FA:\n" + pp.printNFA(fa))
+	fmt.Println("N:\n" + pp.printNFA(fa))
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
 	matches := traverseNFA(fa, qm, transitions, bufs, pp)
@@ -310,16 +311,16 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 }
 
 func TestAddRuneTreeEntry(t *testing.T) {
-	var root runeTreeNode = make([]*runeTreeEntry, byteCeiling)
+	root := &skinnyRuneTreeNode{}
 	bbs := [][]rune{
 		{'a', 'b', 'c'},
 	}
 	dest := &faState{}
 	for _, runes := range bbs {
 		for _, r := range runes {
-			addRuneTreeEntry(root, r, dest)
+			addSkinnyRuneTreeEntry(root, r, dest)
 		}
-		fmt.Printf("RL: %d\n", len(root))
+		fmt.Printf("RL: %d\n", len(root.byteVals))
 	}
 }
 
