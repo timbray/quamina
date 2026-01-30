@@ -418,3 +418,168 @@ func TestMergeNfaAndNumeric(t *testing.T) {
 		}
 	}
 }
+
+// TestEpsilonClosureAfterMerge verifies that when a deterministic pattern
+// is merged into an NFA that already has epsilon transitions, the newly
+// created splice states get their epsilon closures computed.
+func TestEpsilonClosureAfterMerge(t *testing.T) {
+	vm := newValueMatcher()
+
+	// Add a wildcard pattern first - this sets isNondeterministic=true
+	// and creates an NFA with epsilon transitions
+	wildcardVal := typedVal{
+		vType: wildcardType,
+		val:   "a*b",
+	}
+	vm.addTransition(wildcardVal, sharedNullPrinter)
+
+	fields := vm.fields()
+	if !fields.isNondeterministic {
+		t.Error("expected isNondeterministic=true after wildcard")
+	}
+
+	// Now add a simple string pattern - this will merge into the existing NFA
+	// and create new splice states that need epsilon closure computation
+	stringVal := typedVal{
+		vType: stringType,
+		val:   "xyz",
+	}
+	vm.addTransition(stringVal, sharedNullPrinter)
+
+	fields = vm.fields()
+	if !fields.isNondeterministic {
+		t.Error("expected isNondeterministic=true to remain set")
+	}
+
+	// Walk the automaton and verify all states have epsilon closures computed
+	visited := make(map[*smallTable]bool)
+	missingClosures := checkEpsilonClosures(fields.startTable, visited)
+	if len(missingClosures) > 0 {
+		t.Errorf("found %d states with missing epsilon closures", len(missingClosures))
+	}
+
+	// Verify the matcher actually works
+	bufs := &nfaBuffers{}
+	// Should match wildcard pattern "a*b"
+	trans := vm.transitionOn(&Field{Val: []byte("aXXXb")}, bufs)
+	if len(trans) != 1 {
+		t.Errorf("expected 1 transition for 'aXXXb', got %d", len(trans))
+	}
+	// Should match string pattern "xyz"
+	trans = vm.transitionOn(&Field{Val: []byte("xyz")}, bufs)
+	if len(trans) != 1 {
+		t.Errorf("expected 1 transition for 'xyz', got %d", len(trans))
+	}
+	// Should not match
+	trans = vm.transitionOn(&Field{Val: []byte("nomatch")}, bufs)
+	if len(trans) != 0 {
+		t.Errorf("expected 0 transitions for 'nomatch', got %d", len(trans))
+	}
+}
+
+// checkEpsilonClosures walks the automaton and returns states that have
+// epsilon transitions but no computed epsilon closure.
+func checkEpsilonClosures(table *smallTable, visited map[*smallTable]bool) []*faState {
+	var missing []*faState
+	if visited[table] {
+		return missing
+	}
+	visited[table] = true
+
+	for _, state := range table.steps {
+		if state != nil {
+			if len(state.table.epsilons) > 0 && state.epsilonClosure == nil {
+				missing = append(missing, state)
+			}
+			missing = append(missing, checkEpsilonClosures(state.table, visited)...)
+		}
+	}
+	for _, eps := range table.epsilons {
+		if eps.epsilonClosure == nil {
+			missing = append(missing, eps)
+		}
+		missing = append(missing, checkEpsilonClosures(eps.table, visited)...)
+	}
+	return missing
+}
+
+// TestEpsilonClosureRequired demonstrates that epsilonClosure must be called
+// after merging into an NFA. This test simulates what would happen if we
+// skipped the epsilonClosure call by clearing the closures after merge.
+func TestEpsilonClosureRequired(t *testing.T) {
+	vm := newValueMatcher()
+
+	// Add a wildcard pattern first - creates NFA with epsilon transitions
+	wildcardVal := typedVal{
+		vType: wildcardType,
+		val:   "a*z",
+	}
+	vm.addTransition(wildcardVal, sharedNullPrinter)
+
+	// Add a string pattern - this triggers merge and epsilonClosure call
+	stringVal := typedVal{
+		vType: stringType,
+		val:   "abc",
+	}
+	vm.addTransition(stringVal, sharedNullPrinter)
+
+	bufs := &nfaBuffers{}
+
+	// Step 1: Verify matching works with closures computed
+	trans := vm.transitionOn(&Field{Val: []byte("abc")}, bufs)
+	if len(trans) != 1 {
+		t.Fatalf("with closures: expected 1 transition for 'abc', got %d", len(trans))
+	}
+	trans = vm.transitionOn(&Field{Val: []byte("aXXXz")}, bufs)
+	if len(trans) != 1 {
+		t.Fatalf("with closures: expected 1 transition for 'aXXXz', got %d", len(trans))
+	}
+
+	// Step 2: Clear all epsilon closures to simulate missing epsilonClosure call
+	fields := vm.fields()
+	clearEpsilonClosures(fields.startTable, make(map[*smallTable]bool))
+
+	// Step 3: Without closures, traverseNFA fails because it iterates over
+	// state.epsilonClosure which is now nil (empty loop = no matches)
+	trans = vm.transitionOn(&Field{Val: []byte("abc")}, bufs)
+	abcMatchedWithoutClosures := len(trans) == 1
+
+	trans = vm.transitionOn(&Field{Val: []byte("aXXXz")}, bufs)
+	wildcardMatchedWithoutClosures := len(trans) == 1
+
+	// At least one pattern must fail without closures to prove they're needed
+	if abcMatchedWithoutClosures && wildcardMatchedWithoutClosures {
+		t.Fatal("both patterns matched without closures - epsilonClosure is not needed (test invalid)")
+	}
+
+	// Step 4: Restore closures and verify matching works again
+	epsilonClosure(fields.startTable)
+
+	trans = vm.transitionOn(&Field{Val: []byte("abc")}, bufs)
+	if len(trans) != 1 {
+		t.Errorf("after restore: expected 1 transition for 'abc', got %d", len(trans))
+	}
+	trans = vm.transitionOn(&Field{Val: []byte("aXXXz")}, bufs)
+	if len(trans) != 1 {
+		t.Errorf("after restore: expected 1 transition for 'aXXXz', got %d", len(trans))
+	}
+}
+
+// clearEpsilonClosures walks the automaton and sets all epsilonClosure fields to nil
+func clearEpsilonClosures(table *smallTable, visited map[*smallTable]bool) {
+	if visited[table] {
+		return
+	}
+	visited[table] = true
+
+	for _, state := range table.steps {
+		if state != nil {
+			state.epsilonClosure = nil
+			clearEpsilonClosures(state.table, visited)
+		}
+	}
+	for _, eps := range table.epsilons {
+		eps.epsilonClosure = nil
+		clearEpsilonClosures(eps.table, visited)
+	}
+}
