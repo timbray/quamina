@@ -20,8 +20,7 @@ func TestSkinnyRuneTree(t *testing.T) {
 	fa := nfaFromSkinnyRuneTree(srt, pp)
 	fmt.Println("FA:\n" + pp.printNFA(fa))
 	trans := []*fieldMatcher{}
-	bufs := newNfaBuffers()
-	matches := traverseNFA(fa, utf8, trans, bufs, pp)
+	matches := traverseDFA(fa, utf8, trans)
 	if len(matches) != 1 {
 		t.Error("MISSED")
 	}

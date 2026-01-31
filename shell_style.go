@@ -77,5 +77,6 @@ func makeShellStyleFA(val []byte, pp printer) (start *smallTable, nextField *fie
 	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 	pp.labelTable(lastStep.table, fmt.Sprintf("last step at %d", valIndex))
 	state.table.addByteStep(valueTerminator, lastStep)
+	epsilonClosure(start)
 	return
 }

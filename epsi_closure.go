@@ -1,54 +1,61 @@
 package quamina
 
-type epsilonClosure struct {
-	closures map[*faState][]*faState
+// epsilonClosure walks the automaton starting from the given table
+// and precomputes the epsilon closure for every reachable faState.
+func epsilonClosure(table *smallTable) {
+	closureForNfa(table, make(map[*smallTable]bool))
 }
 
-func newEpsilonClosure() *epsilonClosure {
-	return &epsilonClosure{make(map[*faState][]*faState)}
-}
+func closureForNfa(table *smallTable, visited map[*smallTable]bool) {
+	if visited[table] {
+		return
+	}
+	visited[table] = true
 
-func (ec *epsilonClosure) getClosure(state *faState) []*faState {
-	var closure []*faState
-	var ok bool
-	if ec.closures != nil {
-		closure, ok = ec.closures[state]
-		if ok {
-			return closure
+	for _, state := range table.steps {
+		if state != nil {
+			closureForState(state)
+			closureForNfa(state.table, visited)
 		}
 	}
+	for _, eps := range table.epsilons {
+		closureForState(eps)
+		closureForNfa(eps.table, visited)
+	}
+}
 
-	// not already known
+// closureForState computes the epsilon closure for a single state.
+func closureForState(state *faState) {
+	if state.epsilonClosure != nil {
+		return
+	}
+
 	if len(state.table.epsilons) == 0 {
-		justMe := []*faState{state}
-		if ec.closures != nil {
-			ec.closures[state] = justMe
-		}
-		return justMe
+		state.epsilonClosure = []*faState{state}
+		return
 	}
 
-	var closureStates = make(map[*faState]bool)
+	closureSet := make(map[*faState]bool)
 	if !state.table.isEpsilonOnly() {
-		closureStates[state] = true
+		closureSet[state] = true
 	}
-	traverseEpsilons(state, state.table.epsilons, closureStates)
-	for s := range closureStates {
+	traverseEpsilons(state, state.table.epsilons, closureSet)
+
+	closure := make([]*faState, 0, len(closureSet))
+	for s := range closureSet {
 		closure = append(closure, s)
 	}
-	if ec.closures != nil {
-		ec.closures[state] = closure
-	}
-	return closure
+	state.epsilonClosure = closure
 }
 
-func traverseEpsilons(start *faState, epsilons []*faState, closureStates map[*faState]bool) {
+func traverseEpsilons(start *faState, epsilons []*faState, closureSet map[*faState]bool) {
 	for _, eps := range epsilons {
-		if eps == start || closureStates[eps] {
+		if eps == start || closureSet[eps] {
 			continue
 		}
 		if !eps.table.isEpsilonOnly() {
-			closureStates[eps] = true
+			closureSet[eps] = true
 		}
-		traverseEpsilons(start, eps.table.epsilons, closureStates)
+		traverseEpsilons(start, eps.table.epsilons, closureSet)
 	}
 }

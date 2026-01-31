@@ -16,6 +16,7 @@ type faState struct {
 	table            *smallTable
 	fieldTransitions []*fieldMatcher
 	isSpinner        bool
+	epsilonClosure   []*faState // precomputed epsilon closure including self
 }
 
 /*
@@ -79,7 +80,6 @@ func (tm *transmap) all() []*fieldMatcher {
 // allocation will be reduced to nearly zero.
 type nfaBuffers struct {
 	buf1, buf2     []*faState
-	eClosure       *epsilonClosure
 	matches        *matchSet
 	transitionsBuf []*fieldMatcher
 	resultBuf      []X
@@ -107,13 +107,6 @@ func (nb *nfaBuffers) getBuf2() []*faState {
 	return nb.buf2
 }
 
-func (nb *nfaBuffers) getEClosure() *epsilonClosure {
-	if nb.eClosure == nil {
-		nb.eClosure = newEpsilonClosure()
-	}
-	return nb.eClosure
-}
-
 func (nb *nfaBuffers) getMatches() *matchSet {
 	if nb.matches == nil {
 		nb.matches = newMatchSet()
@@ -130,9 +123,13 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 
 // nfa2Dfa does what the name says, but as of 2025/12 is not used.
 func nfa2Dfa(nfaTable *smallTable) *faState {
-	startNfa := []*faState{{table: nfaTable}}
-	ec := newEpsilonClosure()
-	return n2dNode(startNfa, newStateLists(), ec)
+	// The start state always has a trivial epsilon closure (just itself) because
+	// all Quamina automata begin by matching the opening quote (0x22). The start
+	// table therefore has a single transition on `"` and never has epsilons.
+	startState := &faState{table: nfaTable}
+	startState.epsilonClosure = []*faState{startState}
+	startNfa := []*faState{startState}
+	return n2dNode(startNfa, newStateLists())
 }
 
 // n2dNode input is a list of NFA states, which are all the states that are either the
@@ -140,11 +137,11 @@ func nfa2Dfa(nfaTable *smallTable) *faState {
 // a byte transition.
 // It returns a DFA state (i.e. no epsilons) that corresponds to this aggregation of
 // NFA states.
-func n2dNode(rawNStates []*faState, sList *stateLists, ec *epsilonClosure) *faState {
+func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 	// we expand the raw list of states by adding the epsilon closure of each
 	nStates := make([]*faState, 0, len(rawNStates))
 	for _, rawNState := range rawNStates {
-		nStates = append(nStates, ec.getClosure(rawNState)...)
+		nStates = append(nStates, rawNState.epsilonClosure...)
 	}
 
 	// the collection of states may have duplicates and, deduplicated, considered'
@@ -177,7 +174,7 @@ func n2dNode(rawNStates []*faState, sList *stateLists, ec *epsilonClosure) *faSt
 			rawStates = append(rawStates, ingredients[ingredient].table.epsilons...)
 		}
 		if len(rawStates) > 0 {
-			dfaState.table.addByteStep(byte(utf8byte), n2dNode(rawStates, sList, ec))
+			dfaState.table.addByteStep(byte(utf8byte), n2dNode(rawStates, sList))
 		}
 	}
 
@@ -220,7 +217,12 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // and should grow with use and minimize the need for memory allocation.
 func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
-	currentStates = append(currentStates, &faState{table: table})
+	// The start state always has a trivial epsilon closure (just itself) because
+	// all Quamina automata begin by matching the opening quote (0x22). The start
+	// table therefore has a single transition on `"` and never has epsilons.
+	startState := &faState{table: table}
+	startState.epsilonClosure = []*faState{startState}
+	currentStates = append(currentStates, startState)
 	nextStates := bufs.getBuf2()
 
 	// a lot of the transitions stuff is going to be empty, but on the other hand
@@ -240,8 +242,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 			utf8Byte = valueTerminator
 		}
 		for _, state := range currentStates {
-			closure := bufs.getEClosure().getClosure(state)
-			for _, ecState := range closure {
+			for _, ecState := range state.epsilonClosure {
 				newTransitions.add(ecState.fieldTransitions)
 				ecState.table.step(utf8Byte, stepResult)
 				if stepResult.step != nil {
@@ -278,8 +279,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// we've run out of input bytes so we need to check the current states and their
 	// epsilon closures for matches
 	for _, state := range currentStates {
-		closure := bufs.getEClosure().getClosure(state)
-		for _, ecState := range closure {
+		for _, ecState := range state.epsilonClosure {
 			newTransitions.add(ecState.fieldTransitions)
 		}
 	}

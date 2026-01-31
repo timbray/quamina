@@ -26,13 +26,13 @@ func TestEmptyRegexp(t *testing.T) {
 	if err != nil {
 		fmt.Println("OOPS: " + err.Error())
 	}
-	table, _ := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
-	// raw empty string should NOT match
+	table, fm := makeRegexpNFA(parse.tree, sharedNullPrinter)
+	// empty quoted string should match empty regexp
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
-	fields := traverseNFA(table, []byte(""), transitions, bufs, sharedNullPrinter)
-	if len(fields) != 0 {
-		t.Error("Matched empty string")
+	fields := traverseNFA(table, []byte(`""`), transitions, bufs, sharedNullPrinter)
+	if len(fields) != 1 || fields[0] != fm {
+		t.Error("Failed to match empty string")
 	}
 
 	// matching on a field SHOULD match
@@ -65,7 +65,7 @@ func TestToxicStack(t *testing.T) {
 	if err != nil {
 		t.Error("OOPS: " + err.Error())
 	}
-	table, _ = makeRegexpNFA(parse.tree, true, pp)
+	table, _ = makeRegexpNFA(parse.tree, pp)
 
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
@@ -103,6 +103,7 @@ func TestRegexpValidity(t *testing.T) {
 		"(~p{Co})*":                             true,
 		"~p{Cn}*":                               true,
 		"~P{Cc}*":                               true,
+		"|":                                     true,
 	}
 
 	featureMatchTests := make(map[regexpFeature]int)
@@ -120,11 +121,11 @@ func TestRegexpValidity(t *testing.T) {
 			// fmt.Println("Sample: " + sample.regex)
 			if len(parse.features.foundUnimplemented()) == 0 {
 				implemented++
-				table, dest := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
+				table, dest := makeRegexpNFA(parse.tree, sharedNullPrinter)
 				for _, should := range sample.matches {
 					var transitions []*fieldMatcher
 					bufs := newNfaBuffers()
-					fields := traverseNFA(table, []byte(should), transitions, bufs, sharedNullPrinter)
+					fields := traverseNFA(table, []byte(`"`+should+`"`), transitions, bufs, sharedNullPrinter)
 
 					if !containsFM(t, fields, dest) {
 						// the sample regexp tests think the empty string matches lots of regexps with which
@@ -149,7 +150,7 @@ func TestRegexpValidity(t *testing.T) {
 				for _, shouldNot := range sample.nomatches {
 					var transitions []*fieldMatcher
 					bufs := newNfaBuffers()
-					fields := traverseNFA(table, []byte(shouldNot), transitions, bufs, sharedNullPrinter)
+					fields := traverseNFA(table, []byte(`"`+shouldNot+`"`), transitions, bufs, sharedNullPrinter)
 					if len(fields) != 0 {
 						// similarly, it says quite a lot of empty strins should not match regexps that
 						// have stars and *should* match them

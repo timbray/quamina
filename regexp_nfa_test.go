@@ -83,7 +83,7 @@ func faFromRegexp(t *testing.T, r string, pp printer) *smallTable {
 		t.Error("nil parse")
 		return nil
 	}
-	fa, _ := makeRegexpNFA(parse.tree, true, pp)
+	fa, _ := makeRegexpNFA(parse.tree, pp)
 	return fa
 }
 
@@ -104,8 +104,8 @@ func TestRegexpPlus(t *testing.T) {
 		`"abc"`,
 	}
 	bads := []string{
-		"1a",
-		"a1",
+		`"1a"`,
+		`"a1"`,
 	}
 	trans := []*fieldMatcher{}
 	bufs := newNfaBuffers()
@@ -251,12 +251,12 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse " + err.Error())
 		}
-		st, wanted := makeRegexpNFA(parsed.tree, false, sharedNullPrinter)
+		st, wanted := makeRegexpNFA(parsed.tree, sharedNullPrinter)
 		bufs := newNfaBuffers()
 		for _, r := range runes {
 			// func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *bufpair) []*fieldMatcher {
 			toMatch := strings.Replace(match, "X", string([]rune{r}), 1)
-			found := traverseNFA(st, []byte(toMatch), nil, bufs, sharedNullPrinter)
+			found := traverseNFA(st, []byte(`"`+toMatch+`"`), nil, bufs, sharedNullPrinter)
 			if len(found) == 0 {
 				t.Errorf("struck out matching %s to /%s/", match, re)
 			}
@@ -275,10 +275,10 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse " + err.Error())
 		}
-		st, _ := makeRegexpNFA(parsed.tree, false, sharedNullPrinter)
+		st, _ := makeRegexpNFA(parsed.tree, sharedNullPrinter)
 		bufs := newNfaBuffers()
 		for _, nonMatch := range nonMatches {
-			found := traverseNFA(st, []byte(nonMatch), nil, bufs, sharedNullPrinter)
+			found := traverseNFA(st, []byte(`"`+nonMatch+`"`), nil, bufs, sharedNullPrinter)
 			if len(found) != 0 {
 				t.Errorf("false match to %s to /%s/", nonMatch, re)
 			}
@@ -299,8 +299,8 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		if err != nil {
 			t.Error("Parse failure: " + pat)
 		}
-		st, wanted := makeRegexpNFA(parsed.tree, false, sharedNullPrinter)
-		found := traverseNFA(st, []byte(daodechingorig), nil, bufs, sharedNullPrinter)
+		st, wanted := makeRegexpNFA(parsed.tree, sharedNullPrinter)
+		found := traverseNFA(st, []byte(`"`+daodechingorig+`"`), nil, bufs, sharedNullPrinter)
 		if len(found) != 1 {
 			t.Errorf("Failed to match ")
 		}
@@ -426,19 +426,19 @@ func TestSimpleRegexpMerging(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	fa, fm := makeRegexpNFA(parse.tree, false, sharedNullPrinter)
+	fa, fm := makeRegexpNFA(parse.tree, sharedNullPrinter)
 	tr := []*fieldMatcher{}
-	out := traverseDFA(fa, []byte("ac"), tr)
+	out := traverseDFA(fa, []byte(`"ac"`), tr)
 	if len(out) != 1 || out[0] != fm {
 		t.Error("MISS1")
 	}
 	tr = tr[:0]
-	out = traverseDFA(fa, []byte("bc"), tr)
+	out = traverseDFA(fa, []byte(`"bc"`), tr)
 	if len(out) != 1 || out[0] != fm {
 		t.Error("MISS2")
 	}
 	tr = tr[:0]
-	out = traverseDFA(fa, []byte("a"), tr)
+	out = traverseDFA(fa, []byte(`"a"`), tr)
 	if len(out) != 0 {
 		t.Error("MISS3")
 	}
