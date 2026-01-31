@@ -5,6 +5,7 @@ package quamina
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 // Benchmarks designed to work with Go's 1.24 testing.B.Loop().  Note: When doing this kind of benchmarking, always
@@ -46,6 +47,7 @@ func Benchmark8259Example(b *testing.B) {
 
 	var err error
 	q, _ := New()
+	before := time.Now()
 	m := q.matcher.(*coreMatcher)
 	for _, should := range patternsFromReadme {
 		err = q.AddPattern(should, should)
@@ -53,6 +55,8 @@ func Benchmark8259Example(b *testing.B) {
 			b.Error("add one of many: " + err.Error())
 		}
 	}
+	elapsed := time.Since(before).Seconds()
+	fmt.Printf("Adds/sec %.1f\n", float64(len(patternsFromReadme))/elapsed)
 	fmt.Printf("FA: %s\n", matcherStats(m))
 	bytes := []byte(j)
 	b.ResetTimer()
@@ -63,7 +67,7 @@ func Benchmark8259Example(b *testing.B) {
 			b.Errorf("No matches")
 		}
 	}
-	elapsed := float64(b.Elapsed().Seconds())
+	elapsed = float64(b.Elapsed().Seconds())
 	count := float64(b.N)
 	fmt.Printf("%.0f/sec\n", count/elapsed)
 }

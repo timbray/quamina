@@ -2,6 +2,19 @@ package quamina
 
 import "testing"
 
+func TestSingleState(t *testing.T) {
+	f1 := &faState{}
+	listJustOne := []*faState{f1}
+	lists := newStateLists()
+	lj1, _, already := lists.intern(listJustOne)
+	if lj1[0] != f1 {
+		t.Error("HUH?")
+	}
+	if already {
+		t.Errorf("listJustOne should not have been added")
+	}
+}
+
 func TestStateLists(t *testing.T) {
 	f1 := &faState{}
 	f2 := &faState{}
@@ -13,6 +26,7 @@ func TestStateLists(t *testing.T) {
 	list135B := []*faState{f5, f1, f3}
 
 	lists := newStateLists()
+
 	list1, dfa1, alreadyExisted := lists.intern(list135A)
 	if dfa1 == nil {
 		t.Error("DFA1 nil")
