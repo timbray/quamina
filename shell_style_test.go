@@ -182,20 +182,16 @@ func TestShellStyleBuildTime(t *testing.T) {
 
 	q, _ := New()
 	before := time.Now()
-	// pp := newPrettyPrinter(44)
 	for i := range words {
 		err := q.AddPattern(starWords[i], patterns[i])
-		// fmt.Println("P: " + patterns[i])
 		if err != nil {
 			t.Error("AddP: " + err.Error())
 		}
-		// fa := fetchFAForPath(t, cm, "x")
-		// fmt.Println(pp.printNFA(fa))
 	}
 
 	fmt.Println("Done adding patterns")
-	elapsed := float64(time.Since(before).Milliseconds())
-	eps := float64(len(words)) / (elapsed / 1000.0)
+	elapsed := float64(time.Since(before).Seconds())
+	eps := float64(len(words)) / elapsed
 	fmt.Printf("Patterns/sec: %.1f\n", eps)
 	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
 
@@ -220,8 +216,8 @@ func TestShellStyleBuildTime(t *testing.T) {
 			t.Error("no matches for " + record)
 		}
 	}
-	elapsed = float64(time.Since(before).Milliseconds())
-	eps = float64(len(words)) / (elapsed / 1000.0)
+	elapsed = float64(time.Since(before).Seconds())
+	eps = float64(len(words)) / elapsed
 	// we're doing two searches
 	eps *= 2
 	fmt.Printf("Huge-machine events/sec: %.1f\n", eps)

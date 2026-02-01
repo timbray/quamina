@@ -121,7 +121,7 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 	return nb.transmap
 }
 
-// nfa2Dfa does what the name says, but as of 2025/12 is not used.
+// nfa2Dfa does what the name says, but as of 2026/01 is not used.
 func nfa2Dfa(nfaTable *smallTable) *faState {
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
@@ -141,7 +141,7 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 	// we expand the raw list of states by adding the epsilon closure of each
 	nStates := make([]*faState, 0, len(rawNStates))
 	for _, rawNState := range rawNStates {
-		nStates = append(nStates, rawNState.epsilonClosure...)
+		nStates = append(nStates, rawNState.epsilonClosure...) // a state's closure includes itself
 	}
 
 	// the collection of states may have duplicates and, deduplicated, considered'
@@ -167,13 +167,16 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 		var rawStates []*faState
 
 		// for each of the unique states
-		for ingredient, unpackedNState := range nUnpacked {
+		for _, unpackedNState := range nUnpacked {
+			// if there's a transition on this byte value
 			if unpackedNState[utf8byte] != nil {
+				// remember the transition target
 				rawStates = append(rawStates, unpackedNState[utf8byte])
 			}
-			rawStates = append(rawStates, ingredients[ingredient].table.epsilons...)
 		}
+		// if there were any transitions on this byte value
 		if len(rawStates) > 0 {
+			// recurse, get the DFA state for the transitions and plug it into this state
 			dfaState.table.addByteStep(byte(utf8byte), n2dNode(rawStates, sList))
 		}
 	}
@@ -254,20 +257,11 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 		// for toxically-complex regexps like (([abc]?)*)+ you can get a FA with epsilon loops,
 		// direct and indirect, which can lead to huge nextState buildups.  Could solve this with
 		// making it a set, but this seems to work well enough
-		// TODO: Investigates slices.Compact()
 		if len(nextStates) > 500 {
 			slices.SortFunc(nextStates, func(a, b *faState) int {
 				return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
 			})
-			uniques := 0
-			for maybes := 1; maybes < len(nextStates); maybes++ {
-				if nextStates[maybes] != nextStates[uniques] {
-					uniques++
-					nextStates[uniques] = nextStates[maybes]
-				}
-			}
-			uniques++
-			nextStates = nextStates[:uniques]
+			nextStates = slices.Compact(nextStates)
 		}
 
 		// re-use these
@@ -295,11 +289,10 @@ type faStepKey struct {
 }
 
 func makeFaStepKey(s1, s2 *faState) faStepKey {
-	if uintptr(unsafe.Pointer(s1)) < uintptr(unsafe.Pointer(s2)) {
-		return faStepKey{s1, s2}
-	} else {
-		return faStepKey{s2, s1}
+	if uintptr(unsafe.Pointer(s1)) > uintptr(unsafe.Pointer(s2)) {
+		s1, s2 = s2, s1
 	}
+	return faStepKey{s2, s1}
 }
 
 // mergeFAs compute the union of two valueMatch automata.  If you look up the textbook theory about this,
