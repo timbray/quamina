@@ -1,31 +1,54 @@
 package quamina
 
+// closureGeneration is incremented each time epsilonClosure is called.
+// Each smallTable stores the generation it was last visited in, avoiding
+// the need for a visited map.
+var closureGeneration uint64
+
 // epsilonClosure walks the automaton starting from the given table
 // and precomputes the epsilon closure for every reachable faState.
 func epsilonClosure(table *smallTable) {
-	closureForNfa(table, make(map[*smallTable]bool))
+	closureGeneration++
+	bufs := &closureBuffers{
+		generation: closureGeneration,
+		closureSet: make(map[*faState]bool, 64),
+	}
+	closureForNfa(table, bufs)
 }
 
-func closureForNfa(table *smallTable, visited map[*smallTable]bool) {
-	if visited[table] {
+type closureBuffers struct {
+	generation uint64
+	closureSet map[*faState]bool
+}
+
+func closureForNfa(table *smallTable, bufs *closureBuffers) {
+	if table.lastVisitedGen == bufs.generation {
 		return
 	}
-	visited[table] = true
+	table.lastVisitedGen = bufs.generation
 
 	for _, state := range table.steps {
 		if state != nil {
-			closureForState(state)
-			closureForNfa(state.table, visited)
+			closureForStateWithBufs(state, bufs)
+			closureForNfa(state.table, bufs)
 		}
 	}
 	for _, eps := range table.epsilons {
-		closureForState(eps)
-		closureForNfa(eps.table, visited)
+		closureForStateWithBufs(eps, bufs)
+		closureForNfa(eps.table, bufs)
 	}
 }
 
 // closureForState computes the epsilon closure for a single state.
+// Used directly in tests; production code uses closureForStateWithBufs.
 func closureForState(state *faState) {
+	bufs := &closureBuffers{
+		closureSet: make(map[*faState]bool, 64),
+	}
+	closureForStateWithBufs(state, bufs)
+}
+
+func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 	if state.epsilonClosure != nil {
 		return
 	}
@@ -35,7 +58,8 @@ func closureForState(state *faState) {
 		return
 	}
 
-	closureSet := make(map[*faState]bool)
+	closureSet := bufs.closureSet
+	clear(closureSet)
 	if !state.table.isEpsilonOnly() {
 		closureSet[state] = true
 	}

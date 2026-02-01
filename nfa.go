@@ -306,8 +306,8 @@ func makeFaStepKey(s1, s2 *faState) faStepKey {
 // epsilon transitions from state1 and state2. This prevents deep nesting of
 // splice states that would otherwise accumulate during repeated merges.
 func flattenEpsilonTargets(state1, state2 *faState) []*faState {
-	seen := make(map[*faState]bool)
-	var targets []*faState
+	seen := make(map[*faState]bool, 8)
+	targets := make([]*faState, 0, 4)
 
 	var collect func(s *faState)
 	collect = func(s *faState) {
