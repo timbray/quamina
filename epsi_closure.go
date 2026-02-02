@@ -58,15 +58,15 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 		return
 	}
 
-	closureSet := bufs.closureSet
-	clear(closureSet)
+	// Reuse and clear the map to avoid allocations on each call
+	clear(bufs.closureSet)
 	if !state.table.isEpsilonOnly() {
-		closureSet[state] = true
+		bufs.closureSet[state] = true
 	}
-	traverseEpsilons(state, state.table.epsilons, closureSet)
+	traverseEpsilons(state, state.table.epsilons, bufs.closureSet)
 
-	closure := make([]*faState, 0, len(closureSet))
-	for s := range closureSet {
+	closure := make([]*faState, 0, len(bufs.closureSet))
+	for s := range bufs.closureSet {
 		closure = append(closure, s)
 	}
 	state.epsilonClosure = closure
