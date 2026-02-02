@@ -38,9 +38,10 @@ const valueTerminator byte = 0xf5
 // by branching on 'b' to a state that has no byte transitions but two epsilons, one each for s1 and s2.
 
 type smallTable struct {
-	ceilings []byte
-	steps    []*faState
-	epsilons []*faState
+	ceilings       []byte
+	steps          []*faState
+	epsilons       []*faState
+	lastVisitedGen uint64 // generation counter for epsilon closure traversal
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at

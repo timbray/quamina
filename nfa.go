@@ -295,6 +295,36 @@ func makeFaStepKey(s1, s2 *faState) faStepKey {
 	return faStepKey{s2, s1}
 }
 
+// flattenEpsilonTargets collects all non-epsilon-only states reachable via
+// epsilon transitions from state1 and state2. This prevents deep nesting of
+// splice states that would otherwise accumulate during repeated merges.
+func flattenEpsilonTargets(state1, state2 *faState) []*faState {
+	seen := make(map[*faState]bool, 8)
+	targets := make([]*faState, 0, 4)
+
+	var collect func(s *faState)
+	collect = func(s *faState) {
+		if seen[s] {
+			return
+		}
+		seen[s] = true
+
+		if s.table.isEpsilonOnly() {
+			// This is a splice state - recurse into its epsilons
+			for _, eps := range s.table.epsilons {
+				collect(eps)
+			}
+		} else {
+			// This is a real state with byte transitions
+			targets = append(targets, s)
+		}
+	}
+
+	collect(state1)
+	collect(state2)
+	return targets
+}
+
 // mergeFAs compute the union of two valueMatch automata.  If you look up the textbook theory about this,
 // they say to compute the set product for automata A and B and build A0B0, A0B1 … A1BN, A1B0 … but if you look
 // at that you realize that many of the product states aren't reachable. So you compute A0B0 and then keep
@@ -342,11 +372,11 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 		return combined
 	}
 
-	// If either of the states to be merged has epsilons we have to do a splice
-	// TODO: Find more cases when we don't have to
+	// If either of the states to be merged has epsilons we have to do a splice.
+	// To avoid deep nesting of splice states, we flatten the epsilon targets.
 	if len(state1.table.epsilons) != 0 || len(state2.table.epsilons) != 0 {
 		pp.labelTable(combined.table, "Splice")
-		combined.table.epsilons = []*faState{state1, state2}
+		combined.table.epsilons = flattenEpsilonTargets(state1, state2)
 		keyMemo[mKey] = combined
 		return combined
 	}
