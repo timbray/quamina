@@ -219,3 +219,18 @@ func (t *smallTable) addByteStep(utf8Byte byte, step *faState) {
 	unpacked[utf8Byte] = step
 	t.pack(unpacked)
 }
+
+// not all regexp FAs are nondeterministic. This could have been detected at
+// FA-building time, but doing so and then sending the status over to the valueMatcher
+// turned out to be complex, as opposed to the following, which is not only simple but fast.
+func (t *smallTable) isNondeterministic() bool {
+	if len(t.epsilons) > 0 {
+		return true
+	}
+	for _, step := range t.steps {
+		if step != nil && step.table.isNondeterministic() {
+			return true
+		}
+	}
+	return false
+}

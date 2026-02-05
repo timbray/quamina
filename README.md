@@ -23,7 +23,7 @@ Quamina [welcomes contributions](CONTRIBUTING.md).
 
 ### Status
 
-This is version 2 of Quamina. In future, the API will be changed only additively.
+This is version 2.0.1 of Quamina. In future, the API will be changed only additively.
 
 Note that we have documented more APIs than are actually
 fully implemented, with the intent of showing direction.
@@ -87,8 +87,7 @@ The following Patterns would match it:
 { "Image": { "Thumbnail": { "Url": [ { "wildcard": "*9943" } ] } } }
 ```
 ```json
-{
-  "Image": { "Thumbnail": { "Url": [ { "wildcard": "https://www.example.*/*9943" } ] } } }
+{ "Image": { "Thumbnail": { "Url": [ { "wildcard": "https://www.example.*/*9943" } ] } } }
 ```
 ```json
 { "Image": { "Title": [ {"anything-but":  ["Pikachu", "Eevee"] } ] } }
@@ -281,7 +280,10 @@ reduce this cost in the future. Note that the penalty only applies
 at build-time; an instance which has had such patterns added will
 still have good Event-matching performance.
 
-### `MatchesForEvent()` Performance
+### `MatchesForEvent()` Performance (no regexp)
+
+The following discussion covers Patterns which do not include `regexp`
+or `wildcard` or `shellstyle` matchers.
 
 I used to say that the performance of
 `MatchesForEvent` was O(1) in the number of
@@ -328,6 +330,28 @@ is at most N, the number of fields left after discarding.
 So, adding a new Pattern that only mentions fields which are
 already mentioned in previous Patterns is effectively free,
 i.e. O(1) in terms of run-time performance.
+
+### Performance with regular expressions
+
+The use of Patterns with `regexp` or `shellstyle` or `wildcard` can
+cause significant slowdowns in the performance both of `AddPattern()`
+and `MatchesForEvent`.  In the worst case, the addition of many
+such patterns can cause `AddPattern()` to encounter explosive memory
+growth and slow down, sometimes to a halt.
+
+Such patterns also slow down `MatchesForEvent()`, but only to levels that, while
+much less than Quamina’s top speed, are still usable for most
+applications.
+
+It’s important to note that it’s quite difficult to drive Quamina into
+this kind of misbehavior; the addition of small numbers of thousands of
+complex Patterns will usually cause no problems.
+
+At the moment, the only way to avoid surprises is to benchmark the
+performance and ensure that your combination of Patterns will not
+slow Quamina down excessively.  We are working on adding facilities which
+would allow callers to set a time or memory budget and have `AddPattern()`
+fail with a helpful error report if that is being exceeded.
 
 ### Further documentation
 

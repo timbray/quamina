@@ -56,10 +56,10 @@ The following list identifies the features of Quamina regular expressions.
 The `-p{}` and `~P{}` patterns can require building state machines that match tens of thousands
 of characters scattered across the entire Unicode codespace. The cost in computation and memory, when
 adding such patterns, can be very high. However, the runtime performance in matching such patterns,
-once built, does not suffer.
+once built, remains good.
 
 The {} occurrence-count matcher is limited to values between 0 and 99 inclusive. While something
-like `a{0}` is allowed by the specified, it is a no-op.  High occurrence-count matchers can produce
+like `a{0}` is allowed by the specification, it is a no-op.  High occurrence-count matchers can produce
 large state machines. The worst case then, is something like `[~p{L}~p{Nd}~{S}]{99}`.
 
 ## Semantics of “.”
