@@ -84,6 +84,8 @@ type nfaBuffers struct {
 	transitionsBuf []*fieldMatcher
 	resultBuf      []X
 	transmap       *transmap
+	startState     *faState
+	startClosure   []*faState
 }
 
 func newNfaBuffers() *nfaBuffers {
@@ -119,6 +121,17 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 		nb.transmap = newTransMap()
 	}
 	return nb.transmap
+}
+
+func (nb *nfaBuffers) getStartState(table *smallTable) *faState {
+	if nb.startState == nil {
+		nb.startState = &faState{}
+		nb.startClosure = make([]*faState, 1)
+	}
+	nb.startState.table = table
+	nb.startClosure[0] = nb.startState
+	nb.startState.epsilonClosure = nb.startClosure
+	return nb.startState
 }
 
 // nfa2Dfa does what the name says, but as of 2026/01 is not used.
@@ -223,9 +236,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
 	// table therefore has a single transition on `"` and never has epsilons.
-	startState := &faState{table: table}
-	startState.epsilonClosure = []*faState{startState}
-	currentStates = append(currentStates, startState)
+	currentStates = append(currentStates, bufs.getStartState(table))
 	nextStates := bufs.getBuf2()
 
 	// a lot of the transitions stuff is going to be empty, but on the other hand
