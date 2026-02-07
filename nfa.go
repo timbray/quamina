@@ -89,8 +89,8 @@ func (tm *transmap) add(fms []*fieldMatcher) {
 
 func (tm *transmap) all() []*fieldMatcher {
 	level := &tm.levels[tm.depth]
-	tm.depth--
 	if len(level.set) == 0 {
+		tm.depth--
 		return nil
 	}
 	// Reuse buffer to avoid allocation
@@ -98,7 +98,15 @@ func (tm *transmap) all() []*fieldMatcher {
 	for fm := range level.set {
 		level.buf = append(level.buf, fm)
 	}
+	// DON'T decrement depth here - the caller may still be using the buffer
+	// when nested traverseNFA calls happen. Depth is reset externally.
 	return level.buf
+}
+
+// resetDepth resets the transmap to depth 0 for reuse. Call this when all
+// outstanding buffers from previous all() calls are no longer in use.
+func (tm *transmap) resetDepth() {
+	tm.depth = 0
 }
 
 // nfaBuffers contains the buffers that are used to traverse NFAs. Go doesn't have thread-local variables
