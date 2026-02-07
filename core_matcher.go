@@ -169,6 +169,10 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 	// Reuse the matchSet from buffers to reduce allocations
 	matches := bufs.getMatches()
 	matches.reset()
+	// Reset transmap depth for this match operation
+	if tm := bufs.transmap; tm != nil {
+		tm.resetDepth()
+	}
 	cmFields := m.fields()
 
 	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch

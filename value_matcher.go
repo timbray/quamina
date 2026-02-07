@@ -69,7 +69,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	case vmFields.startTable != nil:
 		// if there is a potential for a numeric match, try making a Q number from the event
 		if vmFields.hasNumbers && eventField.IsNumber {
-			qNum, err := qNumFromBytes(val)
+			qNum, err := qNumFromBytesBuf(val, &bufs.qNumBuf)
 			if err == nil {
 				if vmFields.isNondeterministic {
 					return traverseNFA(vmFields.startTable, qNum, transitions, bufs, sharedNullPrinter)
