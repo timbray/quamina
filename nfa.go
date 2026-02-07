@@ -44,34 +44,61 @@ huge numbers of states and splices. So, we want to optimize merging.
 
 */
 
-// transmap is a Set structure used to gather transitions as we work our way through the automaton
-type transmap struct {
+// transmapLevel is one level in the transmap stack, with its own map and buffer.
+type transmapLevel struct {
 	set map[*fieldMatcher]bool
+	buf []*fieldMatcher
+}
+
+// transmap is a Set structure used to gather transitions as we work our way through the automaton.
+// Uses a stack of levels to handle recursive traverseNFA calls safely.
+type transmap struct {
+	levels []transmapLevel
+	depth  int
 }
 
 func newTransMap() *transmap {
-	return &transmap{set: make(map[*fieldMatcher]bool)}
+	return &transmap{
+		levels: []transmapLevel{{
+			set: make(map[*fieldMatcher]bool),
+			buf: make([]*fieldMatcher, 0, 16),
+		}},
+		depth: 0, // Start at level 0, ready to use without reset
+	}
 }
 
 func (tm *transmap) reset() {
-	clear(tm.set)
+	tm.depth++
+	// Ensure we have a level at this depth
+	for tm.depth >= len(tm.levels) {
+		tm.levels = append(tm.levels, transmapLevel{
+			set: make(map[*fieldMatcher]bool),
+			buf: make([]*fieldMatcher, 0, 16),
+		})
+	}
+	clear(tm.levels[tm.depth].set)
+	tm.levels[tm.depth].buf = tm.levels[tm.depth].buf[:0]
 }
 
 func (tm *transmap) add(fms []*fieldMatcher) {
+	set := tm.levels[tm.depth].set
 	for _, fm := range fms {
-		tm.set[fm] = true
+		set[fm] = true
 	}
 }
 
 func (tm *transmap) all() []*fieldMatcher {
-	if len(tm.set) == 0 {
+	level := &tm.levels[tm.depth]
+	tm.depth--
+	if len(level.set) == 0 {
 		return nil
 	}
-	all := make([]*fieldMatcher, 0, len(tm.set))
-	for fm := range tm.set {
-		all = append(all, fm)
+	// Reuse buffer to avoid allocation
+	level.buf = level.buf[:0]
+	for fm := range level.set {
+		level.buf = append(level.buf, fm)
 	}
-	return all
+	return level.buf
 }
 
 // nfaBuffers contains the buffers that are used to traverse NFAs. Go doesn't have thread-local variables
