@@ -59,3 +59,24 @@ func (nb numbits) toQNumber() qNumber {
 	}
 	return b
 }
+
+// toQNumberBuf is like toQNumber but writes to the provided buffer to avoid allocation.
+// The buffer must be at least MaxBytesInEncoding bytes. Returns a slice of buf.
+func (nb numbits) toQNumberBuf(buf *[MaxBytesInEncoding]byte) qNumber {
+	trailingZeroes := 0
+	var index int
+	for index = MaxBytesInEncoding - 1; index >= 0; index-- {
+		if nb&0x7f != 0 {
+			break
+		}
+		trailingZeroes++
+		nb >>= 7
+	}
+
+	length := MaxBytesInEncoding - trailingZeroes
+	for ; index >= 0; index-- {
+		buf[index] = byte(nb & 0x7f)
+		nb >>= 7
+	}
+	return buf[:length]
+}

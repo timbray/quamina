@@ -113,6 +113,7 @@ type nfaBuffers struct {
 	transmap       *transmap
 	startState     *faState
 	startClosure   []*faState
+	qNumBuf        [MaxBytesInEncoding]byte
 }
 
 func newNfaBuffers() *nfaBuffers {
