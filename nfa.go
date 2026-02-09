@@ -50,11 +50,18 @@ type transmapLevel struct {
 	buf []*fieldMatcher
 }
 
-// transmap is a Set structure used to gather transitions as we work our way through the automaton.
-// Uses a stack of levels to handle recursive traverseNFA calls safely.
+// transmap is a Set structure used to gather transitions as we work our way
+// through the automaton. It uses a stack of levels so that nested traversal
+// calls (e.g. tryToMatch iterating results while a recursive call starts a
+// new traversal) each get their own independent buffer.
+//
+// Usage: push() before a traversal, add() during, pop() to retrieve results.
+// The slice returned by pop() is backed by the level's buffer and remains
+// valid until the next resetDepth() call. Subsequent push() calls allocate
+// higher levels, so they never overwrite an outstanding buffer.
 type transmap struct {
 	levels []transmapLevel
-	depth  int
+	depth  int // -1 means idle (no active level)
 }
 
 func newTransMap() *transmap {
@@ -63,13 +70,13 @@ func newTransMap() *transmap {
 			set: make(map[*fieldMatcher]bool),
 			buf: make([]*fieldMatcher, 0, 16),
 		}},
-		depth: 0, // Start at level 0, ready to use without reset
+		depth: -1,
 	}
 }
 
-func (tm *transmap) reset() {
+// push prepares a new transmap level. Must be paired with pop().
+func (tm *transmap) push() {
 	tm.depth++
-	// Ensure we have a level at this depth
 	for tm.depth >= len(tm.levels) {
 		tm.levels = append(tm.levels, transmapLevel{
 			set: make(map[*fieldMatcher]bool),
@@ -87,7 +94,10 @@ func (tm *transmap) add(fms []*fieldMatcher) {
 	}
 }
 
-func (tm *transmap) all() []*fieldMatcher {
+// pop returns the collected field matchers and finishes the current level.
+// The returned slice is backed by the level's buffer and remains valid until
+// resetDepth() is called.
+func (tm *transmap) pop() []*fieldMatcher {
 	level := &tm.levels[tm.depth]
 	if len(level.set) == 0 {
 		tm.depth--
@@ -98,15 +108,15 @@ func (tm *transmap) all() []*fieldMatcher {
 	for fm := range level.set {
 		level.buf = append(level.buf, fm)
 	}
-	// DON'T decrement depth here - the caller may still be using the buffer
-	// when nested traverseNFA calls happen. Depth is reset externally.
+	// depth stays: the returned slice aliases level.buf, so this level
+	// must not be reused. Subsequent push() calls go to higher levels.
 	return level.buf
 }
 
-// resetDepth resets the transmap to depth 0 for reuse. Call this when all
-// outstanding buffers from previous all() calls are no longer in use.
+// resetDepth resets the transmap for a new match operation. All slices
+// previously returned by pop() become invalid after this call.
 func (tm *transmap) resetDepth() {
-	tm.depth = 0
+	tm.depth = -1
 }
 
 // nfaBuffers contains the buffers that are used to traverse NFAs. Go doesn't have thread-local variables
@@ -232,10 +242,11 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 
 	// load up transitions
 	trans := newTransMap()
+	trans.push()
 	for _, state := range ingredients {
 		trans.add(state.fieldTransitions)
 	}
-	dfaState.fieldTransitions = trans.all()
+	dfaState.fieldTransitions = trans.pop()
 	return dfaState
 }
 
@@ -280,7 +291,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// involves memory allocation, in the vast majority of cases matching an event
 	// will turn up a tiny number of unique matches, so allocation should be minimal
 	newTransitions := bufs.getTransmap()
-	newTransitions.reset()
+	newTransitions.push()
 	newTransitions.add(transitions)
 
 	stepResult := &stepOut{}
@@ -327,7 +338,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 
 	bufs.buf1 = currentStates[:0]
 	bufs.buf2 = nextStates[:0]
-	return newTransitions.all()
+	return newTransitions.pop()
 }
 
 type faStepKey struct {

@@ -222,7 +222,7 @@ func TestNestedTransmapSafety(t *testing.T) {
 }
 
 // TestTransmapBufferReuse directly tests that the transmap buffer reuse is safe.
-// With a buggy single-buffer implementation, nested reset/all calls corrupt the outer buffer.
+// With a buggy single-buffer implementation, nested push/pop calls corrupt the outer buffer.
 func TestTransmapBufferReuse(t *testing.T) {
 	// Create dummy fieldMatchers for testing
 	fm1 := &fieldMatcher{}
@@ -235,11 +235,11 @@ func TestTransmapBufferReuse(t *testing.T) {
 	tm.resetDepth()
 
 	// Simulate outer traverseNFA call
-	tm.reset()
+	tm.push()
 	tm.add([]*fieldMatcher{fm1, fm2})
 
 	// Get outer result - this returns a buffer
-	outerResult := tm.all()
+	outerResult := tm.pop()
 
 	// Verify outer result before inner call
 	if len(outerResult) != 2 {
@@ -254,9 +254,9 @@ func TestTransmapBufferReuse(t *testing.T) {
 	}
 
 	// Simulate inner traverseNFA call (would happen during iteration in tryToMatch)
-	tm.reset()
+	tm.push()
 	tm.add([]*fieldMatcher{fm3})
-	innerResult := tm.all()
+	innerResult := tm.pop()
 
 	// Inner should have fm3
 	if len(innerResult) != 1 || innerResult[0] != fm3 {
