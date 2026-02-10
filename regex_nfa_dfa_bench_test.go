@@ -364,18 +364,24 @@ func BenchmarkShellstyleSimpleWildcardScaling(b *testing.B) {
 
 // BenchmarkShellstyleZWJEmoji exercises NFA traversal on input containing
 // ZWJ (Zero Width Joiner) emoji sequences mixed with Japanese text. This is
-// a worst case for byte-level automaton traversal because:
+// a demanding case for byte-level automaton traversal because:
 //
 //  1. ZWJ emoji sequences encode a single visible glyph as many codepoints
 //     joined by U+200D (ZWJ), producing 15-25+ bytes per "character".
 //  2. The ZWJ byte sequence (0xE2 0x80 0x8D) shares its leading byte 0xE2
-//     with CJK characters, hiragana, katakana, and other BMP codepoints,
-//     creating massive byte-level ambiguity in the NFA.
+//     with hundreds of other BMP codepoints (U+2000-U+2FFF), so the NFA
+//     cannot tell if 0xE2 begins a ZWJ or some unrelated character without
+//     reading the second and third bytes.
 //  3. Variation selectors (U+FE0F = 0xEF 0xB8 0x8F) add further multi-byte
 //     sequences that interleave with the emoji and Japanese text.
+//  4. The input mixes several dense leading-byte ranges (0xE2 for ZWJ,
+//     0xE3 for hiragana/katakana, 0xE4+ for CJK, 0xEF for variation
+//     selectors), so the wildcard's self-loop must track many active
+//     multi-byte paths simultaneously.
 //
-// The NFA must branch at nearly every byte because 0xE2 and 0xEF are
-// shared prefixes across many unrelated codepoints in the input.
+// The wildcard's self-loop faces heavy branching because 0xE2 alone is
+// the leading byte for hundreds of BMP codepoints (U+2000-U+2FFF),
+// and 0xEF covers another dense range including variation selectors.
 func BenchmarkShellstyleZWJEmoji(b *testing.B) {
 	// ZWJ emoji sequences — each is a single glyph but many bytes.
 	zwjEmoji := []string{
