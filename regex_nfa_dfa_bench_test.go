@@ -389,12 +389,17 @@ func BenchmarkShellstyleZWJEmoji(b *testing.B) {
 		"👁\uFE0F\u200D🗨\uFE0F",   // eye in speech bubble
 	}
 
-	// Japanese text that shares leading UTF-8 bytes with ZWJ sequences.
+	// Japanese text using leading UTF-8 bytes near the ZWJ range.
 	// Hiragana (U+3040-309F): 0xE3 0x81 0x80 - 0xE3 0x82 0x9F
 	// Katakana (U+30A0-30FF): 0xE3 0x82 0xA0 - 0xE3 0x83 0xBF
 	// CJK (U+4E00+):          0xE4-0xE9 ...
-	// All start with 0xE3/0xE4+ which the NFA cannot distinguish from
-	// 0xE2 (ZWJ prefix) without reading the second byte.
+	// The ZWJ byte sequence (0xE2 0x80 0x8D) shares its leading byte
+	// 0xE2 with hundreds of other BMP codepoints (U+2000-U+2FFF), so
+	// the NFA cannot distinguish a ZWJ from other 0xE2-prefixed characters
+	// without reading the second and third bytes. Combined with the Japanese
+	// filler (0xE3, 0xE4+) and variation selectors (0xEF), the wildcard's
+	// self-loop must handle dense multi-byte traffic across several leading
+	// byte ranges.
 	japaneseFiller := []string{
 		"東京都渋谷区",
 		"新宿駅前通り",
@@ -427,12 +432,9 @@ func BenchmarkShellstyleZWJEmoji(b *testing.B) {
 			q, _ := New()
 			rng := rand.New(rand.NewSource(2025))
 
-			type emojiPair struct{ e1, e2 string }
-			ePairs := make([]emojiPair, 0, bc.patternCount)
 			for i := 0; i < bc.patternCount; i++ {
 				e1 := zwjEmoji[rng.Intn(len(zwjEmoji))]
 				e2 := zwjEmoji[rng.Intn(len(zwjEmoji))]
-				ePairs = append(ePairs, emojiPair{e1, e2})
 				shellstyle := fmt.Sprintf("*%s*%s*", e1, e2)
 				pattern := fmt.Sprintf(`{"val": [{"shellstyle": %q}]}`, shellstyle)
 				if err := q.AddPattern(fmt.Sprintf("p%d", i), pattern); err != nil {
@@ -446,12 +448,11 @@ func BenchmarkShellstyleZWJEmoji(b *testing.B) {
 			const poolSize = 64
 			events := make([][]byte, poolSize)
 			for i := range events {
-				pair := ePairs[rng.Intn(len(ePairs))]
 				var buf strings.Builder
 				buf.WriteString(japaneseFiller[rng.Intn(len(japaneseFiller))])
-				buf.WriteString(pair.e1)
+				buf.WriteString(zwjEmoji[rng.Intn(len(zwjEmoji))])
 				buf.WriteString(japaneseFiller[rng.Intn(len(japaneseFiller))])
-				buf.WriteString(pair.e2)
+				buf.WriteString(zwjEmoji[rng.Intn(len(zwjEmoji))])
 				buf.WriteString(japaneseFiller[rng.Intn(len(japaneseFiller))])
 				events[i] = []byte(fmt.Sprintf(`{"val": %q}`, buf.String()))
 			}
