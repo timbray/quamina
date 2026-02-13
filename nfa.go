@@ -58,8 +58,9 @@ type transmapLevel struct {
 // valid until the next resetDepth() call. Subsequent push() calls allocate
 // higher levels, so they never overwrite an outstanding buffer.
 type transmap struct {
-	levels []transmapLevel
-	depth  int // -1 means idle (no active level)
+	levels    []transmapLevel
+	depth     int // -1 means idle (no active level)
+	activeSet map[*fieldMatcher]bool
 }
 
 func newTransMap() *transmap {
@@ -83,12 +84,12 @@ func (tm *transmap) push() {
 	}
 	clear(tm.levels[tm.depth].set)
 	tm.levels[tm.depth].buf = tm.levels[tm.depth].buf[:0]
+	tm.activeSet = tm.levels[tm.depth].set
 }
 
 func (tm *transmap) add(fms []*fieldMatcher) {
-	set := tm.levels[tm.depth].set
 	for _, fm := range fms {
-		set[fm] = true
+		tm.activeSet[fm] = true
 	}
 }
 
