@@ -12,6 +12,7 @@ func epsilonClosure(table *smallTable) {
 	bufs := &closureBuffers{
 		generation: closureGeneration,
 		closureSet: make(map[*faState]bool, 64),
+		tableSeen:  make(map[*smallTable]bool, 64),
 	}
 	closureForNfa(table, bufs)
 }
@@ -19,6 +20,7 @@ func epsilonClosure(table *smallTable) {
 type closureBuffers struct {
 	generation uint64
 	closureSet map[*faState]bool
+	tableSeen  map[*smallTable]bool
 }
 
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
@@ -44,6 +46,7 @@ func closureForNfa(table *smallTable, bufs *closureBuffers) {
 func closureForState(state *faState) {
 	bufs := &closureBuffers{
 		closureSet: make(map[*faState]bool, 64),
+		tableSeen:  make(map[*smallTable]bool, 64),
 	}
 	closureForStateWithBufs(state, bufs)
 }
@@ -58,12 +61,14 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 		return
 	}
 
-	// Reuse and clear the map to avoid allocations on each call
+	// Reuse and clear the maps to avoid allocations on each call
 	clear(bufs.closureSet)
+	clear(bufs.tableSeen)
 	if !state.table.isEpsilonOnly() {
 		bufs.closureSet[state] = true
+		bufs.tableSeen[state.table] = true
 	}
-	traverseEpsilons(state, state.table.epsilons, bufs.closureSet)
+	traverseEpsilons(state, state.table.epsilons, bufs)
 
 	closure := make([]*faState, 0, len(bufs.closureSet))
 	for s := range bufs.closureSet {
@@ -72,14 +77,18 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 	state.epsilonClosure = closure
 }
 
-func traverseEpsilons(start *faState, epsilons []*faState, closureSet map[*faState]bool) {
+func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers) {
 	for _, eps := range epsilons {
-		if eps == start || closureSet[eps] {
+		if eps == start || bufs.closureSet[eps] {
 			continue
 		}
 		if !eps.table.isEpsilonOnly() {
-			closureSet[eps] = true
+			if bufs.tableSeen[eps.table] {
+				continue
+			}
+			bufs.closureSet[eps] = true
+			bufs.tableSeen[eps.table] = true
 		}
-		traverseEpsilons(start, eps.table.epsilons, closureSet)
+		traverseEpsilons(start, eps.table.epsilons, bufs)
 	}
 }
