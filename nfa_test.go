@@ -221,6 +221,125 @@ func TestNestedTransmapSafety(t *testing.T) {
 	}
 }
 
+// TestOverlappingShellStyleNesting validates that the transmap's stack-based
+// buffer management is necessary for correct results. It constructs a scenario
+// where traverseNFA is called for field "a" and returns 2 fieldMatchers (because
+// overlapping shellstyle patterns "*" and "foo*" both match). During iteration
+// of those results, recursive tryToMatch calls traverseNFA again for field "b",
+// which also returns 2+ results (from "*" and "bar*"). With a naive single-buffer
+// transmap, the inner pop() overwrites both positions of the outer buffer, so the
+// second fieldMatcher from field "a" is never properly processed. This causes
+// patterns reachable only through that second fieldMatcher to be missed.
+//
+// The test is designed so that BOTH possible map iteration orderings of the outer
+// result cause corruption: whichever fieldMatcher is processed first, its inner
+// traversal produces 2 results that overwrite position [1], corrupting the other.
+// With a correct stack-based transmap, all 4 patterns match. With a single shared
+// buffer, only 2 of 4 are found.
+func TestOverlappingShellStyleNesting(t *testing.T) {
+	q, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Two patterns go through a:* (sharing one fieldMatcher after field "a")
+	// with overlapping b patterns, so the inner traverseNFA returns 2 results.
+	err = q.AddPattern("P1", `{"a": [{"shellstyle": "*"}], "b": [{"shellstyle": "*"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = q.AddPattern("P2", `{"a": [{"shellstyle": "*"}], "b": [{"shellstyle": "bar*"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Two patterns go through a:foo* (sharing a different fieldMatcher after "a")
+	// with overlapping b patterns, so this branch also produces 2 inner results.
+	err = q.AddPattern("P3", `{"a": [{"shellstyle": "foo*"}], "b": [{"shellstyle": "*"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = q.AddPattern("P4", `{"a": [{"shellstyle": "foo*"}], "b": [{"shellstyle": "bar*"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event := []byte(`{"a": "fooX", "b": "barY"}`)
+	want := map[string]bool{"P1": true, "P2": true, "P3": true, "P4": true}
+
+	matches, err := q.MatchesForEvent(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := make(map[string]bool, len(matches))
+	for _, m := range matches {
+		got[m.(string)] = true
+	}
+	for name := range want {
+		if !got[name] {
+			t.Errorf("missing expected match %s, got %v", name, matches)
+		}
+	}
+	for name := range got {
+		if !want[name] {
+			t.Errorf("unexpected match %s", name)
+		}
+	}
+}
+
+// TestThreeLevelNesting exercises 3 levels of nested traverseNFA calls. Field
+// "a" has overlapping patterns producing 2 outer fieldMatchers. One branch goes
+// through fields "b" then "c" (each with overlapping patterns), creating depth-3
+// nesting. A separate branch through a:foo* reaches field "d" only if the outer
+// buffer survives the nested corruption.
+func TestThreeLevelNesting(t *testing.T) {
+	q, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Branch through a:* → b → c (3 levels of NFA nesting)
+	err = q.AddPattern("deep-1", `{"a": [{"shellstyle": "*"}], "b": [{"shellstyle": "*"}], "c": [{"shellstyle": "cat*"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = q.AddPattern("deep-2", `{"a": [{"shellstyle": "*"}], "b": [{"shellstyle": "bar*"}], "c": [{"shellstyle": "cow*"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Branch through a:foo* → d (only reachable if outer buffer is intact)
+	err = q.AddPattern("side", `{"a": [{"shellstyle": "foo*"}], "d": [{"shellstyle": "dog*"}]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event := []byte(`{"a": "fooX", "b": "barY", "c": "catZ", "d": "dogW"}`)
+	want := map[string]bool{"deep-1": true, "side": true}
+
+	// Run multiple iterations to exercise both map iteration orderings.
+	for i := 0; i < 100; i++ {
+		matches, err := q.MatchesForEvent(event)
+		if err != nil {
+			t.Fatalf("iter %d: %v", i, err)
+		}
+
+		got := make(map[string]bool, len(matches))
+		for _, m := range matches {
+			got[m.(string)] = true
+		}
+		for name := range want {
+			if !got[name] {
+				t.Fatalf("iter %d: missing %s, got %v", i, name, matches)
+			}
+		}
+		if got["deep-2"] {
+			t.Fatalf("iter %d: unexpected deep-2 (c=catZ should not match cow*)", i)
+		}
+	}
+}
+
 // TestTransmapBufferReuse directly tests that the transmap buffer reuse is safe.
 // With a buggy single-buffer implementation, nested push/pop calls corrupt the outer buffer.
 func TestTransmapBufferReuse(t *testing.T) {
