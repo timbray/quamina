@@ -1,9 +1,7 @@
 package quamina
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"unsafe"
 )
 
@@ -132,6 +130,8 @@ type nfaBuffers struct {
 	startState     *faState
 	startClosure   []*faState
 	qNumBuf        [MaxBytesInEncoding]byte
+	seen           map[*faState]uint64
+	stepGen        uint64
 }
 
 func newNfaBuffers() *nfaBuffers {
@@ -167,6 +167,13 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 		nb.transmap = newTransMap()
 	}
 	return nb.transmap
+}
+
+func (nb *nfaBuffers) getSeen() map[*faState]uint64 {
+	if nb.seen == nil {
+		nb.seen = make(map[*faState]uint64, 64)
+	}
+	return nb.seen
 }
 
 func (nb *nfaBuffers) getStartState(table *smallTable) *faState {
@@ -294,6 +301,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	newTransitions.push()
 	newTransitions.add(transitions)
 
+	seen := bufs.getSeen()
 	stepResult := &stepOut{}
 	for index := 0; len(currentStates) != 0 && index <= len(val); index++ {
 		var utf8Byte byte
@@ -312,14 +320,20 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 			}
 		}
 
-		// for toxically-complex regexps like (([abc]?)*)+ you can get a FA with epsilon loops,
-		// direct and indirect, which can lead to huge nextState buildups.  Could solve this with
-		// making it a set, but this seems to work well enough
-		if len(nextStates) > 500 {
-			slices.SortFunc(nextStates, func(a, b *faState) int {
-				return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
-			})
-			nextStates = slices.Compact(nextStates)
+		// Nested quantifiers like (([abc]?)*)+ create epsilon loops that
+		// cause duplicate states to compound exponentially across steps.
+		// Dedup in-place using a generation counter when growth is detected.
+		if len(nextStates) > 64 {
+			bufs.stepGen++
+			j := 0
+			for _, state := range nextStates {
+				if seen[state] != bufs.stepGen {
+					seen[state] = bufs.stepGen
+					nextStates[j] = state
+					j++
+				}
+			}
+			nextStates = nextStates[:j]
 		}
 
 		// re-use these
