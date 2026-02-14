@@ -205,6 +205,8 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 	checkExistsFalse(stateFields, fields, index, matches, bufs)
 
 	// try to transition through the machine
+	tm := bufs.getTransmap()
+	tm.push()
 	nextStates := state.transitionOn(&fields[index], bufs)
 
 	// for each state in the possibly-empty list of transitions from this state on fields[index]
@@ -225,6 +227,7 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 		// fields and that in fact such a field does not exist. That state would be left hanging. So…
 		checkExistsFalse(nextStateFields, fields, index, matches, bufs)
 	}
+	tm.pop()
 }
 
 func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet, bufs *nfaBuffers) {

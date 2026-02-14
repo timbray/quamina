@@ -30,7 +30,7 @@ func TestEmptyRegexp(t *testing.T) {
 	// empty quoted string should match empty regexp
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
-	fields := traverseNFA(table, []byte(`""`), transitions, bufs, sharedNullPrinter)
+	fields := testTraverseNFA(table, []byte(`""`), transitions, bufs, sharedNullPrinter)
 	if len(fields) != 1 || fields[0] != fm {
 		t.Error("Failed to match empty string")
 	}
@@ -69,7 +69,7 @@ func TestToxicStack(t *testing.T) {
 
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
-	trans := traverseNFA(table, []byte(str), transitions, bufs, sharedNullPrinter)
+	trans := testTraverseNFA(table, []byte(str), transitions, bufs, sharedNullPrinter)
 	if len(trans) != 1 {
 		t.Error("Toxic stack failure")
 	}
@@ -125,7 +125,7 @@ func TestRegexpValidity(t *testing.T) {
 				for _, should := range sample.matches {
 					var transitions []*fieldMatcher
 					bufs := newNfaBuffers()
-					fields := traverseNFA(table, []byte(`"`+should+`"`), transitions, bufs, sharedNullPrinter)
+					fields := testTraverseNFA(table, []byte(`"`+should+`"`), transitions, bufs, sharedNullPrinter)
 
 					if !containsFM(t, fields, dest) {
 						// the sample regexp tests think the empty string matches lots of regexps with which
@@ -150,7 +150,7 @@ func TestRegexpValidity(t *testing.T) {
 				for _, shouldNot := range sample.nomatches {
 					var transitions []*fieldMatcher
 					bufs := newNfaBuffers()
-					fields := traverseNFA(table, []byte(`"`+shouldNot+`"`), transitions, bufs, sharedNullPrinter)
+					fields := testTraverseNFA(table, []byte(`"`+shouldNot+`"`), transitions, bufs, sharedNullPrinter)
 					if len(fields) != 0 {
 						// similarly, it says quite a lot of empty strins should not match regexps that
 						// have stars and *should* match them

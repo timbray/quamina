@@ -119,13 +119,13 @@ func TestNfa2Dfa(t *testing.T) {
 		//fmt.Println("NFA: " + pp.printNFA(nfa))
 
 		for _, should := range test.shoulds {
-			matched := traverseNFA(nfa, asQuotedBytes(t, should), transitions, bufs, pp)
+			matched := testTraverseNFA(nfa, asQuotedBytes(t, should), transitions, bufs, pp)
 			if len(matched) != 1 {
 				t.Errorf("NFA %s didn't %s: ", test.pattern, should)
 			}
 		}
 		for _, nope := range test.nopes {
-			matched := traverseNFA(nfa, asQuotedBytes(t, nope), transitions, bufs, pp)
+			matched := testTraverseNFA(nfa, asQuotedBytes(t, nope), transitions, bufs, pp)
 			if len(matched) != 0 {
 				t.Errorf("NFA %s matched %s", test.pattern, nope)
 			}
@@ -150,6 +150,17 @@ func asQuotedBytes(t *testing.T, s string) []byte {
 	t.Helper()
 	s = `"` + s + `"`
 	return []byte(s)
+}
+
+// testTraverseNFA wraps traverseNFA with the push/pop that tryToMatch
+// normally provides. Test-only convenience so direct callers don't need
+// to manage the transmap stack themselves.
+func testTraverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, pp printer) []*fieldMatcher {
+	tm := bufs.getTransmap()
+	tm.push()
+	result := traverseNFA(table, val, transitions, bufs, pp)
+	tm.pop()
+	return result
 }
 
 // TestNestedTransmapSafety verifies that the transmap handles nested traverseNFA calls correctly.
@@ -341,55 +352,41 @@ func TestThreeLevelNesting(t *testing.T) {
 }
 
 // TestTransmapBufferReuse directly tests that the transmap buffer reuse is safe.
-// With a buggy single-buffer implementation, nested push/pop calls corrupt the outer buffer.
+// The new API: push() in the caller (tryToMatch), traverseNFA writes into the
+// current level's buffer via levels[depth]. Nested push() at a higher depth
+// must not corrupt the outer level's buffer.
 func TestTransmapBufferReuse(t *testing.T) {
-	// Create dummy fieldMatchers for testing
 	fm1 := &fieldMatcher{}
 	fm2 := &fieldMatcher{}
 	fm3 := &fieldMatcher{}
 
 	tm := newTransMap()
-
-	// Simulate start of matchesForFields - reset depth
 	tm.resetDepth()
 
-	// Simulate outer traverseNFA call
-	tm.push()
-	tm.add([]*fieldMatcher{fm1, fm2})
+	// Simulate outer tryToMatch: push, then traverseNFA writes into levels[depth]
+	tm.push() // depth 0
+	buf := tm.levels[tm.depth][:0]
+	buf = append(buf, fm1, fm2)
+	tm.levels[tm.depth] = buf
+	outerResult := tm.levels[tm.depth]
 
-	// Get outer result - this returns a buffer
-	outerResult := tm.pop()
-
-	// Verify outer result before inner call
 	if len(outerResult) != 2 {
 		t.Fatalf("outer result before inner: got %d, want 2", len(outerResult))
 	}
 
-	// Remember which fieldMatchers we expect
-	expectFM1 := outerResult[0] == fm1 || outerResult[1] == fm1
-	expectFM2 := outerResult[0] == fm2 || outerResult[1] == fm2
-	if !expectFM1 || !expectFM2 {
-		t.Fatalf("outer result should have fm1 and fm2")
-	}
+	// Simulate inner tryToMatch: push at depth 1, traverseNFA writes there
+	tm.push() // depth 1
+	innerBuf := tm.levels[tm.depth][:0]
+	innerBuf = append(innerBuf, fm3)
+	tm.levels[tm.depth] = innerBuf
+	innerResult := tm.levels[tm.depth]
 
-	// Simulate inner traverseNFA call (would happen during iteration in tryToMatch)
-	tm.push()
-	tm.add([]*fieldMatcher{fm3})
-	innerResult := tm.pop()
-
-	// Inner should have fm3
 	if len(innerResult) != 1 || innerResult[0] != fm3 {
 		t.Errorf("inner result: got %v, want [fm3]", innerResult)
 	}
+	tm.pop() // back to depth 0
 
-	// THIS IS THE BUG CHECK: With single-buffer impl, outerResult would be corrupted.
-	// The inner reset/all would overwrite the same buffer that outerResult points to.
-	// With stack-based impl, they use different buffers at different depths.
-	//
-	// After inner call, check outerResult DIRECTLY (not a copy).
-	// With buggy impl: outerResult[0] is now fm3 (corrupted!)
-	// With stack impl: outerResult still has fm1, fm2
-
+	// BUG CHECK: outerResult must still have fm1, fm2
 	foundFM1 := false
 	foundFM2 := false
 	for _, fm := range outerResult {
@@ -404,4 +401,5 @@ func TestTransmapBufferReuse(t *testing.T) {
 	if !foundFM1 || !foundFM2 {
 		t.Errorf("outer result was corrupted after inner call: expected fm1 and fm2, got %v", outerResult)
 	}
+	tm.pop() // back to depth -1
 }
