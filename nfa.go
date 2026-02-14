@@ -327,7 +327,7 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 		return nil
 	}
 	tm := bufs.getTransmap()
-	buf := tm.levels[tm.depth][:0]
+	buf := tm.levels[tm.depth] // already [:0] from push()
 	for fm := range fieldSet {
 		buf = append(buf, fm)
 	}
