@@ -64,7 +64,10 @@ func (nb numbits) encodeQNumber(buf *[MaxBytesInEncoding]byte) int {
 func (nb numbits) toQNumber() qNumber {
 	var buf [MaxBytesInEncoding]byte
 	n := nb.encodeQNumber(&buf)
-	return append([]byte(nil), buf[:n]...)
+	// we use three lines here to avoid variadic arguments
+	result := make([]byte, n)
+	copy(result, buf[:n])
+	return result
 }
 
 // toQNumberBuf is like toQNumber but writes to the provided buffer to avoid allocation.
