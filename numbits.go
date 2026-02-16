@@ -32,12 +32,12 @@ func numbitsFromFloat64(f float64) numbits {
 
 const MaxBytesInEncoding = 10
 
-// toQNumber turns a numbits into a minimal variable-width encoding that preservers equality and ordering.
-// Storing 8 bytes of data in base-128 would in principle require 10 bytes, but it turns out that since
-// the byte-string encoding is big-endian, trailing zeroes don't count, so the encoding can be as short as
-// one byte.
+// encodeQNumber writes a minimal variable-width base-128 encoding of nb into buf
+// and returns the number of bytes written. Storing 8 bytes of data in base-128
+// would in principle require 10 bytes, but since the encoding is big-endian,
+// trailing zeroes don't count, so it can be as short as one byte.
 // Idea and some code by Axel Wagner
-func (nb numbits) toQNumber() qNumber {
+func (nb numbits) encodeQNumber(buf *[MaxBytesInEncoding]byte) int {
 	// Iterate through the numbits 7 bits at a time, right to left, first bypassing bits that generate
 	// trailing zeroes in the encoded form. Note that index could go to 0 if the numbits value was uint(0)
 	// but that value represents NaN and can't appear in JSON
@@ -52,31 +52,26 @@ func (nb numbits) toQNumber() qNumber {
 	}
 
 	// now we fill in the byte encoding for the digits up to the last non-zero
-	b := make([]byte, MaxBytesInEncoding-trailingZeroes)
-	for ; index >= 0; index-- {
-		b[index] = byte(nb & 0x7f)
-		nb >>= 7
-	}
-	return b
-}
-
-// toQNumberBuf is like toQNumber but writes to the provided buffer to avoid allocation.
-// The buffer must be at least MaxBytesInEncoding bytes. Returns a slice of buf.
-func (nb numbits) toQNumberBuf(buf *[MaxBytesInEncoding]byte) qNumber {
-	trailingZeroes := 0
-	var index int
-	for index = MaxBytesInEncoding - 1; index >= 0; index-- {
-		if nb&0x7f != 0 {
-			break
-		}
-		trailingZeroes++
-		nb >>= 7
-	}
-
 	length := MaxBytesInEncoding - trailingZeroes
 	for ; index >= 0; index-- {
 		buf[index] = byte(nb & 0x7f)
 		nb >>= 7
 	}
-	return buf[:length]
+	return length
+}
+
+// toQNumber returns a minimal variable-width encoding that preserves equality and ordering.
+func (nb numbits) toQNumber() qNumber {
+	var buf [MaxBytesInEncoding]byte
+	n := nb.encodeQNumber(&buf)
+	// we use three lines here to avoid variadic arguments
+	result := make([]byte, n)
+	copy(result, buf[:n])
+	return result
+}
+
+// toQNumberBuf is like toQNumber but writes to the provided buffer to avoid allocation.
+// Returns a slice of buf.
+func (nb numbits) toQNumberBuf(buf *[MaxBytesInEncoding]byte) qNumber {
+	return buf[:nb.encodeQNumber(buf)]
 }

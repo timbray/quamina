@@ -7,6 +7,16 @@ import (
 	"testing"
 )
 
+// testTransitionOn wraps valueMatcher.transitionOn with the push/pop that
+// tryToMatch normally provides.
+func testTransitionOn(vm *valueMatcher, val []byte, bufs *nfaBuffers) []*fieldMatcher {
+	tm := bufs.getTransmap()
+	tm.push()
+	result := vm.transitionOn(&Field{Val: val}, bufs)
+	tm.pop()
+	return result
+}
+
 func TestInvalidValueTypes(t *testing.T) {
 	var before []typedVal
 	addInvalid(t, before)
@@ -459,19 +469,19 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 	}
 
 	// Verify the matcher actually works
-	bufs := &nfaBuffers{}
+	bufs := newNfaBuffers()
 	// Should match wildcard pattern "a*b"
-	trans := vm.transitionOn(&Field{Val: []byte("aXXXb")}, bufs)
+	trans := testTransitionOn(vm, []byte("aXXXb"), bufs)
 	if len(trans) != 1 {
 		t.Errorf("expected 1 transition for 'aXXXb', got %d", len(trans))
 	}
 	// Should match string pattern "xyz"
-	trans = vm.transitionOn(&Field{Val: []byte("xyz")}, bufs)
+	trans = testTransitionOn(vm, []byte("xyz"), bufs)
 	if len(trans) != 1 {
 		t.Errorf("expected 1 transition for 'xyz', got %d", len(trans))
 	}
 	// Should not match
-	trans = vm.transitionOn(&Field{Val: []byte("nomatch")}, bufs)
+	trans = testTransitionOn(vm, []byte("nomatch"), bufs)
 	if len(trans) != 0 {
 		t.Errorf("expected 0 transitions for 'nomatch', got %d", len(trans))
 	}
@@ -523,14 +533,14 @@ func TestEpsilonClosureRequired(t *testing.T) {
 	}
 	vm.addTransition(stringVal, sharedNullPrinter)
 
-	bufs := &nfaBuffers{}
+	bufs := newNfaBuffers()
 
 	// Step 1: Verify matching works with closures computed
-	trans := vm.transitionOn(&Field{Val: []byte("abc")}, bufs)
+	trans := testTransitionOn(vm, []byte("abc"), bufs)
 	if len(trans) != 1 {
 		t.Fatalf("with closures: expected 1 transition for 'abc', got %d", len(trans))
 	}
-	trans = vm.transitionOn(&Field{Val: []byte("aXXXz")}, bufs)
+	trans = testTransitionOn(vm, []byte("aXXXz"), bufs)
 	if len(trans) != 1 {
 		t.Fatalf("with closures: expected 1 transition for 'aXXXz', got %d", len(trans))
 	}
@@ -541,10 +551,10 @@ func TestEpsilonClosureRequired(t *testing.T) {
 
 	// Step 3: Without closures, traverseNFA fails because it iterates over
 	// state.epsilonClosure which is now nil (empty loop = no matches)
-	trans = vm.transitionOn(&Field{Val: []byte("abc")}, bufs)
+	trans = testTransitionOn(vm, []byte("abc"), bufs)
 	abcMatchedWithoutClosures := len(trans) == 1
 
-	trans = vm.transitionOn(&Field{Val: []byte("aXXXz")}, bufs)
+	trans = testTransitionOn(vm, []byte("aXXXz"), bufs)
 	wildcardMatchedWithoutClosures := len(trans) == 1
 
 	// At least one pattern must fail without closures to prove they're needed
@@ -555,11 +565,11 @@ func TestEpsilonClosureRequired(t *testing.T) {
 	// Step 4: Restore closures and verify matching works again
 	epsilonClosure(fields.startTable)
 
-	trans = vm.transitionOn(&Field{Val: []byte("abc")}, bufs)
+	trans = testTransitionOn(vm, []byte("abc"), bufs)
 	if len(trans) != 1 {
 		t.Errorf("after restore: expected 1 transition for 'abc', got %d", len(trans))
 	}
-	trans = vm.transitionOn(&Field{Val: []byte("aXXXz")}, bufs)
+	trans = testTransitionOn(vm, []byte("aXXXz"), bufs)
 	if len(trans) != 1 {
 		t.Errorf("after restore: expected 1 transition for 'aXXXz', got %d", len(trans))
 	}
