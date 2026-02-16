@@ -44,34 +44,44 @@ huge numbers of states and splices. So, we want to optimize merging.
 
 */
 
-// transmap is a Set structure used to gather transitions as we work our way through the automaton
+// transmap is a stack of []*fieldMatcher buffers. Only the result slice needs
+// stacking: it escapes from traverseNFA and is iterated in tryToMatch while
+// recursive calls push to higher levels. The dedup set lives in nfaBuffers
+// as fieldSet and is cleared at the top of each traverseNFA call (no stacking
+// needed because traverseNFA is not recursive).
+//
+// Usage: push() in tryToMatch before calling transitionOn, pop() after
+// iterating the results. traverseNFA writes into levels[depth] directly.
 type transmap struct {
-	set map[*fieldMatcher]bool
+	levels [][]*fieldMatcher
+	depth  int // -1 = idle
 }
 
 func newTransMap() *transmap {
-	return &transmap{set: make(map[*fieldMatcher]bool)}
-}
-
-func (tm *transmap) reset() {
-	clear(tm.set)
-}
-
-func (tm *transmap) add(fms []*fieldMatcher) {
-	for _, fm := range fms {
-		tm.set[fm] = true
+	return &transmap{
+		levels: [][]*fieldMatcher{make([]*fieldMatcher, 0, 16)},
+		depth:  -1,
 	}
 }
 
-func (tm *transmap) all() []*fieldMatcher {
-	if len(tm.set) == 0 {
-		return nil
+// push increments depth, ensures a level exists, and resets its buffer to [:0].
+func (tm *transmap) push() {
+	tm.depth++
+	for tm.depth >= len(tm.levels) {
+		tm.levels = append(tm.levels, make([]*fieldMatcher, 0, 16))
 	}
-	all := make([]*fieldMatcher, 0, len(tm.set))
-	for fm := range tm.set {
-		all = append(all, fm)
-	}
-	return all
+	tm.levels[tm.depth] = tm.levels[tm.depth][:0]
+}
+
+// pop decrements depth. The buffer at the previous depth remains valid
+// until the next push() at that depth or resetDepth().
+func (tm *transmap) pop() {
+	tm.depth--
+}
+
+// resetDepth resets the transmap for a new match operation.
+func (tm *transmap) resetDepth() {
+	tm.depth = -1
 }
 
 // nfaBuffers contains the buffers that are used to traverse NFAs. Go doesn't have thread-local variables
@@ -84,8 +94,10 @@ type nfaBuffers struct {
 	transitionsBuf []*fieldMatcher
 	resultBuf      []X
 	transmap       *transmap
+	fieldSet       map[*fieldMatcher]bool
 	startState     *faState
 	startClosure   []*faState
+	qNumBuf        [MaxBytesInEncoding]byte
 }
 
 func newNfaBuffers() *nfaBuffers {
@@ -121,6 +133,13 @@ func (nb *nfaBuffers) getTransmap() *transmap {
 		nb.transmap = newTransMap()
 	}
 	return nb.transmap
+}
+
+func (nb *nfaBuffers) getFieldSet() map[*fieldMatcher]bool {
+	if nb.fieldSet == nil {
+		nb.fieldSet = make(map[*fieldMatcher]bool)
+	}
+	return nb.fieldSet
 }
 
 func (nb *nfaBuffers) getStartState(table *smallTable) *faState {
@@ -194,12 +213,20 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 		}
 	}
 
-	// load up transitions
-	trans := newTransMap()
+	// load up transitions (build-time, allocation is fine)
+	seen := make(map[*fieldMatcher]bool)
 	for _, state := range ingredients {
-		trans.add(state.fieldTransitions)
+		for _, fm := range state.fieldTransitions {
+			seen[fm] = true
+		}
 	}
-	dfaState.fieldTransitions = trans.all()
+	if len(seen) > 0 {
+		fms := make([]*fieldMatcher, 0, len(seen))
+		for fm := range seen {
+			fms = append(fms, fm)
+		}
+		dfaState.fieldTransitions = fms
+	}
 	return dfaState
 }
 
@@ -239,13 +266,12 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	currentStates = append(currentStates, bufs.getStartState(table))
 	nextStates := bufs.getBuf2()
 
-	// a lot of the transitions stuff is going to be empty, but on the other hand
-	// a * entry with a transition could end up getting added a lot. While this
-	// involves memory allocation, in the vast majority of cases matching an event
-	// will turn up a tiny number of unique matches, so allocation should be minimal
-	newTransitions := bufs.getTransmap()
-	newTransitions.reset()
-	newTransitions.add(transitions)
+	// Use flat dedup set — no stacking needed since traverseNFA is not recursive
+	fieldSet := bufs.getFieldSet()
+	clear(fieldSet)
+	for _, fm := range transitions {
+		fieldSet[fm] = true
+	}
 
 	stepResult := &stepOut{}
 	for index := 0; len(currentStates) != 0 && index <= len(val); index++ {
@@ -257,7 +283,9 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 		}
 		for _, state := range currentStates {
 			for _, ecState := range state.epsilonClosure {
-				newTransitions.add(ecState.fieldTransitions)
+				for _, fm := range ecState.fieldTransitions {
+					fieldSet[fm] = true
+				}
 				ecState.table.step(utf8Byte, stepResult)
 				if stepResult.step != nil {
 					nextStates = append(nextStates, stepResult.step)
@@ -285,13 +313,26 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 	// epsilon closures for matches
 	for _, state := range currentStates {
 		for _, ecState := range state.epsilonClosure {
-			newTransitions.add(ecState.fieldTransitions)
+			for _, fm := range ecState.fieldTransitions {
+				fieldSet[fm] = true
+			}
 		}
 	}
 
 	bufs.buf1 = currentStates[:0]
 	bufs.buf2 = nextStates[:0]
-	return newTransitions.all()
+
+	// Materialize into current transmap buffer
+	if len(fieldSet) == 0 {
+		return nil
+	}
+	tm := bufs.getTransmap()
+	buf := tm.levels[tm.depth] // already [:0] from push()
+	for fm := range fieldSet {
+		buf = append(buf, fm)
+	}
+	tm.levels[tm.depth] = buf
+	return buf
 }
 
 type faStepKey struct {

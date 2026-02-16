@@ -169,6 +169,10 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 	// Reuse the matchSet from buffers to reduce allocations
 	matches := bufs.getMatches()
 	matches.reset()
+	// Reset transmap depth for this match operation
+	if tm := bufs.transmap; tm != nil {
+		tm.resetDepth()
+	}
 	cmFields := m.fields()
 
 	// for each of the fields, we'll try to match the automaton start state to that field - the tryToMatch
@@ -201,6 +205,8 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 	checkExistsFalse(stateFields, fields, index, matches, bufs)
 
 	// try to transition through the machine
+	tm := bufs.getTransmap()
+	tm.push()
 	nextStates := state.transitionOn(&fields[index], bufs)
 
 	// for each state in the possibly-empty list of transitions from this state on fields[index]
@@ -221,6 +227,7 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 		// fields and that in fact such a field does not exist. That state would be left hanging. So…
 		checkExistsFalse(nextStateFields, fields, index, matches, bufs)
 	}
+	tm.pop()
 }
 
 func checkExistsFalse(stateFields *fmFields, fields []Field, index int, matches *matchSet, bufs *nfaBuffers) {
