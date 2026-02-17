@@ -12,7 +12,7 @@ func epsilonClosure(table *smallTable) {
 	bufs := &closureBuffers{
 		generation: closureGeneration,
 		closureSet: make(map[*faState]bool, 64),
-		tableSeen:  make(map[*smallTable]bool, 64),
+		tableRep:  make(map[*smallTable]*faState, 64),
 	}
 	closureForNfa(table, bufs)
 }
@@ -20,7 +20,7 @@ func epsilonClosure(table *smallTable) {
 type closureBuffers struct {
 	generation uint64
 	closureSet map[*faState]bool
-	tableSeen  map[*smallTable]bool
+	tableRep   map[*smallTable]*faState
 }
 
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
@@ -46,7 +46,7 @@ func closureForNfa(table *smallTable, bufs *closureBuffers) {
 func closureForState(state *faState) {
 	bufs := &closureBuffers{
 		closureSet: make(map[*faState]bool, 64),
-		tableSeen:  make(map[*smallTable]bool, 64),
+		tableRep:  make(map[*smallTable]*faState, 64),
 	}
 	closureForStateWithBufs(state, bufs)
 }
@@ -63,10 +63,10 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 
 	// Reuse and clear the maps to avoid allocations on each call
 	clear(bufs.closureSet)
-	clear(bufs.tableSeen)
+	clear(bufs.tableRep)
 	if !state.table.isEpsilonOnly() {
 		bufs.closureSet[state] = true
-		bufs.tableSeen[state.table] = true
+		bufs.tableRep[state.table] = state
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
 
@@ -83,12 +83,31 @@ func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers)
 			continue
 		}
 		if !eps.table.isEpsilonOnly() {
-			if bufs.tableSeen[eps.table] {
-				continue
+			if rep, ok := bufs.tableRep[eps.table]; ok {
+				// Same table already in closure. Safe to skip only if
+				// fieldTransitions match — otherwise we'd lose matches.
+				if sameFieldTransitions(rep, eps) {
+					continue
+				}
+				bufs.closureSet[eps] = true
+				continue // same table means same epsilons, skip recursion
 			}
 			bufs.closureSet[eps] = true
-			bufs.tableSeen[eps.table] = true
+			bufs.tableRep[eps.table] = eps
 		}
 		traverseEpsilons(start, eps.table.epsilons, bufs)
 	}
+}
+
+// sameFieldTransitions reports whether two states have identical fieldTransitions.
+func sameFieldTransitions(a, b *faState) bool {
+	if len(a.fieldTransitions) != len(b.fieldTransitions) {
+		return false
+	}
+	for i, fm := range a.fieldTransitions {
+		if fm != b.fieldTransitions[i] {
+			return false
+		}
+	}
+	return true
 }
