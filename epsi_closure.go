@@ -20,7 +20,21 @@ func epsilonClosure(table *smallTable) {
 type closureBuffers struct {
 	generation uint64
 	closureSet map[*faState]bool
-	tableRep   map[*smallTable]*faState
+
+	// tableRep enables table-pointer dedup: when multiple faState nodes
+	// share the same *smallTable, their byte transitions are identical,
+	// so only one representative needs to be in the closure. This avoids
+	// redundant work in traverseNFA (duplicate table.step calls) and
+	// prevents blowup in nextStates for patterns with many epsilon paths
+	// converging on the same table (e.g. merged shell-style wildcards).
+	//
+	// Invariant: in the current merge paths (mergeFAStates,
+	// asymmetricSpinnerMerge, symmetricSpinnerMerge), every new faState
+	// gets a fresh *smallTable, so same table implies same state. The
+	// dedup is defended: if two states share a table but have different
+	// fieldTransitions, both are kept in the closure. See
+	// TestTablePointerDedupPreservesFieldTransitions.
+	tableRep map[*smallTable]*faState
 }
 
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
@@ -77,6 +91,12 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 	state.epsilonClosure = closure
 }
 
+// traverseEpsilons recursively collects non-epsilon-only states reachable
+// via epsilon transitions into bufs.closureSet. Table-pointer dedup skips
+// states whose *smallTable is already represented, avoiding redundant byte
+// transitions in the closure. When a table collision has different
+// fieldTransitions, the state is still added (correctness over speed) but
+// recursion is skipped (same table = same epsilon edges).
 func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers) {
 	for _, eps := range epsilons {
 		if eps == start || bufs.closureSet[eps] {
@@ -84,13 +104,14 @@ func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers)
 		}
 		if !eps.table.isEpsilonOnly() {
 			if rep, ok := bufs.tableRep[eps.table]; ok {
-				// Same table already in closure. Safe to skip only if
-				// fieldTransitions match — otherwise we'd lose matches.
 				if sameFieldTransitions(rep, eps) {
 					continue
 				}
+				// Different fieldTransitions on same table: include state
+				// to preserve match correctness, but skip recursion since
+				// the table's epsilons have already been traversed.
 				bufs.closureSet[eps] = true
-				continue // same table means same epsilons, skip recursion
+				continue
 			}
 			bufs.closureSet[eps] = true
 			bufs.tableRep[eps.table] = eps
