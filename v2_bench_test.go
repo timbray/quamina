@@ -74,7 +74,7 @@ func Benchmark8259Example(b *testing.B) {
 }
 
 func BenchmarkShellStyleBuildTime(b *testing.B) {
-	words := readWWords(b)[:1000]
+	words := readWWords(b, 1000)
 
 	source := rand.NewSource(293591)
 	starWords := make([]string, 0, len(words))
