@@ -235,13 +235,13 @@ func (w *worder) next() []byte {
 	return w.lines[w.index]
 }
 
-func readWWords(t *testing.T) [][]byte {
+func readWWords(t testing.TB) [][]byte {
 	t.Helper()
 
 	// that's a list from the Wordle source code with a few erased to get a prime number
 	file, err := os.Open("testdata/wwords.txt")
 	if err != nil {
-		t.Error("Can't open file: " + err.Error())
+		t.Fatal("Can't open file: " + err.Error())
 	}
 	defer func(file *os.File) {
 		_ = file.Close()
