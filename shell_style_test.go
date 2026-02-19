@@ -161,7 +161,7 @@ func TestShellStyleBuildTime(t *testing.T) {
 	// automaton building or very slow (~2K/second) matching.  The current version settles for the
 	// latter. With a thousand patterns the automaton building is instant and the matching runs at
 	// ~16K/second.  I retain optimism that there is a path forward to win back the fast performance.
-	words := readWWords(t)[:1000]
+	words := readWWords(t, 1000)
 
 	fmt.Printf("WC %d\n", len(words))
 	starWords := make([]string, 0, len(words))

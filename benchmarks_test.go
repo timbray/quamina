@@ -190,7 +190,7 @@ func TestBigShellStyle(t *testing.T) {
 // ~220K smallTables.  Tried https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap/
 // but it doesn't seem to help.
 func TestPatternAddition(t *testing.T) {
-	w := worder{0, readWWords(t)}
+	w := worder{0, readWWords(t, 0)}
 
 	var msBefore, msAfter runtime.MemStats
 
@@ -235,13 +235,15 @@ func (w *worder) next() []byte {
 	return w.lines[w.index]
 }
 
-func readWWords(t *testing.T) [][]byte {
-	t.Helper()
+// readWWords reads up to maxWords words from testdata/wwords.txt.
+// Pass 0 to read all words.
+func readWWords(tb testing.TB, maxWords int) [][]byte {
+	tb.Helper()
 
 	// that's a list from the Wordle source code with a few erased to get a prime number
 	file, err := os.Open("testdata/wwords.txt")
 	if err != nil {
-		t.Error("Can't open file: " + err.Error())
+		tb.Fatal("Can't open file: " + err.Error())
 	}
 	defer func(file *os.File) {
 		_ = file.Close()
@@ -250,11 +252,12 @@ func readWWords(t *testing.T) [][]byte {
 	buf := make([]byte, oneMeg)
 	scanner.Buffer(buf, oneMeg)
 
-	lineCount := 0
 	var lines [][]byte
 	for scanner.Scan() {
-		lineCount++
 		lines = append(lines, []byte(scanner.Text()))
+		if maxWords > 0 && len(lines) >= maxWords {
+			break
+		}
 	}
 	return lines
 }
