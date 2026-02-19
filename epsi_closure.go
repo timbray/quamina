@@ -12,7 +12,7 @@ func epsilonClosure(table *smallTable) {
 	bufs := &closureBuffers{
 		generation: closureGeneration,
 		closureSet: make(map[*faState]bool, 64),
-		tableRep:  make(map[*smallTable]*faState, 64),
+		tableRep:   make(map[*smallTable]*faState, 64),
 	}
 	closureForNfa(table, bufs)
 }
@@ -60,7 +60,7 @@ func closureForNfa(table *smallTable, bufs *closureBuffers) {
 func closureForState(state *faState) {
 	bufs := &closureBuffers{
 		closureSet: make(map[*faState]bool, 64),
-		tableRep:  make(map[*smallTable]*faState, 64),
+		tableRep:   make(map[*smallTable]*faState, 64),
 	}
 	closureForStateWithBufs(state, bufs)
 }
