@@ -165,7 +165,7 @@ func TestAnythingButMatching(t *testing.T) {
 	if err != nil {
 		t.Error("AP: " + err.Error())
 	}
-	words := readWWords(t)
+	words := readWWords(t, 0)
 	template := `{"a": "XX"}`
 	problemTemplate := `{"a": XX}`
 	for _, word := range problemWords {

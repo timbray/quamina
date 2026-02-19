@@ -4,6 +4,7 @@ package quamina
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -70,4 +71,65 @@ func Benchmark8259Example(b *testing.B) {
 	elapsed = float64(b.Elapsed().Seconds())
 	count := float64(b.N)
 	fmt.Printf("%.0f/sec\n", count/elapsed)
+}
+
+func BenchmarkShellStyleBuildTime(b *testing.B) {
+	words := readWWords(b, 1000)
+
+	source := rand.NewSource(293591)
+	starWords := make([]string, 0, len(words))
+	expandedWords := make([]string, 0, len(words))
+	patterns := make([]string, 0, len(words))
+	for _, word := range words {
+		//nolint:gosec
+		starAt := source.Int63() % 6
+		starWord := string(word[:starAt]) + "*" + string(word[starAt:])
+		expandedWord := string(word[:starAt]) + "ÉÉÉÉ" + string(word[starAt:])
+		starWords = append(starWords, starWord)
+		expandedWords = append(expandedWords, expandedWord)
+		pattern := fmt.Sprintf(`{"x": [ {"shellstyle": "%s" } ] }`, starWord)
+		patterns = append(patterns, pattern)
+	}
+
+	q, _ := New()
+	before := time.Now()
+	for i := range words {
+		err := q.AddPattern(starWords[i], patterns[i])
+		if err != nil {
+			b.Fatal("AddP: " + err.Error())
+		}
+	}
+	elapsed := time.Since(before).Seconds()
+	fmt.Printf("Patterns/sec: %.1f\n", float64(len(words))/elapsed)
+	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
+
+	// Build events: original words and expanded words
+	type event struct {
+		json []byte
+		word string
+	}
+	events := make([]event, 0, len(words)*2)
+	for i, word := range words {
+		events = append(events,
+			event{[]byte(fmt.Sprintf(`{"x": "%s"}`, word)), string(word)},
+			event{[]byte(fmt.Sprintf(`{"x": "%s"}`, expandedWords[i])), expandedWords[i]},
+		)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for b.Loop() {
+		for _, ev := range events {
+			matches, err := q.MatchesForEvent(ev.json)
+			if err != nil {
+				b.Fatal("M4E on " + ev.word)
+			}
+			if len(matches) == 0 {
+				b.Fatal("no matches for " + ev.word)
+			}
+		}
+	}
+	elapsed = float64(b.Elapsed().Seconds())
+	count := float64(b.N)
+	fmt.Printf("%.0f events/sec\n", count*float64(len(events))/elapsed)
 }

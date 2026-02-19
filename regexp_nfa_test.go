@@ -14,7 +14,7 @@ import (
 // skinny  RR: 3853.56/second with cache, 60.31 without, speedup 63.9
 //
 func TestRRCacheEffectiveness(t *testing.T) {
-	words := readWWords(t)[:2000]
+	words := readWWords(t, 2000)
 	re := "~p{L}+"
 	pp := sharedNullPrinter
 	var transitions []*fieldMatcher
