@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 	"unsafe"
 )
 
@@ -453,112 +452,138 @@ func collectClosureStats(startTable *smallTable) (stateCount, totalEntries, maxC
 	return len(visitedStates), totalEntries, maxClosure, tableSharing
 }
 
-// TestEpsilonClosureSizes measures epsilon closure sizes and matching speed
-// for pattern workloads that exercise table-pointer dedup. Nested quantifiers
-// over overlapping character classes create the most table sharing.
-func TestEpsilonClosureSizes(t *testing.T) {
-	type workload struct {
-		name     string
-		patterns []string
-		regexps  []string
-	}
+// dedupWorkload defines a set of patterns for testing table-pointer dedup.
+type dedupWorkload struct {
+	name     string
+	patterns []string // shellstyle patterns
+	regexps  []string // regexp patterns
+	maxMax   int      // max closure must not exceed this
+	matches  []int    // expected match counts for the 3 standard events
+}
 
-	workloads := []workload{
-		{
-			name: "6-regexps-12-shell",
-			patterns: []string{
-				"*a*b*c*", "*x*y*z*", "*e*f*g*", "*m*n*o*",
-				"*p*q*r*", "*s*t*u*", "*a*e*i*", "*b*d*f*",
-				"*c*g*k*", "*d*h*l*", "*i*o*u*", "*r*s*t*",
-			},
-			regexps: []string{
-				"(([abc]?)*)+", "([abc]+)*d", "(a*)*b",
-				"([xyz]?)*end", "(([mno]?)*)+", "([pqr]+)*s",
-			},
+var dedupWorkloads = []dedupWorkload{
+	{
+		name: "6-regexps-12-shell",
+		patterns: []string{
+			"*a*b*c*", "*x*y*z*", "*e*f*g*", "*m*n*o*",
+			"*p*q*r*", "*s*t*u*", "*a*e*i*", "*b*d*f*",
+			"*c*g*k*", "*d*h*l*", "*i*o*u*", "*r*s*t*",
 		},
-		{
-			name: "20-nested-regexps",
-			regexps: []string{
-				"(([abc]?)*)+", "([abc]+)*d", "(a*)*b", "([xyz]?)*end",
-				"(([mno]?)*)+", "([pqr]+)*s", "(([def]?)*)+", "([ghi]+)*j",
-				"(([stu]?)*)+", "([vwx]+)*y", "(b*)*c", "(d*)*e",
-				"(([fg]?)*)+", "([hi]+)*k", "(([jk]?)*)+", "([lm]+)*n",
-				"(([op]?)*)+", "([qr]+)*t", "(e*)*f", "(g*)*h",
-			},
+		regexps: []string{
+			"(([abc]?)*)+", "([abc]+)*d", "(a*)*b",
+			"([xyz]?)*end", "(([mno]?)*)+", "([pqr]+)*s",
 		},
-		{
-			name: "deeply-nested",
-			regexps: []string{
-				"(((a?)*b?)*c?)*",
-				"(((x?)*y?)*z?)*",
-				"(((d?)*e?)*f?)*",
-				"(((m?)*n?)*o?)*",
-				"((((a?)*b?)*c?)*d?)*",
-				"((((x?)*y?)*z?)*w?)*",
-			},
+		maxMax:  20,
+		matches: []int{3, 2, 7},
+	},
+	{
+		name: "20-nested-regexps",
+		regexps: []string{
+			"(([abc]?)*)+", "([abc]+)*d", "(a*)*b", "([xyz]?)*end",
+			"(([mno]?)*)+", "([pqr]+)*s", "(([def]?)*)+", "([ghi]+)*j",
+			"(([stu]?)*)+", "([vwx]+)*y", "(b*)*c", "(d*)*e",
+			"(([fg]?)*)+", "([hi]+)*k", "(([jk]?)*)+", "([lm]+)*n",
+			"(([op]?)*)+", "([qr]+)*t", "(e*)*f", "(g*)*h",
 		},
-		{
-			name: "overlapping-char-classes",
-			regexps: []string{
-				"(([abc]?)*)+", "(([bcd]?)*)+", "(([cde]?)*)+",
-				"(([def]?)*)+", "(([efg]?)*)+", "(([fgh]?)*)+",
-				"(([ghi]?)*)+", "(([hij]?)*)+", "(([ijk]?)*)+",
-				"(([jkl]?)*)+", "(([klm]?)*)+", "(([lmn]?)*)+",
-			},
+		maxMax:  50,
+		matches: []int{0, 0, 0},
+	},
+	{
+		name: "deeply-nested",
+		regexps: []string{
+			"(((a?)*b?)*c?)*",
+			"(((x?)*y?)*z?)*",
+			"(((d?)*e?)*f?)*",
+			"(((m?)*n?)*o?)*",
+			"((((a?)*b?)*c?)*d?)*",
+			"((((x?)*y?)*z?)*w?)*",
 		},
-		{
-			name: "shell+deep-overlap",
-			patterns: []string{
-				"*a*b*", "*b*c*", "*c*d*", "*d*e*", "*e*f*",
-				"*a*c*", "*b*d*", "*c*e*", "*d*f*", "*a*d*",
-			},
-			regexps: []string{
-				"(((a?)*b?)*c?)*", "(((b?)*c?)*d?)*", "(((c?)*d?)*e?)*",
-				"(((d?)*e?)*f?)*", "(([abcd]?)*)+", "(([cdef]?)*)+",
-			},
+		maxMax:  35,
+		matches: []int{0, 0, 0},
+	},
+	{
+		name: "overlapping-char-classes",
+		regexps: []string{
+			"(([abc]?)*)+", "(([bcd]?)*)+", "(([cde]?)*)+",
+			"(([def]?)*)+", "(([efg]?)*)+", "(([fgh]?)*)+",
+			"(([ghi]?)*)+", "(([hij]?)*)+", "(([ijk]?)*)+",
+			"(([jkl]?)*)+", "(([klm]?)*)+", "(([lmn]?)*)+",
 		},
-	}
+		maxMax:  30,
+		matches: []int{0, 0, 0},
+	},
+	{
+		name: "shell+deep-overlap",
+		patterns: []string{
+			"*a*b*", "*b*c*", "*c*d*", "*d*e*", "*e*f*",
+			"*a*c*", "*b*d*", "*c*e*", "*d*f*", "*a*d*",
+		},
+		regexps: []string{
+			"(((a?)*b?)*c?)*", "(((b?)*c?)*d?)*", "(((c?)*d?)*e?)*",
+			"(((d?)*e?)*f?)*", "(([abcd]?)*)+", "(([cdef]?)*)+",
+		},
+		maxMax:  30,
+		matches: []int{10, 10, 10},
+	},
+}
 
-	for _, wl := range workloads {
+func dedupEvents() [][]byte {
+	return [][]byte{
+		[]byte(`{"val": "abcdefgh"}`),
+		[]byte(`{"val": "` + strings.Repeat("abcdef", 5) + `"}`),
+		[]byte(`{"val": "` + strings.Repeat("abcdefghijklmnop", 3) + `"}`),
+	}
+}
+
+func buildDedupMatcher(tb testing.TB, wl dedupWorkload) *Quamina {
+	tb.Helper()
+	q, _ := New()
+	i := 0
+	for _, ss := range wl.patterns {
+		pattern := fmt.Sprintf(`{"val": [{"shellstyle": "%s"}]}`, ss)
+		if err := q.AddPattern(fmt.Sprintf("s%d", i), pattern); err != nil {
+			tb.Fatal(err)
+		}
+		i++
+	}
+	for _, re := range wl.regexps {
+		pattern := fmt.Sprintf(`{"val": [{"regexp": "%s"}]}`, re)
+		if err := q.AddPattern(fmt.Sprintf("r%d", i), pattern); err != nil {
+			tb.Fatal(err)
+		}
+		i++
+	}
+	return q
+}
+
+// TestTablePointerDedup verifies that table-pointer dedup keeps epsilon
+// closures bounded and that matching produces correct results for workloads
+// with nested quantifier regexps and overlapping character classes.
+func TestTablePointerDedup(t *testing.T) {
+	events := dedupEvents()
+
+	for _, wl := range dedupWorkloads {
 		t.Run(wl.name, func(t *testing.T) {
-			q, _ := New()
+			q := buildDedupMatcher(t, wl)
 			m := q.matcher.(*coreMatcher)
-			i := 0
-			for _, ss := range wl.patterns {
-				pattern := fmt.Sprintf(`{"val": [{"shellstyle": "%s"}]}`, ss)
-				if err := q.AddPattern(fmt.Sprintf("s%d", i), pattern); err != nil {
-					t.Fatal(err)
-				}
-				i++
-			}
-			for _, re := range wl.regexps {
-				pattern := fmt.Sprintf(`{"val": [{"regexp": "%s"}]}`, re)
-				if err := q.AddPattern(fmt.Sprintf("r%d", i), pattern); err != nil {
-					t.Fatal(err)
-				}
-				i++
-			}
 
 			vm := m.fields().state.fields().transitions["val"]
 			nfaStart := vm.fields().startTable
-			stateCount, totalEntries, maxClosure, tableSharing := collectClosureStats(nfaStart)
-			avg := float64(totalEntries) / float64(stateCount)
-			t.Logf("states=%d, closure_entries=%d, avg=%.1f, max=%d, table_sharing=%d",
-				stateCount, totalEntries, avg, maxClosure, tableSharing)
+			_, _, maxClosure, _ := collectClosureStats(nfaStart)
 
-			events := [][]byte{
-				[]byte(`{"val": "abcdefgh"}`),
-				[]byte(`{"val": "` + strings.Repeat("abcdef", 5) + `"}`),
-				[]byte(`{"val": "` + strings.Repeat("abcdefghijklmnop", 3) + `"}`),
+			if maxClosure > wl.maxMax {
+				t.Errorf("max closure %d exceeds bound %d", maxClosure, wl.maxMax)
 			}
-			start := time.Now()
-			for iter := 0; iter < 1000; iter++ {
-				for _, event := range events {
-					_, _ = q.MatchesForEvent(event)
+
+			for ei, event := range events {
+				matches, err := q.MatchesForEvent(event)
+				if err != nil {
+					t.Fatalf("event %d: %v", ei, err)
+				}
+				if len(matches) != wl.matches[ei] {
+					t.Errorf("event %d: got %d matches, want %d", ei, len(matches), wl.matches[ei])
 				}
 			}
-			elapsed := time.Since(start)
-			t.Logf("3000 matches in %v (%.0f/sec)", elapsed, 3000.0/elapsed.Seconds())
 		})
 	}
 }
