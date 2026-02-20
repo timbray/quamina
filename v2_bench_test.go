@@ -133,3 +133,22 @@ func BenchmarkShellStyleBuildTime(b *testing.B) {
 	count := float64(b.N)
 	fmt.Printf("%.0f events/sec\n", count*float64(len(events))/elapsed)
 }
+
+// BenchmarkTablePointerDedup benchmarks matching speed for workloads where
+// table-pointer dedup in epsilon closures has the most impact: nested
+// quantifier regexps with overlapping character classes.
+func BenchmarkTablePointerDedup(b *testing.B) {
+	for _, wl := range dedupWorkloads {
+		b.Run(wl.name, func(b *testing.B) {
+			q := buildDedupMatcher(b, wl)
+			events := dedupEvents()
+			b.ResetTimer()
+			b.ReportAllocs()
+			for b.Loop() {
+				for _, event := range events {
+					_, _ = q.MatchesForEvent(event)
+				}
+			}
+		})
+	}
+}
