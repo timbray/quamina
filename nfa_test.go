@@ -454,11 +454,14 @@ func collectClosureStats(startTable *smallTable) (stateCount, totalEntries, maxC
 
 // dedupWorkload defines a set of patterns for testing table-pointer dedup.
 type dedupWorkload struct {
-	name     string
-	patterns []string // shellstyle patterns
-	regexps  []string // regexp patterns
-	maxMax   int      // max closure must not exceed this
-	matches  []int    // expected match counts for the 3 standard events
+	name         string
+	patterns     []string // shellstyle patterns
+	regexps      []string // regexp patterns
+	stateCount   int      // expected NFA state count
+	totalEntries int      // expected total epsilon closure entries
+	maxMax       int      // max closure must not exceed this
+	tableSharing int      // expected count of states sharing a smallTable
+	matches      []int    // expected match counts for the 3 standard events
 }
 
 var dedupWorkloads = []dedupWorkload{
@@ -473,8 +476,11 @@ var dedupWorkloads = []dedupWorkload{
 			"(([abc]?)*)+", "([abc]+)*d", "(a*)*b",
 			"([xyz]?)*end", "(([mno]?)*)+", "([pqr]+)*s",
 		},
-		maxMax:  20,
-		matches: []int{3, 2, 7},
+		stateCount:   1101,
+		totalEntries: 4371,
+		maxMax:       20,
+		tableSharing: 11,
+		matches:      []int{3, 2, 7},
 	},
 	{
 		name: "20-nested-regexps",
@@ -485,8 +491,11 @@ var dedupWorkloads = []dedupWorkload{
 			"(([fg]?)*)+", "([hi]+)*k", "(([jk]?)*)+", "([lm]+)*n",
 			"(([op]?)*)+", "([qr]+)*t", "(e*)*f", "(g*)*h",
 		},
-		maxMax:  50,
-		matches: []int{0, 0, 0},
+		stateCount:   149,
+		totalEntries: 261,
+		maxMax:       50,
+		tableSharing: 39,
+		matches:      []int{0, 0, 0},
 	},
 	{
 		name: "deeply-nested",
@@ -498,8 +507,11 @@ var dedupWorkloads = []dedupWorkload{
 			"((((a?)*b?)*c?)*d?)*",
 			"((((x?)*y?)*z?)*w?)*",
 		},
-		maxMax:  35,
-		matches: []int{0, 0, 0},
+		stateCount:   59,
+		totalEntries: 220,
+		maxMax:       35,
+		tableSharing: 20,
+		matches:      []int{0, 0, 0},
 	},
 	{
 		name: "overlapping-char-classes",
@@ -509,8 +521,11 @@ var dedupWorkloads = []dedupWorkload{
 			"(([ghi]?)*)+", "(([hij]?)*)+", "(([ijk]?)*)+",
 			"(([jkl]?)*)+", "(([klm]?)*)+", "(([lmn]?)*)+",
 		},
-		maxMax:  30,
-		matches: []int{0, 0, 0},
+		stateCount:   85,
+		totalEntries: 156,
+		maxMax:       30,
+		tableSharing: 24,
+		matches:      []int{0, 0, 0},
 	},
 	{
 		name: "shell+deep-overlap",
@@ -522,8 +537,11 @@ var dedupWorkloads = []dedupWorkload{
 			"(((a?)*b?)*c?)*", "(((b?)*c?)*d?)*", "(((c?)*d?)*e?)*",
 			"(((d?)*e?)*f?)*", "(([abcd]?)*)+", "(([cdef]?)*)+",
 		},
-		maxMax:  30,
-		matches: []int{10, 10, 10},
+		stateCount:   837,
+		totalEntries: 3410,
+		maxMax:       30,
+		tableSharing: 16,
+		matches:      []int{10, 10, 10},
 	},
 }
 
@@ -569,10 +587,19 @@ func TestTablePointerDedup(t *testing.T) {
 
 			vm := m.fields().state.fields().transitions["val"]
 			nfaStart := vm.fields().startTable
-			_, _, maxClosure, _ := collectClosureStats(nfaStart)
+			stateCount, totalEntries, maxClosure, tableSharing := collectClosureStats(nfaStart)
 
+			if stateCount != wl.stateCount {
+				t.Errorf("stateCount = %d, want %d", stateCount, wl.stateCount)
+			}
+			if totalEntries != wl.totalEntries {
+				t.Errorf("totalEntries = %d, want %d", totalEntries, wl.totalEntries)
+			}
 			if maxClosure > wl.maxMax {
 				t.Errorf("max closure %d exceeds bound %d", maxClosure, wl.maxMax)
+			}
+			if tableSharing != wl.tableSharing {
+				t.Errorf("tableSharing = %d, want %d", tableSharing, wl.tableSharing)
 			}
 
 			for ei, event := range events {
