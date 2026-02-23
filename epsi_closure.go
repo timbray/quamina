@@ -59,48 +59,43 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 		return
 	}
 
-	// Reuse and clear the set; bump global generation for table-pointer dedup
+	// Reuse and clear the set
 	clear(bufs.closureSet)
-	closureRepGeneration++
 	if !state.table.isEpsilonOnly() {
 		bufs.closureSet[state] = true
-		state.table.closureRepGen = closureRepGeneration
-		state.table.closureRep = state
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
 
+	// Table-pointer dedup: when multiple states in the closure share the
+	// same *smallTable, their byte transitions are identical, so only one
+	// representative is needed. This is done as a post-pass over the
+	// closure set rather than during traversal to keep traverseEpsilons
+	// zero-overhead. States with different fieldTransitions are preserved.
+	closureRepGeneration++
 	closure := make([]*faState, 0, len(bufs.closureSet))
 	for s := range bufs.closureSet {
+		if s.table.closureRepGen == closureRepGeneration {
+			if sameFieldTransitions(s.table.closureRep, s) {
+				continue
+			}
+		} else {
+			s.table.closureRepGen = closureRepGeneration
+			s.table.closureRep = s
+		}
 		closure = append(closure, s)
 	}
 	state.epsilonClosure = closure
 }
 
 // traverseEpsilons recursively collects non-epsilon-only states reachable
-// via epsilon transitions into bufs.closureSet. Table-pointer dedup skips
-// states whose *smallTable is already represented, avoiding redundant byte
-// transitions in the closure. When a table collision has different
-// fieldTransitions, the state is still added (correctness over speed) but
-// recursion is skipped (same table = same epsilon edges).
+// via epsilon transitions into bufs.closureSet.
 func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers) {
 	for _, eps := range epsilons {
 		if eps == start || bufs.closureSet[eps] {
 			continue
 		}
 		if !eps.table.isEpsilonOnly() {
-			if eps.table.closureRepGen == closureRepGeneration {
-				if sameFieldTransitions(eps.table.closureRep, eps) {
-					continue
-				}
-				// Different fieldTransitions on same table: include state
-				// to preserve match correctness, but skip recursion since
-				// the table's epsilons have already been traversed.
-				bufs.closureSet[eps] = true
-				continue
-			}
 			bufs.closureSet[eps] = true
-			eps.table.closureRepGen = closureRepGeneration
-			eps.table.closureRep = eps
 		}
 		traverseEpsilons(start, eps.table.epsilons, bufs)
 	}
