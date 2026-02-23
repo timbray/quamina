@@ -1,15 +1,13 @@
 package quamina
 
-// closureGeneration is incremented each time epsilonClosure is called.
-// Each smallTable stores the generation it was last visited in, avoiding
-// the need for a visited map.
+// closureGeneration is a global counter used for generation-based visited
+// tracking. It is incremented by epsilonClosure (for NFA walk dedup via
+// lastVisitedGen) and by closureForStateWithBufs (for table-pointer dedup
+// via closureRepGen). Each smallTable stores the generation it was last
+// visited in, avoiding the need for a visited map. This works because
+// epsilonClosure snapshots the counter into bufs.generation before the
+// walk begins, so subsequent increments by the dedup pass don't interfere.
 var closureGeneration uint64
-
-// closureRepGeneration is a global counter incremented each time table-pointer
-// dedup runs in closureForStateWithBufs. Each smallTable stores the generation
-// it was last used as a representative, so incrementing this counter implicitly
-// invalidates all previous representative assignments without clearing any map.
-var closureRepGeneration uint64
 
 // epsilonClosure walks the automaton starting from the given table
 // and precomputes the epsilon closure for every reachable faState.
@@ -76,15 +74,15 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 	// representative is needed. This is done as a post-pass over the
 	// closure set rather than during traversal to keep traverseEpsilons
 	// zero-overhead. States with different fieldTransitions are preserved.
-	closureRepGeneration++
+	closureGeneration++
 	closure := make([]*faState, 0, len(bufs.closureSet))
 	for s := range bufs.closureSet {
-		if s.table.closureRepGen == closureRepGeneration {
+		if s.table.closureRepGen == closureGeneration {
 			if sameFieldTransitions(s.table.closureRep, s) {
 				continue
 			}
 		} else {
-			s.table.closureRepGen = closureRepGeneration
+			s.table.closureRepGen = closureGeneration
 			s.table.closureRep = s
 		}
 		closure = append(closure, s)

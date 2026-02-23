@@ -42,9 +42,9 @@ type smallTable struct {
 	steps          []*faState
 	epsilons       []*faState
 	lastVisitedGen uint64 // generation counter for epsilon closure traversal
-	// closureRepGen records which closureRepGeneration this table's
+	// closureRepGen records which closureGeneration this table's
 	// representative was set in. If it equals the current global
-	// closureRepGeneration, then closureRep is valid; otherwise, the
+	// closureGeneration, then closureRep is valid; otherwise, the
 	// table has not yet been seen in this dedup pass.
 	closureRepGen uint64
 	// closureRep is the representative faState for this table in the
