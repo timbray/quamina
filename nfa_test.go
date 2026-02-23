@@ -120,13 +120,13 @@ func TestNfa2Dfa(t *testing.T) {
 		//fmt.Println("NFA: " + pp.printNFA(nfa))
 
 		for _, should := range test.shoulds {
-			matched := testTraverseNFA(nfa, asQuotedBytes(t, should), transitions, bufs, pp)
+			matched := testTraverseNFA(nfa, asQuotedBytes(t, should), transitions, bufs)
 			if len(matched) != 1 {
 				t.Errorf("NFA %s didn't %s: ", test.pattern, should)
 			}
 		}
 		for _, nope := range test.nopes {
-			matched := testTraverseNFA(nfa, asQuotedBytes(t, nope), transitions, bufs, pp)
+			matched := testTraverseNFA(nfa, asQuotedBytes(t, nope), transitions, bufs)
 			if len(matched) != 0 {
 				t.Errorf("NFA %s matched %s", test.pattern, nope)
 			}
@@ -156,10 +156,10 @@ func asQuotedBytes(t *testing.T, s string) []byte {
 // testTraverseNFA wraps traverseNFA with the push/pop that tryToMatch
 // normally provides. Test-only convenience so direct callers don't need
 // to manage the transmap stack themselves.
-func testTraverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, pp printer) []*fieldMatcher {
+func testTraverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	tm := bufs.getTransmap()
 	tm.push()
-	result := traverseNFA(table, val, transitions, bufs, pp)
+	result := traverseNFA(table, val, transitions, bufs)
 	tm.pop()
 	return result
 }
@@ -614,3 +614,5 @@ func TestTablePointerDedup(t *testing.T) {
 		})
 	}
 }
+
+

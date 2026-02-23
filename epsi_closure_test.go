@@ -174,11 +174,10 @@ func TestTablePointerDedupPreservesFieldTransitions(t *testing.T) {
 	}
 
 	// Verify via NFA traversal: both field matchers must appear
-	pp := &nullPrinter{}
 	bufs := newNfaBuffers()
 	tm := bufs.getTransmap()
 	tm.push()
-	nfaResult := traverseNFA(startTable, []byte(`"x"`), nil, bufs, pp)
+	nfaResult := traverseNFA(startTable, []byte(`"x"`), nil, bufs)
 	tm.pop()
 
 	if !slices.Contains(nfaResult, fmA) {
