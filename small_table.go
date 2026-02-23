@@ -41,7 +41,7 @@ type smallTable struct {
 	ceilings       []byte
 	steps          []*faState
 	epsilons       []*faState
-	lastVisitedGen uint64   // generation counter for epsilon closure traversal
+	lastVisitedGen uint64 // generation counter for epsilon closure traversal
 	// closureRepGen records which closureRepGeneration this table's
 	// representative was set in. If it equals the current global
 	// closureRepGeneration, then closureRep is valid; otherwise, the
