@@ -614,5 +614,3 @@ func TestTablePointerDedup(t *testing.T) {
 		})
 	}
 }
-
-

@@ -92,8 +92,8 @@ type nfaBuffers struct {
 	transitionsBuf []*fieldMatcher
 	resultBuf      []X
 	transmap       *transmap
-	fieldSet   map[*fieldMatcher]bool
-	startState *faState
+	fieldSet       map[*fieldMatcher]bool
+	startState     *faState
 	startClosure   []*faState
 	qNumBuf        [MaxBytesInEncoding]byte
 }

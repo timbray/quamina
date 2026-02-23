@@ -26,8 +26,8 @@ type vmFields struct {
 	startTable          *smallTable
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
-	hasNumbers         bool
-	isNondeterministic bool
+	hasNumbers          bool
+	isNondeterministic  bool
 }
 
 func (m *valueMatcher) fields() *vmFields {
