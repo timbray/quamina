@@ -26,8 +26,8 @@ type vmFields struct {
 	startTable          *smallTable
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
-	hasNumbers          bool
-	isNondeterministic  bool
+	hasNumbers         bool
+	isNondeterministic bool
 }
 
 func (m *valueMatcher) fields() *vmFields {
@@ -72,7 +72,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 			qNum, err := qNumFromBytesBuf(val, &bufs.qNumBuf)
 			if err == nil {
 				if vmFields.isNondeterministic {
-					return traverseNFA(vmFields.startTable, qNum, transitions, bufs, sharedNullPrinter)
+					return traverseNFA(vmFields.startTable, qNum, transitions, bufs)
 				} else {
 					return traverseDFA(vmFields.startTable, qNum, transitions)
 				}
@@ -81,7 +81,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 
 		// if it doesn't work as a Q number for some reason, go ahead and compare the string values
 		if vmFields.isNondeterministic {
-			return traverseNFA(vmFields.startTable, val, transitions, bufs, sharedNullPrinter)
+			return traverseNFA(vmFields.startTable, val, transitions, bufs)
 		} else {
 			return traverseDFA(vmFields.startTable, val, transitions)
 		}

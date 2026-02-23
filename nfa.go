@@ -1,9 +1,7 @@
 package quamina
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"unsafe"
 )
 
@@ -94,8 +92,8 @@ type nfaBuffers struct {
 	transitionsBuf []*fieldMatcher
 	resultBuf      []X
 	transmap       *transmap
-	fieldSet       map[*fieldMatcher]bool
-	startState     *faState
+	fieldSet   map[*fieldMatcher]bool
+	startState *faState
 	startClosure   []*faState
 	qNumBuf        [MaxBytesInEncoding]byte
 }
@@ -258,7 +256,7 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // collected in the nextStates list.  The bufs structure contains three buffers, one each for
 // currentStates, nextStates, and the epsilon closure of one particular state. These are re-used
 // and should grow with use and minimize the need for memory allocation.
-func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
+func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
@@ -291,16 +289,6 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 					nextStates = append(nextStates, stepResult.step)
 				}
 			}
-		}
-
-		// for toxically-complex regexps like (([abc]?)*)+ you can get a FA with epsilon loops,
-		// direct and indirect, which can lead to huge nextState buildups.  Could solve this with
-		// making it a set, but this seems to work well enough
-		if len(nextStates) > 500 {
-			slices.SortFunc(nextStates, func(a, b *faState) int {
-				return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
-			})
-			nextStates = slices.Compact(nextStates)
 		}
 
 		// re-use these

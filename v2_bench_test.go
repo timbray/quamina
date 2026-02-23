@@ -57,8 +57,8 @@ func Benchmark8259Example(b *testing.B) {
 		}
 	}
 	elapsed := time.Since(before).Seconds()
-	fmt.Printf("Adds/sec %.1f\n", float64(len(patternsFromReadme))/elapsed)
-	fmt.Printf("FA: %s\n", matcherStats(m))
+	b.Logf("Adds/sec %.1f", float64(len(patternsFromReadme))/elapsed)
+	b.Logf("FA: %s", matcherStats(m))
 	bytes := []byte(j)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -70,7 +70,7 @@ func Benchmark8259Example(b *testing.B) {
 	}
 	elapsed = float64(b.Elapsed().Seconds())
 	count := float64(b.N)
-	fmt.Printf("%.0f/sec\n", count/elapsed)
+	b.Logf("%.0f/sec", count/elapsed)
 }
 
 func BenchmarkShellStyleBuildTime(b *testing.B) {
@@ -100,8 +100,8 @@ func BenchmarkShellStyleBuildTime(b *testing.B) {
 		}
 	}
 	elapsed := time.Since(before).Seconds()
-	fmt.Printf("Patterns/sec: %.1f\n", float64(len(words))/elapsed)
-	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
+	b.Logf("Patterns/sec: %.1f", float64(len(words))/elapsed)
+	b.Log(matcherStats(q.matcher.(*coreMatcher)))
 
 	// Build events: original words and expanded words
 	type event struct {
@@ -131,5 +131,24 @@ func BenchmarkShellStyleBuildTime(b *testing.B) {
 	}
 	elapsed = float64(b.Elapsed().Seconds())
 	count := float64(b.N)
-	fmt.Printf("%.0f events/sec\n", count*float64(len(events))/elapsed)
+	b.Logf("%.0f events/sec", count*float64(len(events))/elapsed)
+}
+
+// BenchmarkTablePointerDedup benchmarks matching speed for workloads where
+// table-pointer dedup in epsilon closures has the most impact: nested
+// quantifier regexps with overlapping character classes.
+func BenchmarkTablePointerDedup(b *testing.B) {
+	for _, wl := range dedupWorkloads {
+		b.Run(wl.name, func(b *testing.B) {
+			q := buildDedupMatcher(b, wl)
+			events := dedupEvents()
+			b.ResetTimer()
+			b.ReportAllocs()
+			for b.Loop() {
+				for _, event := range events {
+					_, _ = q.MatchesForEvent(event)
+				}
+			}
+		})
+	}
 }
