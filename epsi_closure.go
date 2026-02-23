@@ -4,6 +4,10 @@ package quamina
 // Each smallTable stores the generation it was last visited in, avoiding
 // the need for a visited map.
 var closureGeneration uint64
+// closureRepGeneration is a global counter incremented each time table-pointer
+// dedup runs in closureForStateWithBufs. Each smallTable stores the generation
+// it was last used as a representative, so incrementing this counter implicitly
+// invalidates all previous representative assignments without clearing any map.
 var closureRepGeneration uint64
 
 // epsilonClosure walks the automaton starting from the given table
