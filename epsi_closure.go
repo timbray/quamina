@@ -4,6 +4,7 @@ package quamina
 // Each smallTable stores the generation it was last visited in, avoiding
 // the need for a visited map.
 var closureGeneration uint64
+var closureRepGeneration uint64
 
 // epsilonClosure walks the automaton starting from the given table
 // and precomputes the epsilon closure for every reachable faState.
@@ -12,7 +13,6 @@ func epsilonClosure(table *smallTable) {
 	bufs := &closureBuffers{
 		generation: closureGeneration,
 		closureSet: make(map[*faState]bool, 64),
-		tableRep:   make(map[*smallTable]*faState, 64),
 	}
 	closureForNfa(table, bufs)
 }
@@ -20,21 +20,6 @@ func epsilonClosure(table *smallTable) {
 type closureBuffers struct {
 	generation uint64
 	closureSet map[*faState]bool
-
-	// tableRep enables table-pointer dedup: when multiple faState nodes
-	// share the same *smallTable, their byte transitions are identical,
-	// so only one representative needs to be in the closure. This avoids
-	// redundant work in traverseNFA (duplicate table.step calls) and
-	// prevents blowup in nextStates for patterns with many epsilon paths
-	// converging on the same table (e.g. merged shell-style wildcards).
-	//
-	// Invariant: in the current merge paths (mergeFAStates,
-	// asymmetricSpinnerMerge, symmetricSpinnerMerge), every new faState
-	// gets a fresh *smallTable, so same table implies same state. The
-	// dedup is defended: if two states share a table but have different
-	// fieldTransitions, both are kept in the closure. See
-	// TestTablePointerDedupPreservesFieldTransitions.
-	tableRep map[*smallTable]*faState
 }
 
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
@@ -60,7 +45,6 @@ func closureForNfa(table *smallTable, bufs *closureBuffers) {
 func closureForState(state *faState) {
 	bufs := &closureBuffers{
 		closureSet: make(map[*faState]bool, 64),
-		tableRep:   make(map[*smallTable]*faState, 64),
 	}
 	closureForStateWithBufs(state, bufs)
 }
@@ -75,12 +59,13 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 		return
 	}
 
-	// Reuse and clear the maps to avoid allocations on each call
+	// Reuse and clear the set; bump global generation for table-pointer dedup
 	clear(bufs.closureSet)
-	clear(bufs.tableRep)
+	closureRepGeneration++
 	if !state.table.isEpsilonOnly() {
 		bufs.closureSet[state] = true
-		bufs.tableRep[state.table] = state
+		state.table.closureRepGen = closureRepGeneration
+		state.table.closureRep = state
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
 
@@ -103,8 +88,8 @@ func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers)
 			continue
 		}
 		if !eps.table.isEpsilonOnly() {
-			if rep, ok := bufs.tableRep[eps.table]; ok {
-				if sameFieldTransitions(rep, eps) {
+			if eps.table.closureRepGen == closureRepGeneration {
+				if sameFieldTransitions(eps.table.closureRep, eps) {
 					continue
 				}
 				// Different fieldTransitions on same table: include state
@@ -114,7 +99,8 @@ func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers)
 				continue
 			}
 			bufs.closureSet[eps] = true
-			bufs.tableRep[eps.table] = eps
+			eps.table.closureRepGen = closureRepGeneration
+			eps.table.closureRep = eps
 		}
 		traverseEpsilons(start, eps.table.epsilons, bufs)
 	}
