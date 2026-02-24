@@ -15,6 +15,7 @@ type faState struct {
 	fieldTransitions []*fieldMatcher
 	isSpinner        bool
 	epsilonClosure   []*faState // precomputed epsilon closure including self
+	closureSetGen    uint64     // generation for closure set visited tracking
 }
 
 /*

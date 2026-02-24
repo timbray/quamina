@@ -15,14 +15,14 @@ func epsilonClosure(table *smallTable) {
 	closureGeneration++
 	bufs := &closureBuffers{
 		generation: closureGeneration,
-		closureSet: make(map[*faState]bool, 64),
 	}
 	closureForNfa(table, bufs)
 }
 
 type closureBuffers struct {
-	generation uint64
-	closureSet map[*faState]bool
+	generation    uint64
+	closureSetGen uint64
+	closureList   []*faState
 }
 
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
@@ -46,9 +46,7 @@ func closureForNfa(table *smallTable, bufs *closureBuffers) {
 // closureForState computes the epsilon closure for a single state.
 // Used directly in tests; production code uses closureForStateWithBufs.
 func closureForState(state *faState) {
-	bufs := &closureBuffers{
-		closureSet: make(map[*faState]bool, 64),
-	}
+	bufs := &closureBuffers{}
 	closureForStateWithBufs(state, bufs)
 }
 
@@ -62,21 +60,24 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 		return
 	}
 
-	// Reuse and clear the set
-	clear(bufs.closureSet)
+	// Use generation-based visited tracking instead of a map
+	closureGeneration++
+	bufs.closureSetGen = closureGeneration
+	bufs.closureList = bufs.closureList[:0]
 	if !state.table.isEpsilonOnly() {
-		bufs.closureSet[state] = true
+		state.closureSetGen = bufs.closureSetGen
+		bufs.closureList = append(bufs.closureList, state)
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
 
 	// Table-pointer dedup: when multiple states in the closure share the
 	// same *smallTable, their byte transitions are identical, so only one
 	// representative is needed. This is done as a post-pass over the
-	// closure set rather than during traversal to keep traverseEpsilons
+	// closure list rather than during traversal to keep traverseEpsilons
 	// zero-overhead. States with different fieldTransitions are preserved.
 	closureGeneration++
-	closure := make([]*faState, 0, len(bufs.closureSet))
-	for s := range bufs.closureSet {
+	closure := make([]*faState, 0, len(bufs.closureList))
+	for _, s := range bufs.closureList {
 		if s.table.closureRepGen == closureGeneration {
 			if sameFieldTransitions(s.table.closureRep, s) {
 				continue
@@ -91,14 +92,15 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 }
 
 // traverseEpsilons recursively collects non-epsilon-only states reachable
-// via epsilon transitions into bufs.closureSet.
+// via epsilon transitions into bufs.closureList.
 func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers) {
 	for _, eps := range epsilons {
-		if eps == start || bufs.closureSet[eps] {
+		if eps == start || eps.closureSetGen == bufs.closureSetGen {
 			continue
 		}
+		eps.closureSetGen = bufs.closureSetGen
 		if !eps.table.isEpsilonOnly() {
-			bufs.closureSet[eps] = true
+			bufs.closureList = append(bufs.closureList, eps)
 		}
 		traverseEpsilons(start, eps.table.epsilons, bufs)
 	}
