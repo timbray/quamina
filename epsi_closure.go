@@ -1,12 +1,12 @@
 package quamina
 
 // closureGeneration is a global counter used for generation-based visited
-// tracking. The NFA walk in closureForNfa snapshots it into bufs.generation
-// and compares against that; the dedup pass in closureForStateWithBufs
-// increments it and compares against the new value. Both use the single
-// lastVisitedGen field on smallTable. If a dedup pass overwrites a table's
-// lastVisitedGen, the NFA walk may revisit that table harmlessly since
-// closureForStateWithBufs early-returns when epsilonClosure is already set.
+// tracking. It is incremented by epsilonClosure (for NFA walk dedup via
+// lastVisitedGen) and by closureForStateWithBufs (for table-pointer dedup
+// via closureRepGen). Each smallTable stores the generation it was last
+// visited in, avoiding the need for a visited map. This works because
+// epsilonClosure snapshots the counter into bufs.generation before the
+// walk begins, so subsequent increments by the dedup pass don't interfere.
 var closureGeneration uint64
 
 // epsilonClosure walks the automaton starting from the given table
@@ -77,12 +77,12 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 	closureGeneration++
 	closure := make([]*faState, 0, len(bufs.closureSet))
 	for s := range bufs.closureSet {
-		if s.table.lastVisitedGen == closureGeneration {
+		if s.table.closureRepGen == closureGeneration {
 			if sameFieldTransitions(s.table.closureRep, s) {
 				continue
 			}
 		} else {
-			s.table.lastVisitedGen = closureGeneration
+			s.table.closureRepGen = closureGeneration
 			s.table.closureRep = s
 		}
 		closure = append(closure, s)
