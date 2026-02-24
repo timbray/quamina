@@ -41,7 +41,8 @@ type smallTable struct {
 	ceilings       []byte
 	steps          []*faState
 	epsilons       []*faState
-	lastVisitedGen uint64 // generation counter for epsilon closure traversal
+	lastVisitedGen uint64   // generation counter for NFA walk and dedup
+	closureRep     *faState // representative state for table-pointer dedup
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
