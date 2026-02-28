@@ -7,12 +7,16 @@ import (
 	"unsafe"
 )
 
+type internEntry struct {
+	states   []*faState
+	dfaState *faState
+}
+
 // The idea is that in we are going to be computing the epsilon closures of NFA states, which
 // will be slices of states. There will be duplicate slices and we want to deduplicate. There's
 // probably a more idiomatic and efficient way to do this.
 type stateLists struct {
-	lists     map[string][]*faState
-	dfaStates map[string]*faState
+	entries map[string]internEntry
 	// Scratch space reused across intern() calls
 	sortBuf []*faState // reusable sorted buffer
 	keyBuf  []byte     // reusable key bytes buffer
@@ -20,8 +24,7 @@ type stateLists struct {
 
 func newStateLists() *stateLists {
 	return &stateLists{
-		lists:     make(map[string][]*faState),
-		dfaStates: make(map[string]*faState),
+		entries: make(map[string]internEntry),
 	}
 }
 
@@ -58,8 +61,8 @@ func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
 	}
 
 	// string(sl.keyBuf) in a map lookup is optimized by the compiler to avoid allocation
-	if list, exists := sl.lists[string(sl.keyBuf)]; exists {
-		return list, sl.dfaStates[string(sl.keyBuf)], true
+	if entry, exists := sl.entries[string(sl.keyBuf)]; exists {
+		return entry.states, entry.dfaState, true
 	}
 
 	// cache miss: allocate owned copies for the map
@@ -68,7 +71,6 @@ func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
 	copy(stored, sl.sortBuf)
 
 	dfaState := &faState{table: newSmallTable()}
-	sl.lists[key] = stored
-	sl.dfaStates[key] = dfaState
+	sl.entries[key] = internEntry{states: stored, dfaState: dfaState}
 	return stored, dfaState, false
 }
