@@ -2,22 +2,31 @@ package quamina
 
 import (
 	"cmp"
+	"encoding/binary"
 	"slices"
 	"unsafe"
 )
+
+// internEntry bundles the list and DFA state into one map value so that
+// cache hits require a single map lookup instead of two.
+type internEntry struct {
+	states   []*faState
+	dfaState *faState
+}
 
 // The idea is that in we are going to be computing the epsilon closures of NFA states, which
 // will be slices of states. There will be duplicate slices and we want to deduplicate. There's
 // probably a more idiomatic and efficient way to do this.
 type stateLists struct {
-	lists     map[string][]*faState
-	dfaStates map[string]*faState
+	entries map[string]internEntry
+	// Scratch space reused across intern() calls
+	sortBuf []*faState // reusable sorted buffer
+	keyBuf  []byte     // reusable key bytes buffer
 }
 
 func newStateLists() *stateLists {
 	return &stateLists{
-		lists:     make(map[string][]*faState),
-		dfaStates: make(map[string]*faState),
+		entries: make(map[string]internEntry),
 	}
 }
 
@@ -27,40 +36,47 @@ func newStateLists() *stateLists {
 // which either has already been computed for the set or is created and empty, and
 // a boolean indicating whether the DFA state has already been computed or not.
 func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
-	// dedupe the collection
-	uniquemap := make(map[*faState]bool)
+	// Dedupe using the global generation counter and faState.closureSetGen
+	// instead of allocating a map per call. Safe to reuse closureSetGen
+	// because nfa2Dfa runs after epsilon closure computation is complete.
+	closureGeneration++
+	gen := closureGeneration
+	sl.sortBuf = sl.sortBuf[:0]
 	for _, state := range list {
-		uniquemap[state] = true
-	}
-	uniques := make([]*faState, 0, len(uniquemap))
-	for unique := range uniquemap {
-		uniques = append(uniques, unique)
+		if state.closureSetGen != gen {
+			state.closureSetGen = gen
+			sl.sortBuf = append(sl.sortBuf, state)
+		}
 	}
 
-	// compute a key representing the set. Disclosure: My first use of an AI to help
-	// code. I had done this by Sprintf("%p")-ing the addresses and sorting/concatenating
-	// the strings. Which works fine but grabbing the raw bytes and pretending they're
-	// a string is going to produce keys that are exactly half the size
-	keyBytes := make([]byte, 0, len(uniques)*8)
-	slices.SortFunc(uniques, func(a, b *faState) int {
+	// compute a key representing the set
+	slices.SortFunc(sl.sortBuf, func(a, b *faState) int {
 		return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
 	})
 
-	for _, state := range uniques {
-		addr := uintptr(unsafe.Pointer(state))
-		for i := 0; i < 8; i++ {
-			keyBytes = append(keyBytes, byte(addr>>(i*8)))
-		}
+	// Pre-size the key buffer and write pointers with PutUint64 instead of
+	// appending byte-by-byte, avoiding 8 append calls and bounds checks per state.
+	needed := len(sl.sortBuf) * 8
+	if cap(sl.keyBuf) < needed {
+		sl.keyBuf = make([]byte, needed)
+	} else {
+		sl.keyBuf = sl.keyBuf[:needed]
 	}
-	key := string(keyBytes)
+	for i, state := range sl.sortBuf {
+		binary.LittleEndian.PutUint64(sl.keyBuf[i*8:], uint64(uintptr(unsafe.Pointer(state))))
+	}
 
-	// either we have already seen this or not
-	list, exists := sl.lists[key]
-	if exists {
-		return list, sl.dfaStates[key], true
+	// string(sl.keyBuf) in a map lookup is optimized by the compiler to avoid allocation
+	if entry, exists := sl.entries[string(sl.keyBuf)]; exists {
+		return entry.states, entry.dfaState, true
 	}
+
+	// cache miss: allocate owned copies for the map
+	key := string(sl.keyBuf)
+	stored := make([]*faState, len(sl.sortBuf))
+	copy(stored, sl.sortBuf)
+
 	dfaState := &faState{table: newSmallTable()}
-	sl.lists[key] = uniques
-	sl.dfaStates[key] = dfaState
-	return uniques, dfaState, false
+	sl.entries[key] = internEntry{states: stored, dfaState: dfaState}
+	return stored, dfaState, false
 }

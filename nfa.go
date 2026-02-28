@@ -193,9 +193,14 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 		nUnpacked[i] = unpackTable(nState.table)
 	}
 
-	// for each byte value
+	// Unpack the DFA table once, set all byte transitions, then pack once —
+	// the old code called addByteStep per byte which unpacked and repacked
+	// for each of up to 256 values. rawStates is allocated once and reset
+	// with [:0] each iteration to avoid per-byte-value slice allocation.
+	dfaUnpacked := unpackTable(dfaState.table)
+	rawStates := make([]*faState, 0, len(ingredients))
 	for utf8byte := 0; utf8byte < byteCeiling; utf8byte++ {
-		var rawStates []*faState
+		rawStates = rawStates[:0]
 
 		// for each of the unique states
 		for _, unpackedNState := range nUnpacked {
@@ -208,9 +213,10 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 		// if there were any transitions on this byte value
 		if len(rawStates) > 0 {
 			// recurse, get the DFA state for the transitions and plug it into this state
-			dfaState.table.addByteStep(byte(utf8byte), n2dNode(rawStates, sList))
+			dfaUnpacked[utf8byte] = n2dNode(rawStates, sList)
 		}
 	}
+	dfaState.table.pack(dfaUnpacked)
 
 	// load up transitions (build-time, allocation is fine)
 	seen := make(map[*fieldMatcher]bool)
