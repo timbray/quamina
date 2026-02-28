@@ -92,16 +92,12 @@ func BenchmarkShellStyleBuildTime(b *testing.B) {
 	}
 
 	q, _ := New()
-	before := time.Now()
 	for i := range words {
 		err := q.AddPattern(starWords[i], patterns[i])
 		if err != nil {
 			b.Fatal("AddP: " + err.Error())
 		}
 	}
-	elapsed := time.Since(before).Seconds()
-	b.Logf("Patterns/sec: %.1f", float64(len(words))/elapsed)
-	b.Log(matcherStats(q.matcher.(*coreMatcher)))
 
 	// Build events: original words and expanded words
 	type event struct {
@@ -129,9 +125,6 @@ func BenchmarkShellStyleBuildTime(b *testing.B) {
 			}
 		}
 	}
-	elapsed = float64(b.Elapsed().Seconds())
-	count := float64(b.N)
-	b.Logf("%.0f events/sec", count*float64(len(events))/elapsed)
 }
 
 // BenchmarkTablePointerDedup benchmarks matching speed for workloads where
