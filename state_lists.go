@@ -7,6 +7,8 @@ import (
 	"unsafe"
 )
 
+// internEntry bundles the list and DFA state into one map value so that
+// cache hits require a single map lookup instead of two.
 type internEntry struct {
 	states   []*faState
 	dfaState *faState
@@ -34,7 +36,9 @@ func newStateLists() *stateLists {
 // which either has already been computed for the set or is created and empty, and
 // a boolean indicating whether the DFA state has already been computed or not.
 func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
-	// dedupe using generation counter instead of a map
+	// Dedupe using the global generation counter and faState.closureSetGen
+	// instead of allocating a map per call. Safe to reuse closureSetGen
+	// because nfa2Dfa runs after epsilon closure computation is complete.
 	closureGeneration++
 	gen := closureGeneration
 	sl.sortBuf = sl.sortBuf[:0]
@@ -50,6 +54,8 @@ func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
 		return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
 	})
 
+	// Pre-size the key buffer and write pointers with PutUint64 instead of
+	// appending byte-by-byte, avoiding 8 append calls and bounds checks per state.
 	needed := len(sl.sortBuf) * 8
 	if cap(sl.keyBuf) < needed {
 		sl.keyBuf = make([]byte, needed)
