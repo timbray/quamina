@@ -195,8 +195,9 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 
 	// unpack the DFA table once, set all byte transitions, then pack once
 	dfaUnpacked := unpackTable(dfaState.table)
+	rawStates := make([]*faState, 0, len(ingredients))
 	for utf8byte := 0; utf8byte < byteCeiling; utf8byte++ {
-		var rawStates []*faState
+		rawStates = rawStates[:0]
 
 		// for each of the unique states
 		for _, unpackedNState := range nUnpacked {
