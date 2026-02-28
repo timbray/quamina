@@ -2,12 +2,18 @@ package quamina
 
 // closureGeneration is a global counter used for generation-based visited
 // tracking. It is incremented by epsilonClosure (for NFA walk dedup via
-// lastVisitedGen) and by closureForStateWithBufs (for table-pointer dedup
-// via closureRepGen). Each smallTable stores the generation it was last
+// lastVisitedGen) and by closureForState (for table-pointer dedup
+// via closureGen). Each smallTable stores the generation it was last
 // visited in, avoiding the need for a visited map. This works because
 // epsilonClosure snapshots the counter into bufs.generation before the
 // walk begins, so subsequent increments by the dedup pass don't interfere.
 var closureGeneration uint64
+
+type closureBuffers struct {
+	generation    uint64     // used by closureForNfa to avoid revisiting smallTables
+	closureSetGen uint64     // used by traverseEpsilons to avoid revisiting faStates
+	closureList   []*faState // accumulated closure members, reused across calls
+}
 
 // epsilonClosure walks the automaton starting from the given table
 // and precomputes the epsilon closure for every reachable faState.
@@ -19,12 +25,6 @@ func epsilonClosure(table *smallTable) {
 	closureForNfa(table, bufs)
 }
 
-type closureBuffers struct {
-	generation    uint64
-	closureSetGen uint64
-	closureList   []*faState
-}
-
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
 	if table.lastVisitedGen == bufs.generation {
 		return
@@ -33,24 +33,24 @@ func closureForNfa(table *smallTable, bufs *closureBuffers) {
 
 	for _, state := range table.steps {
 		if state != nil {
-			closureForStateWithBufs(state, bufs)
+			closureForState(state, bufs)
 			closureForNfa(state.table, bufs)
 		}
 	}
 	for _, eps := range table.epsilons {
-		closureForStateWithBufs(eps, bufs)
+		closureForState(eps, bufs)
 		closureForNfa(eps.table, bufs)
 	}
 }
 
-// closureForState computes the epsilon closure for a single state.
-// Used directly in tests; production code uses closureForStateWithBufs.
-func closureForState(state *faState) {
+// closureForStateNoBufs computes the epsilon closure for a single state.
+// Used directly in tests; production code uses closureForState.
+func closureForStateNoBufs(state *faState) {
 	bufs := &closureBuffers{}
-	closureForStateWithBufs(state, bufs)
+	closureForState(state, bufs)
 }
 
-func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
+func closureForState(state *faState, bufs *closureBuffers) {
 	if state.epsilonClosure != nil {
 		return
 	}
@@ -78,12 +78,12 @@ func closureForStateWithBufs(state *faState, bufs *closureBuffers) {
 	closureGeneration++
 	closure := make([]*faState, 0, len(bufs.closureList))
 	for _, s := range bufs.closureList {
-		if s.table.closureRepGen == closureGeneration {
+		if s.table.closureGen == closureGeneration {
 			if sameFieldTransitions(s.table.closureRep, s) {
 				continue
 			}
 		} else {
-			s.table.closureRepGen = closureGeneration
+			s.table.closureGen = closureGeneration
 			s.table.closureRep = s
 		}
 		closure = append(closure, s)
@@ -107,6 +107,10 @@ func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers)
 }
 
 // sameFieldTransitions reports whether two states have identical fieldTransitions.
+// This does an order-dependent comparison. If the same field matchers appear in
+// different order, we'll miss the dedup — but that just keeps an extra state in
+// the closure (a missed optimization, not a correctness bug). In practice,
+// fieldTransitions almost always has 0 or 1 element, so ordering doesn't matter.
 func sameFieldTransitions(a, b *faState) bool {
 	if len(a.fieldTransitions) != len(b.fieldTransitions) {
 		return false

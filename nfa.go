@@ -336,19 +336,19 @@ func makeFaStepKey(s1, s2 *faState) faStepKey {
 	return faStepKey{s2, s1}
 }
 
-// flattenEpsilonTargets collects all non-epsilon-only states reachable via
+// simplifySplices collects all non-epsilon-only states reachable via
 // epsilon transitions from state1 and state2. This prevents deep nesting of
 // splice states that would otherwise accumulate during repeated merges.
-func flattenEpsilonTargets(state1, state2 *faState) []*faState {
+func simplifySplices(state1, state2 *faState) []*faState {
 	closureGeneration++
 	gen := closureGeneration
 	targets := make([]*faState, 0, 4)
-	targets = flattenCollect(state1, gen, targets)
-	targets = flattenCollect(state2, gen, targets)
+	targets = simplifyCollect(state1, gen, targets)
+	targets = simplifyCollect(state2, gen, targets)
 	return targets
 }
 
-func flattenCollect(s *faState, gen uint64, targets []*faState) []*faState {
+func simplifyCollect(s *faState, gen uint64, targets []*faState) []*faState {
 	if s.closureSetGen == gen {
 		return targets
 	}
@@ -356,7 +356,7 @@ func flattenCollect(s *faState, gen uint64, targets []*faState) []*faState {
 
 	if s.table.isEpsilonOnly() {
 		for _, eps := range s.table.epsilons {
-			targets = flattenCollect(eps, gen, targets)
+			targets = simplifyCollect(eps, gen, targets)
 		}
 	} else {
 		targets = append(targets, s)
@@ -415,7 +415,7 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 	// To avoid deep nesting of splice states, we flatten the epsilon targets.
 	if len(state1.table.epsilons) != 0 || len(state2.table.epsilons) != 0 {
 		pp.labelTable(combined.table, "Splice")
-		combined.table.epsilons = flattenEpsilonTargets(state1, state2)
+		combined.table.epsilons = simplifySplices(state1, state2)
 		keyMemo[mKey] = combined
 		return combined
 	}

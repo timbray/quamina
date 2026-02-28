@@ -26,15 +26,15 @@ func TestEpsilonClosure(t *testing.T) {
 	aFM := newFieldMatcher()
 	aSc.fieldTransitions = []*fieldMatcher{aFM}
 
-	closureForState(aSa)
+	closureForStateNoBufs(aSa)
 	if len(aSa.epsilonClosure) != 1 || !containsState(t, aSa.epsilonClosure, aSa) {
 		t.Errorf("len(ec) = %d; want 1", len(aSa.epsilonClosure))
 	}
-	closureForState(aSstar)
+	closureForStateNoBufs(aSstar)
 	if len(aSstar.epsilonClosure) != 1 || !containsState(t, aSstar.epsilonClosure, aSstar) {
 		t.Error("aSstar")
 	}
-	closureForState(aSc)
+	closureForStateNoBufs(aSc)
 	if len(aSc.epsilonClosure) != 1 || !containsState(t, aSc.epsilonClosure, aSc) {
 		t.Error("aSc")
 	}
@@ -70,13 +70,13 @@ func TestEpsilonClosure(t *testing.T) {
 	bEcShouldBeOne := []*faState{bSa, bSb, bSx, bSstar}
 	zNames := []string{"bSa", "bSb", "bSx", "bSstar"}
 	for i, state := range bEcShouldBeOne {
-		closureForState(state)
+		closureForStateNoBufs(state)
 		if len(state.epsilonClosure) != 1 || !containsState(t, state.epsilonClosure, state) {
 			t.Errorf("should be 1 for %s, isn't", zNames[i])
 		}
 	}
 
-	closureForState(bSsplice)
+	closureForStateNoBufs(bSsplice)
 	if len(bSsplice.epsilonClosure) != 2 || !containsState(t, bSsplice.epsilonClosure, bSa) || !containsState(t, bSsplice.epsilonClosure, bSstar) {
 		t.Error("wrong EC for b")
 	}
@@ -106,7 +106,7 @@ func TestEpsilonClosure(t *testing.T) {
 		pp.labelTable(st, name)
 	}
 
-	closureForState(cStart)
+	closureForStateNoBufs(cStart)
 	cWantInEC := []*faState{cStart, cSa, cSb, cSc, cSz}
 	if len(cStart.epsilonClosure) != 5 {
 		t.Errorf("len B ec %d wanted 5", len(cStart.epsilonClosure))
@@ -140,8 +140,12 @@ func TestTablePointerDedupPreservesFieldTransitions(t *testing.T) {
 
 	sharedTable := newSmallTable()
 
-	stateA := &faState{table: sharedTable, fieldTransitions: []*fieldMatcher{fmA}}
-	stateB := &faState{table: sharedTable, fieldTransitions: []*fieldMatcher{fmB}}
+	// stateA and stateB share the same table but have overlapping
+	// fieldTransitions in different order. The order-dependent comparison
+	// in sameFieldTransitions returns false, so both are kept — correct
+	// behavior (a missed dedup is safe, dropping a state is not).
+	stateA := &faState{table: sharedTable, fieldTransitions: []*fieldMatcher{fmA, fmB}}
+	stateB := &faState{table: sharedTable, fieldTransitions: []*fieldMatcher{fmB, fmA}}
 
 	// splice is epsilon-only, pointing to both stateA and stateB
 	spliceTable := newSmallTable()
