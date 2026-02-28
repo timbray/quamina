@@ -2,6 +2,7 @@ package quamina
 
 import (
 	"cmp"
+	"encoding/binary"
 	"slices"
 	"unsafe"
 )
@@ -46,12 +47,14 @@ func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
 		return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
 	})
 
-	sl.keyBuf = sl.keyBuf[:0]
-	for _, state := range sl.sortBuf {
-		addr := uintptr(unsafe.Pointer(state))
-		for i := 0; i < 8; i++ {
-			sl.keyBuf = append(sl.keyBuf, byte(addr>>(i*8)))
-		}
+	needed := len(sl.sortBuf) * 8
+	if cap(sl.keyBuf) < needed {
+		sl.keyBuf = make([]byte, needed)
+	} else {
+		sl.keyBuf = sl.keyBuf[:needed]
+	}
+	for i, state := range sl.sortBuf {
+		binary.LittleEndian.PutUint64(sl.keyBuf[i*8:], uint64(uintptr(unsafe.Pointer(state))))
 	}
 
 	// string(sl.keyBuf) in a map lookup is optimized by the compiler to avoid allocation
