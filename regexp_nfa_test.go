@@ -24,7 +24,7 @@ func TestRRCacheEffectiveness(t *testing.T) {
 	for _, w := range words {
 		fa := faFromRegexp(t, re, pp)
 		qm := []byte(`"` + string(w) + `"`)
-		matches := testTraverseNFA(fa, qm, transitions, bufs, pp)
+		matches := testTraverseNFA(fa, qm, transitions, bufs)
 		if len(matches) != 1 {
 			t.Errorf("missed <%s>", string(w))
 		}
@@ -33,7 +33,7 @@ func TestRRCacheEffectiveness(t *testing.T) {
 	for _, w := range words {
 		fa := faFromRegexp(t, re, pp)
 		qm := []byte(`"` + string(w) + `"`)
-		matches := testTraverseNFA(fa, qm, transitions, bufs, pp)
+		matches := testTraverseNFA(fa, qm, transitions, bufs)
 		if len(matches) != 1 {
 			t.Errorf("missed <%s>", string(w))
 		}
@@ -69,7 +69,7 @@ func applyAndRunRegexp(t *testing.T, regexp string, match string, pp printer) in
 	fmt.Println("N:\n" + pp.printNFA(fa))
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
-	matches := testTraverseNFA(fa, qm, transitions, bufs, pp)
+	matches := testTraverseNFA(fa, qm, transitions, bufs)
 	return len(matches)
 }
 
@@ -110,13 +110,13 @@ func TestRegexpPlus(t *testing.T) {
 	trans := []*fieldMatcher{}
 	bufs := newNfaBuffers()
 	for _, good := range goods {
-		res := testTraverseNFA(fa, []byte(good), trans, bufs, pp)
+		res := testTraverseNFA(fa, []byte(good), trans, bufs)
 		if len(res) != 1 {
 			t.Errorf("missed good %s", good)
 		}
 	}
 	for _, bad := range bads {
-		res := testTraverseNFA(fa, []byte(bad), trans, bufs, pp)
+		res := testTraverseNFA(fa, []byte(bad), trans, bufs)
 		if len(res) != 0 {
 			t.Error("matched bad " + bad)
 		}
@@ -256,7 +256,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		for _, r := range runes {
 			// func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *bufpair) []*fieldMatcher {
 			toMatch := strings.Replace(match, "X", string([]rune{r}), 1)
-			found := testTraverseNFA(st, []byte(`"`+toMatch+`"`), nil, bufs, sharedNullPrinter)
+			found := testTraverseNFA(st, []byte(`"`+toMatch+`"`), nil, bufs)
 			if len(found) == 0 {
 				t.Errorf("struck out matching %s to /%s/", match, re)
 			}
@@ -278,7 +278,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 		st, _ := makeRegexpNFA(parsed.tree, sharedNullPrinter)
 		bufs := newNfaBuffers()
 		for _, nonMatch := range nonMatches {
-			found := testTraverseNFA(st, []byte(`"`+nonMatch+`"`), nil, bufs, sharedNullPrinter)
+			found := testTraverseNFA(st, []byte(`"`+nonMatch+`"`), nil, bufs)
 			if len(found) != 0 {
 				t.Errorf("false match to %s to /%s/", nonMatch, re)
 			}
@@ -300,7 +300,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 			t.Error("Parse failure: " + pat)
 		}
 		st, wanted := makeRegexpNFA(parsed.tree, sharedNullPrinter)
-		found := testTraverseNFA(st, []byte(`"`+daodechingorig+`"`), nil, bufs, sharedNullPrinter)
+		found := testTraverseNFA(st, []byte(`"`+daodechingorig+`"`), nil, bufs)
 		if len(found) != 1 {
 			t.Errorf("Failed to match ")
 		}

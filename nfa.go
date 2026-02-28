@@ -1,9 +1,7 @@
 package quamina
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"unsafe"
 )
 
@@ -17,6 +15,7 @@ type faState struct {
 	fieldTransitions []*fieldMatcher
 	isSpinner        bool
 	epsilonClosure   []*faState // precomputed epsilon closure including self
+	closureSetGen    uint64     // generation for closure set visited tracking
 }
 
 /*
@@ -258,7 +257,7 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // collected in the nextStates list.  The bufs structure contains three buffers, one each for
 // currentStates, nextStates, and the epsilon closure of one particular state. These are re-used
 // and should grow with use and minimize the need for memory allocation.
-func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers, _ printer) []*fieldMatcher {
+func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
@@ -291,16 +290,6 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 					nextStates = append(nextStates, stepResult.step)
 				}
 			}
-		}
-
-		// for toxically-complex regexps like (([abc]?)*)+ you can get a FA with epsilon loops,
-		// direct and indirect, which can lead to huge nextState buildups.  Could solve this with
-		// making it a set, but this seems to work well enough
-		if len(nextStates) > 500 {
-			slices.SortFunc(nextStates, func(a, b *faState) int {
-				return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
-			})
-			nextStates = slices.Compact(nextStates)
 		}
 
 		// re-use these
@@ -347,33 +336,31 @@ func makeFaStepKey(s1, s2 *faState) faStepKey {
 	return faStepKey{s2, s1}
 }
 
-// flattenEpsilonTargets collects all non-epsilon-only states reachable via
+// simplifySplices collects all non-epsilon-only states reachable via
 // epsilon transitions from state1 and state2. This prevents deep nesting of
 // splice states that would otherwise accumulate during repeated merges.
-func flattenEpsilonTargets(state1, state2 *faState) []*faState {
-	seen := make(map[*faState]bool, 8)
+func simplifySplices(state1, state2 *faState) []*faState {
+	closureGeneration++
+	gen := closureGeneration
 	targets := make([]*faState, 0, 4)
+	targets = simplifyCollect(state1, gen, targets)
+	targets = simplifyCollect(state2, gen, targets)
+	return targets
+}
 
-	var collect func(s *faState)
-	collect = func(s *faState) {
-		if seen[s] {
-			return
-		}
-		seen[s] = true
-
-		if s.table.isEpsilonOnly() {
-			// This is a splice state - recurse into its epsilons
-			for _, eps := range s.table.epsilons {
-				collect(eps)
-			}
-		} else {
-			// This is a real state with byte transitions
-			targets = append(targets, s)
-		}
+func simplifyCollect(s *faState, gen uint64, targets []*faState) []*faState {
+	if s.closureSetGen == gen {
+		return targets
 	}
+	s.closureSetGen = gen
 
-	collect(state1)
-	collect(state2)
+	if s.table.isEpsilonOnly() {
+		for _, eps := range s.table.epsilons {
+			targets = simplifyCollect(eps, gen, targets)
+		}
+	} else {
+		targets = append(targets, s)
+	}
 	return targets
 }
 
@@ -428,7 +415,7 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 	// To avoid deep nesting of splice states, we flatten the epsilon targets.
 	if len(state1.table.epsilons) != 0 || len(state2.table.epsilons) != 0 {
 		pp.labelTable(combined.table, "Splice")
-		combined.table.epsilons = flattenEpsilonTargets(state1, state2)
+		combined.table.epsilons = simplifySplices(state1, state2)
 		keyMemo[mKey] = combined
 		return combined
 	}
