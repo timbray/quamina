@@ -111,6 +111,32 @@ func TestNfa2Dfa(t *testing.T) {
 			shoulds: []string{"abc", "abcfoo"},
 			nopes:   []string{"xabc", "abxbar"},
 		},
+		// multi-star patterns exercise intern() dedup more heavily
+		{
+			pattern: "*foo*",
+			shoulds: []string{"foo", "xfoo", "foox", "xfoox", "foofoofoo"},
+			nopes:   []string{"bar", "fo", "ffo"},
+		},
+		{
+			pattern: "*foo*bar*",
+			shoulds: []string{"foobar", "xfooybar", "foobarbaz", "xxfooxxbarxx"},
+			nopes:   []string{"barfoo", "foo", "bar", "fobar"},
+		},
+		{
+			pattern: "*a*b*c*",
+			shoulds: []string{"abc", "xaxbxcx", "abc123", "123abc", "aabbcc"},
+			nopes:   []string{"ab", "ac", "bc", "cba"},
+		},
+		{
+			pattern: "*a*b*c*d*e*",
+			shoulds: []string{"abcde", "xaxbxcxdxex", "aabbccddee"},
+			nopes:   []string{"abcd", "edcba", "abce"},
+		},
+		{
+			pattern: "*a*b*c*d*e*f*g*h*",
+			shoulds: []string{"abcdefgh", "xaxbxcxdxexfxgxhx"},
+			nopes:   []string{"abcdefg", "hgfedcba"},
+		},
 	}
 	pp := newPrettyPrinter(4567)
 	transitions := []*fieldMatcher{}
