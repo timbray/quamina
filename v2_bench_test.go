@@ -92,16 +92,12 @@ func BenchmarkShellStyleBuildTime(b *testing.B) {
 	}
 
 	q, _ := New()
-	before := time.Now()
 	for i := range words {
 		err := q.AddPattern(starWords[i], patterns[i])
 		if err != nil {
 			b.Fatal("AddP: " + err.Error())
 		}
 	}
-	elapsed := time.Since(before).Seconds()
-	fmt.Printf("Patterns/sec: %.1f\n", float64(len(words))/elapsed)
-	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
 
 	// Build events: original words and expanded words
 	type event struct {
@@ -129,7 +125,4 @@ func BenchmarkShellStyleBuildTime(b *testing.B) {
 			}
 		}
 	}
-	elapsed = float64(b.Elapsed().Seconds())
-	count := float64(b.N)
-	fmt.Printf("%.0f events/sec\n", count*float64(len(events))/elapsed)
 }
