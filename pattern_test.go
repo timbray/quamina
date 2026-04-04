@@ -1,6 +1,7 @@
 package quamina
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -104,20 +105,20 @@ func TestPatternFromJSON(t *testing.T) {
 	}
 	w1 := []*patternField{{path: "x", vals: []typedVal{{vType: numberType, val: "2"}}}}
 	w2 := []*patternField{{path: "x", vals: []typedVal{
-		{literalType, "null", nil, nil},
-		{literalType, "true", nil, nil},
-		{literalType, "false", nil, nil},
-		{stringType, `"hopp"`, nil, nil},
-		{numberType, "3.072e-11", nil, nil},
+		{vType: literalType, val: "null", list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
+		{vType: literalType, val: "true", list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
+		{vType: literalType, val: "false", list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
+		{vType: stringType, val: `"hopp"`, list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
+		{vType: numberType, val: "3.072e-11", list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
 	}}}
 	w3 := []*patternField{
 		{path: "x\na", vals: []typedVal{
-			{numberType, "27", nil, nil},
-			{numberType, "28", nil, nil},
+			{vType: numberType, val: "27", list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
+			{vType: numberType, val: "28", list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
 		}},
 		{path: "x\nb\nm", vals: []typedVal{
-			{stringType, `"a"`, nil, nil},
-			{stringType, `"b"`, nil, nil},
+			{vType: stringType, val: `"a"`, list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
+			{vType: stringType, val: `"b"`, list: nil, parsedRegexp: regexpRoot{}, numericRange: nil},
 		}},
 	}
 	w4 := []*patternField{
@@ -215,5 +216,186 @@ func TestPatternFromJSON(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestNumericRangePatterns(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		want    *patternField
+		wantErr bool
+	}{
+		{
+			name:    "equals",
+			pattern: `{"price": [ {"numeric": ["=", 100]} ]}`,
+			want: &patternField{
+				path: "price",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{
+						bottom:     qNumFromFloat(100),
+						top:        qNumFromFloat(100),
+						openBottom: false,
+						openTop:    false,
+					},
+				}},
+			},
+		},
+		{
+			name:    "equals scientific notation",
+			pattern: `{"price": [ {"numeric": ["=", 3.018e2]} ]}`,
+			want: &patternField{
+				path: "price",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{
+						bottom:     qNumFromFloat(3.018e2),
+						top:        qNumFromFloat(3.018e2),
+						openBottom: false,
+						openTop:    false,
+					},
+				}},
+			},
+		},
+		{
+			name:    "less than",
+			pattern: `{"price": [ {"numeric": ["<", 100]} ]}`,
+			want: &patternField{
+				path: "price",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{openBottom: true, openTop: true, top: qNumFromFloat(100)},
+				}},
+			},
+		},
+		{
+			name:    "scientific notation less than",
+			pattern: `{"price": [ {"numeric": ["<", 3.018e2]} ]}`,
+			want: &patternField{
+				path: "price",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{openBottom: true, openTop: true, top: qNumFromFloat(3.018e2)},
+				}},
+			},
+		},
+		{
+			name:    "greater than or equal",
+			pattern: `{"quantity": [ {"numeric": [">=", 10]} ]}`,
+			want: &patternField{
+				path: "quantity",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{bottom: qNumFromFloat(10), openTop: true},
+				}},
+			},
+		},
+		{
+			name:    "greater than negative",
+			pattern: `{"score": [ {"numeric": [">", -5.5]} ]}`,
+			want: &patternField{
+				path: "score",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{bottom: qNumFromFloat(-5.5), openBottom: true, openTop: true},
+				}},
+			},
+		},
+		{
+			name:    "less than or equal",
+			pattern: `{"rating": [ {"numeric": ["<=", 5.0]} ]}`,
+			want: &patternField{
+				path: "rating",
+				vals: []typedVal{{
+					vType:        numericRangeType,
+					val:          "",
+					list:         nil,
+					parsedRegexp: regexpRoot{},
+					numericRange: &Range{top: qNumFromFloat(5.0), openBottom: true},
+				}},
+			},
+		},
+		{
+			name:    "invalid operator",
+			pattern: `{"x": [ {"numeric": ["!=", 100]} ]}`,
+			wantErr: true,
+		},
+		{
+			name:    "non-numeric value",
+			pattern: `{"x": [ {"numeric": ["<", "abc"]} ]}`,
+			wantErr: true,
+		},
+		{
+			name:    "missing value",
+			pattern: `{"x": [ {"numeric": ["<"]} ]}`,
+			wantErr: true,
+		},
+		{
+			name:    "not an array",
+			pattern: `{"x": [ {"numeric": "100"} ]}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fields, err := patternFromJSON([]byte(tt.pattern))
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(fields) != 1 {
+				t.Fatalf("expected 1 field, got %d", len(fields))
+			}
+
+			got := fields[0]
+			if got.path != tt.want.path {
+				t.Errorf("path = %q, want %q", got.path, tt.want.path)
+			}
+			if len(got.vals) != 1 {
+				t.Fatalf("expected 1 value, got %d", len(got.vals))
+			}
+			if got.vals[0].vType != tt.want.vals[0].vType {
+				t.Errorf("vType = %v, want %v", got.vals[0].vType, tt.want.vals[0].vType)
+			}
+			if got.vals[0].numericRange == nil {
+				t.Fatal("numericRange is nil")
+			}
+			// Compare range properties
+			gr := got.vals[0].numericRange
+			wr := tt.want.vals[0].numericRange
+			if gr.openBottom != wr.openBottom || gr.openTop != wr.openTop {
+				t.Errorf("range bounds openness mismatch: got %v/%v, want %v/%v",
+					gr.openBottom, gr.openTop, wr.openBottom, wr.openTop)
+			}
+			if !bytes.Equal(gr.bottom, wr.bottom) || !bytes.Equal(gr.top, wr.top) {
+				t.Errorf("range bounds mismatch: got %v/%v, want %v/%v",
+					gr.bottom, gr.top, wr.bottom, wr.top)
+			}
+		})
 	}
 }

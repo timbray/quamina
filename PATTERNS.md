@@ -61,6 +61,51 @@ Thus, the following Pattern would match both JSON events above:
 Quamina can match numeric values with precision and range exactly the same as that provided by 
 Go's `float64` data type, which is said to conform to IEEE 754 `binary64`.
 
+## Numeric Range Matching
+
+Quamina supports matching numeric values against ranges. You can specify ranges using various operators and combine them:
+
+```json
+{
+  "item": {
+    "quantity": [ { "numeric": [ ">", 0, "<=", 5 ] } ],
+    "price": [ { "numeric": [ "<", 10 ] } ],
+    "quantity": [ { "numeric": [ "=", 35 ] } ]
+  }
+}  
+```
+
+### Operators
+- `=`: Exact match
+- `<`: Less than
+- `<=`: Less than or equal to
+- `>`: Greater than
+- `>=`: Greater than or equal to
+
+### Examples
+```json
+// Match prices between $50 and $100 (exclusive)
+{
+  "price": [ {"numeric": [">", 50, "<", 100]} ]
+}
+
+// Match quantities greater than or equal to 10
+{
+  "quantity": [ {"numeric": [">=", 10]} ]
+}
+
+// Match temperatures less than 0
+{
+  "quantity": [ {"numeric": ["<", 0]} ]
+}
+```
+
+### Notes
+- Operators can be combined to create ranges
+- Each bound (upper/lower) can only be specified once
+- Values must be numeric (integers or floating point)
+- Ranges support negative numbers and decimals
+
 ## Extended Patterns
 An **Extended Pattern** **MUST** be a JSON object containing
 a single field whose name is called the **Pattern Type**.
