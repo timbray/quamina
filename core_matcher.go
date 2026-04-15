@@ -11,7 +11,9 @@ import (
 	"bytes"
 	"cmp"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -33,8 +35,10 @@ type coreMatcher struct {
 // It is built during calls to addPattern. It implements SegmentsTreeTracker, which is used by the event flattener
 // to optimize the flattening process by skipping the processing of fields which are not used in any pattern.
 type coreFields struct {
-	state        *fieldMatcher
-	segmentsTree *segmentsTree
+	state         *fieldMatcher
+	segmentsTree  *segmentsTree
+	memoryBudget  uint64
+	currentMemory uint64
 }
 
 func newCoreMatcher() *coreMatcher {
@@ -42,6 +46,7 @@ func newCoreMatcher() *coreMatcher {
 	m.updateable.Store(&coreFields{
 		state:        newFieldMatcher(),
 		segmentsTree: newSegmentsIndex(),
+		memoryBudget: 0,
 	})
 	return &m
 }
@@ -72,14 +77,29 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 	defer m.lock.Unlock()
 
 	// we build up the new coreMatcher state in freshStart so that we can atomically switch it in once complete
+	// lastBaseAlloc := bytesAllocated()
+
 	freshStart := &coreFields{}
 	currentFields := m.fields()
 	freshStart.segmentsTree = currentFields.segmentsTree.copy()
 	freshStart.state = currentFields.state
+	freshStart.memoryBudget = currentFields.memoryBudget
+	freshStart.currentMemory = currentFields.currentMemory
 
 	// Add paths to the segments tree index.
 	for _, field := range patternFields {
 		freshStart.segmentsTree.add(field.path)
+	}
+
+	// If the ceiling is 0, then use sharedNullMonitor. Still populate the
+	// samplingMemoryMonitor fields so we can remember the basAlloc value and report
+	// back on GetMemoryBudget
+	sampler := newSamplingMemoryMonitor(freshStart)
+	var monitor memoryMonitor
+	if freshStart.memoryBudget == 0 {
+		monitor = &nullMemoryMonitor{}
+	} else {
+		monitor = sampler
 	}
 
 	// now we add each of the name/value pairs in fields slice to the automaton, starting with the start state -
@@ -104,13 +124,23 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 			case existsFalseType:
 				ns = state.addExists(false, field)
 			default:
-				ns = state.addTransition(field, printer)
+				ns, err = state.addTransition(field, monitor, printer)
+				if err != nil {
+					// beautify error so they know which field blew up
+					beautified := "Memory budget exceeded on field \"" + strings.ReplaceAll(field.path, "\n", "/") + "\""
+					return errors.New(strings.Replace(err.Error(), "MemoryBudget", beautified, 1))
+				}
 			}
-
 			nextStates = append(nextStates, ns...)
 		}
 		states = nextStates
 	}
+
+	err = monitor.check()
+	if err != nil {
+		return err
+	}
+	freshStart.currentMemory += bytesAllocated() - sampler.baseAlloc
 
 	// we've processed all the name/val combos in fields, "states" now holds the set of terminal states arrived at
 	//  by matching each field in the pattern, so update the matches value to indicate this.
@@ -155,6 +185,23 @@ func emptyFields() []Field {
 			ArrayTrail: []ArrayPos{{0, 0}},
 		},
 	}
+}
+
+func (m *coreMatcher) getMemoryBudget() (uint64, uint64) {
+	cFields := m.fields()
+	return cFields.memoryBudget, cFields.currentMemory
+}
+func (m *coreMatcher) setMemoryBudget(budget uint64) (uint64, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	cFields := m.fields()
+	if budget != 0 && budget < cFields.currentMemory {
+		problem := fmt.Errorf("SetMemoryBudget: budget too small (%d < %d)", budget, cFields.currentMemory)
+		return cFields.currentMemory, problem
+	}
+	cFields.memoryBudget = budget
+	m.updateable.Store(cFields)
+	return cFields.currentMemory, nil
 }
 
 // matchesForFields takes a list of Field structures, sorts them by pathname, and launches the field-matching

@@ -224,6 +224,13 @@ func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
 	return m.matchesForFields(fs, newNfaBuffers())
 }
 
+func (m *prunerMatcher) getMemoryBudget() (uint64, uint64) {
+	return m.Matcher.getMemoryBudget()
+}
+func (m *prunerMatcher) setMemoryBudget(budget uint64) (uint64, error) {
+	return m.Matcher.setMemoryBudget(budget)
+}
+
 // MatchesForFields calls the underlying
 // quamina.coreMatcher.matchesForFields and then maybe rebuilds the
 // index.
