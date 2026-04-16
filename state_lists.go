@@ -20,13 +20,15 @@ type internEntry struct {
 type stateLists struct {
 	entries map[string]internEntry
 	// Scratch space reused across intern() calls
-	sortBuf []*faState // reusable sorted buffer
-	keyBuf  []byte     // reusable key bytes buffer
+	sortBuf []*faState            // reusable sorted buffer
+	keyBuf  []byte                // reusable key bytes buffer
+	seen    map[*faState]struct{} // reusable dedup set, cleared per call
 }
 
 func newStateLists() *stateLists {
 	return &stateLists{
 		entries: make(map[string]internEntry),
+		seen:    make(map[*faState]struct{}),
 	}
 }
 
@@ -36,17 +38,17 @@ func newStateLists() *stateLists {
 // which either has already been computed for the set or is created and empty, and
 // a boolean indicating whether the DFA state has already been computed or not.
 func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
-	// Dedupe using the global generation counter and faState.closureSetGen
-	// instead of allocating a map per call. Safe to reuse closureSetGen
-	// because nfa2Dfa runs after epsilon closure computation is complete.
-	closureGeneration++
-	gen := closureGeneration
+	// Dedup within this call using a reused map. Previously this rode on
+	// a generation counter stored inline on each faState; that field has
+	// been removed to shrink steady-state memory.
+	clear(sl.seen)
 	sl.sortBuf = sl.sortBuf[:0]
 	for _, state := range list {
-		if state.closureSetGen != gen {
-			state.closureSetGen = gen
-			sl.sortBuf = append(sl.sortBuf, state)
+		if _, ok := sl.seen[state]; ok {
+			continue
 		}
+		sl.seen[state] = struct{}{}
+		sl.sortBuf = append(sl.sortBuf, state)
 	}
 
 	// compute a key representing the set
