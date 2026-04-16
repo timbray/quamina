@@ -13,9 +13,8 @@ import (
 type faState struct {
 	table            *smallTable
 	fieldTransitions []*fieldMatcher
-	isSpinner        bool
 	epsilonClosure   []*faState // precomputed epsilon closure including self
-	closureSetGen    uint64     // generation for closure set visited tracking
+	isSpinner        bool
 }
 
 /*
@@ -346,23 +345,25 @@ func makeFaStepKey(s1, s2 *faState) faStepKey {
 // epsilon transitions from state1 and state2. This prevents deep nesting of
 // splice states that would otherwise accumulate during repeated merges.
 func simplifySplices(state1, state2 *faState) []*faState {
-	closureGeneration++
-	gen := closureGeneration
+	// A freshly-allocated visited map is used as a side table; the old
+	// approach stored a generation counter on faState itself, which bloated
+	// every state permanently for build-only state.
+	visited := make(map[*faState]struct{})
 	targets := make([]*faState, 0, 4)
-	targets = simplifyCollect(state1, gen, targets)
-	targets = simplifyCollect(state2, gen, targets)
+	targets = simplifyCollect(state1, visited, targets)
+	targets = simplifyCollect(state2, visited, targets)
 	return targets
 }
 
-func simplifyCollect(s *faState, gen uint64, targets []*faState) []*faState {
-	if s.closureSetGen == gen {
+func simplifyCollect(s *faState, visited map[*faState]struct{}, targets []*faState) []*faState {
+	if _, seen := visited[s]; seen {
 		return targets
 	}
-	s.closureSetGen = gen
+	visited[s] = struct{}{}
 
 	if s.table.isEpsilonOnly() {
 		for _, eps := range s.table.epsilons {
-			targets = simplifyCollect(eps, gen, targets)
+			targets = simplifyCollect(eps, visited, targets)
 		}
 	} else {
 		targets = append(targets, s)

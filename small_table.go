@@ -38,20 +38,9 @@ const valueTerminator byte = 0xf5
 // by branching on 'b' to a state that has no byte transitions but two epsilons, one each for s1 and s2.
 
 type smallTable struct {
-	ceilings       []byte
-	steps          []*faState
-	epsilons       []*faState
-	lastVisitedGen uint64 // generation counter for epsilon closure traversal
-	// closureGen records which closureGeneration this table's
-	// representative was set in. If it equals the current global
-	// closureGeneration, then closureRep is valid; otherwise, the
-	// table has not yet been seen in this dedup pass.
-	closureGen uint64
-	// closureRep is the representative faState for this table in the
-	// current closure dedup pass. When multiple states share the same
-	// smallTable and have identical fieldTransitions, only this
-	// representative is kept in the closure.
-	closureRep *faState
+	ceilings []byte
+	steps    []*faState
+	epsilons []*faState
 }
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
