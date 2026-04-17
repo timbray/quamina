@@ -1,6 +1,9 @@
 package quamina
 
-import "fmt"
+import (
+	"fmt"
+	"testing"
+)
 
 /*
 func nfaBufStats(bufs *nfaBuffers) (string, *faState) {
@@ -98,7 +101,8 @@ func matcherStats(m *coreMatcher) string {
 	return fmPart + "\n" + vmPart + "\n" + stPart
 }
 
-func stStats(m *coreMatcher) string {
+func stStats(b *testing.B, m *coreMatcher) string {
+	b.Helper()
 	s := statsAccum{
 		fmVisited: make(map[*fieldMatcher]bool),
 		vmVisited: make(map[*valueMatcher]bool),
