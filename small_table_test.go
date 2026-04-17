@@ -7,7 +7,7 @@ import (
 )
 
 func TestFAMergePerf(t *testing.T) {
-	words := readWWords(t, 0)
+	words := readWWords(t, 10)
 	patterns := make([]string, 0, len(words))
 	for _, word := range words {
 		pattern := fmt.Sprintf(`{"x": [ "%s" ] }`, string(word))
