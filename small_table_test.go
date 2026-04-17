@@ -64,9 +64,12 @@ func TestUnpack(t *testing.T) {
 
 func TestDodgeBadUTF8(t *testing.T) {
 	st := makeSmallTable(nil, []byte{'a'}, []*faState{{}})
-	so := &stepOut{}
-	st.step(0xFE, so)
-	st.dStep(0xFE)
+	if got := st.step(0xFE); got != nil {
+		t.Errorf("step(0xFE) = %v, want nil", got)
+	}
+	if got := st.dStep(0xFE); got != nil {
+		t.Errorf("dStep(0xFE) = %v, want nil", got)
+	}
 }
 
 func TestSmallTableIterator(t *testing.T) {

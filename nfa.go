@@ -278,7 +278,6 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 		fieldSet[fm] = true
 	}
 
-	stepResult := &stepOut{}
 	for index := 0; len(currentStates) != 0 && index <= len(val); index++ {
 		var utf8Byte byte
 		if index < len(val) {
@@ -291,9 +290,8 @@ func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, buf
 				for _, fm := range ecState.fieldTransitions {
 					fieldSet[fm] = true
 				}
-				ecState.table.step(utf8Byte, stepResult)
-				if stepResult.step != nil {
-					nextStates = append(nextStates, stepResult.step)
+				if nextStep := ecState.table.step(utf8Byte); nextStep != nil {
+					nextStates = append(nextStates, nextStep)
 				}
 			}
 		}
