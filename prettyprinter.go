@@ -121,7 +121,7 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 	unpacked := unpackTable(t)
 
 	var rangeStart int
-	var b int
+	var b byte
 
 	defTrans := unpacked[0]
 
@@ -136,23 +136,23 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 		rows = append(rows, "ε → "+fas)
 	}
 	for {
-		for b < len(unpacked) && unpacked[b] == nil {
+		for int(b) < len(unpacked) && unpacked[b] == nil {
 			b++
 		}
-		if b == len(unpacked) {
+		if b == byte(len(unpacked)) {
 			break
 		}
-		rangeStart = b
+		rangeStart = int(b)
 		lastN := unpacked[b]
-		for b < len(unpacked) && unpacked[b] == lastN {
+		for int(b) < len(unpacked) && unpacked[b] == lastN {
 			b++
 		}
 		if lastN != defTrans {
 			row := ""
-			if b == rangeStart+1 {
+			if int(b) == rangeStart+1 {
 				row += fmt.Sprintf("'%s'", branchChar(byte(rangeStart)))
 			} else {
-				row += fmt.Sprintf("'%s'…'%s'", branchChar(byte(rangeStart)), branchChar(byte(b-1)))
+				row += fmt.Sprintf("'%s'…'%s'", branchChar(byte(rangeStart)), branchChar(b-1))
 			}
 			row += " → " + pp.nextString(lastN)
 			rows = append(rows, row)

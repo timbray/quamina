@@ -71,9 +71,12 @@ func TestFocusedMerge(t *testing.T) {
 	}
 
 	merged := newSmallTable()
+	var err error
 	for _, automaton := range automata {
-		merged = mergeFAs(merged, automaton, sharedNullPrinter)
-
+		merged, err = mergeFAs(merged, automaton, sharedNullMonitor, sharedNullPrinter)
+		if err != nil {
+			t.Error("OUCH: " + err.Error())
+		}
 		s := statsAccum{
 			fmVisited: make(map[*fieldMatcher]bool),
 			vmVisited: make(map[*valueMatcher]bool),

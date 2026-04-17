@@ -148,3 +148,23 @@ func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	}
 	return q.matcher.matchesForFields(fields, q.bufs)
 }
+
+// SetMemoryBudget sets an approximate limit on the number of bytes allocated in building matchers for complex
+// patterns, especially regular expressions. If successful, it returns the approximate amount of memory currently
+// in use in matchers. It can fail if you try to set a budget value that is loser than the current memory used.
+// The input and output values are approximate because the cost of computing the exact usage is unacceptable, so
+// Quamina simply asks the Go memory allocator how much memory has been allocated, but it only does so when building
+// matchers that might be complex, and the reported usage can include memory allocated for other purpoeses.
+// If no memory budget has been set, Quamina will not check for any maximum value and will report a budget of 0.
+func (q *Quamina) SetMemoryBudget(budget uint64) (memoryUsed uint64, err error) {
+	memoryUsed, err = q.matcher.setMemoryBudget(budget)
+	return
+}
+
+// GetMemoryBudget retrieves the current memory budget as set by SetMemoryBudget, and the approximate amount of
+// memory currently in use in matchers. If no memory budget has ben set, it will return zero. The value of the
+// in-use is approximate for reasons described above in the comment on SetMemoryBudget
+func (q *Quamina) GetMemoryBudget() (budget uint64, memoryUsed uint64) {
+	budget, memoryUsed = q.matcher.getMemoryBudget()
+	return
+}

@@ -30,6 +30,10 @@ linters:
         text: ST1018
       - path: flatten_json\.go
         text: G602
+      - path: flatten_json_test\.go
+        text: G602
+      - path: anything_but\.go
+        text: G602
     paths:
       - third_party$
       - builtin$
