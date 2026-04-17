@@ -2,7 +2,6 @@ package quamina
 
 import (
 	"fmt"
-	"testing"
 )
 
 /*
@@ -99,26 +98,6 @@ func matcherStats(m *coreMatcher) string {
 		len(s.stVisited), s.splices, avgStSize, s.stMax, avgEpSize, s.stepMax, s.siCount)
 
 	return fmPart + "\n" + vmPart + "\n" + stPart
-}
-
-func stStats(b *testing.B, m *coreMatcher) string {
-	b.Helper()
-	s := statsAccum{
-		fmVisited: make(map[*fieldMatcher]bool),
-		vmVisited: make(map[*valueMatcher]bool),
-		stVisited: make(map[*smallTable]bool),
-	}
-	fmStats(m.fields().state, &s)
-	avgStSize := "n/a"
-	avgEpSize := "n/a"
-	if s.stTblCount > 0 {
-		avgStSize = fmt.Sprintf("%.3f", float64(s.stEntries)/float64(s.stTblCount))
-	}
-	if s.stEpsilon > 0 {
-		avgEpSize = fmt.Sprintf("%.3f", float64(s.stEpsilon)/float64(s.stTblCount))
-	}
-	return fmt.Sprintf("SmallTables %d (splices %d, avg %s, max %d, epsilons avg %s, max %d) singletons %d",
-		len(s.stVisited), s.splices, avgStSize, s.stMax, avgEpSize, s.stepMax, s.siCount)
 }
 
 func fmStats(m *fieldMatcher, s *statsAccum) {
