@@ -5,8 +5,11 @@ package quamina
 // closureRep for table-pointer dedup). These used to live as fields on
 // smallTable itself, but they are purely build-time state and their
 // permanent presence on every smallTable was wasted steady-state memory.
-// They now live in a per-call side table that is discarded when
-// epsilonClosure returns.
+// They now live in a per-call side table.
+//
+// Stored by VALUE inside the tables map so that adding a new entry is one
+// map-insert rather than one map-insert plus a separate heap allocation
+// for *tableMark.
 type tableMark struct {
 	lastVisitedGen uint32
 	closureGen     uint32
@@ -14,32 +17,21 @@ type tableMark struct {
 }
 
 // closureBuffers carries per-epsilonClosure-call scratch. The two maps
-// replace build-time fields that used to sit on smallTable/faState;
-// they live only for the duration of the closure computation.
+// replace build-time fields that used to sit on smallTable/faState.
 type closureBuffers struct {
 	gen           uint32
 	closureSetGen uint32
 	closureList   []*faState
-	tables        map[*smallTable]*tableMark
+	tables        map[*smallTable]tableMark
 	states        map[*faState]uint32
 }
 
 func newClosureBuffers() *closureBuffers {
 	return &closureBuffers{
 		gen:    1,
-		tables: make(map[*smallTable]*tableMark),
+		tables: make(map[*smallTable]tableMark),
 		states: make(map[*faState]uint32),
 	}
-}
-
-// tableMarkOf returns the tableMark for t, creating one on first access.
-func (b *closureBuffers) tableMarkOf(t *smallTable) *tableMark {
-	m, ok := b.tables[t]
-	if !ok {
-		m = &tableMark{}
-		b.tables[t] = m
-	}
-	return m
 }
 
 // epsilonClosure walks the automaton starting from the given table
@@ -50,11 +42,12 @@ func epsilonClosure(table *smallTable) {
 }
 
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
-	mark := bufs.tableMarkOf(table)
+	mark := bufs.tables[table]
 	if mark.lastVisitedGen == bufs.gen {
 		return
 	}
 	mark.lastVisitedGen = bufs.gen
+	bufs.tables[table] = mark
 
 	for _, state := range table.steps {
 		if state != nil {
@@ -105,7 +98,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 	dedupGen := bufs.gen
 	closure := make([]*faState, 0, len(bufs.closureList))
 	for _, s := range bufs.closureList {
-		mark := bufs.tableMarkOf(s.table)
+		mark := bufs.tables[s.table]
 		if mark.closureGen == dedupGen {
 			if sameFieldTransitions(mark.closureRep, s) {
 				continue
@@ -113,6 +106,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		} else {
 			mark.closureGen = dedupGen
 			mark.closureRep = s
+			bufs.tables[s.table] = mark
 		}
 		closure = append(closure, s)
 	}
