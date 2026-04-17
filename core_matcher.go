@@ -39,14 +39,20 @@ type coreFields struct {
 	segmentsTree  *segmentsTree
 	memoryBudget  uint64
 	currentMemory uint64
+	// baselineAlloc is HeapInuse at matcher creation. currentMemory is
+	// measured as bytesAllocated() - baselineAlloc so it reflects this
+	// matcher's retained-heap delta, monotonically tracked (it never
+	// decreases, even when HeapInuse dips mid-build due to GC).
+	baselineAlloc uint64
 }
 
 func newCoreMatcher() *coreMatcher {
 	m := coreMatcher{}
 	m.updateable.Store(&coreFields{
-		state:        newFieldMatcher(),
-		segmentsTree: newSegmentsIndex(),
-		memoryBudget: 0,
+		state:         newFieldMatcher(),
+		segmentsTree:  newSegmentsIndex(),
+		memoryBudget:  0,
+		baselineAlloc: bytesAllocated(),
 	})
 	return &m
 }
@@ -84,6 +90,7 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 	freshStart.state = currentFields.state
 	freshStart.memoryBudget = currentFields.memoryBudget
 	freshStart.currentMemory = currentFields.currentMemory
+	freshStart.baselineAlloc = currentFields.baselineAlloc
 
 	// Add paths to the segments tree index.
 	for _, field := range patternFields {
@@ -139,7 +146,15 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 	if err != nil {
 		return err
 	}
-	freshStart.currentMemory += bytesAllocated() - sampler.baseAlloc
+	// Track retained heap since matcher creation. Clamp-only-up so that
+	// momentary HeapInuse dips (GC reclaiming spans mid-build) don't
+	// silently reduce the accumulator.
+	if current := bytesAllocated(); current > freshStart.baselineAlloc {
+		delta := current - freshStart.baselineAlloc
+		if delta > freshStart.currentMemory {
+			freshStart.currentMemory = delta
+		}
+	}
 
 	// we've processed all the name/val combos in fields, "states" now holds the set of terminal states arrived at
 	//  by matching each field in the pattern, so update the matches value to indicate this.

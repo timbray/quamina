@@ -68,19 +68,29 @@ func (mm *samplingMemoryMonitor) sample() error {
 }
 
 func (mm *samplingMemoryMonitor) check() error {
-	if (bytesAllocated() - mm.baseAlloc) > mm.headroom {
+	// HeapInuse can decrease mid-build when GC reclaims spans, so
+	// bytesAllocated() may fall below baseAlloc. Clamp the delta to 0
+	// rather than letting the uint64 subtraction underflow into a huge
+	// value that would spuriously trip the budget.
+	current := bytesAllocated()
+	if current > mm.baseAlloc && current-mm.baseAlloc > mm.headroom {
 		return errors.New("MemoryBudget")
 	}
 	return nil
 }
 
-// we use TotalAlloc, which ignores the results of garbage collection, because while we're building a new automaton
-// to match a field, the old version is retained and in active use until the process is completed, then the
-// new one is switched in atomically.
+// Return HeapInuse — bytes held in spans that have at least one live
+// object. Unlike TotalAlloc, this tracks retained memory (not cumulative
+// allocation), which matches the semantic a user is asking about with
+// SetMemoryBudget. The reading is slightly lagged relative to the GC but
+// that fuzziness is acceptable for a budget heuristic. In particular, it
+// credits the old+new matcher overlap during atomic swap (both are held),
+// while not penalizing transient build-time scratch buffers that GC will
+// reclaim.
 func bytesAllocated() uint64 {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	return memStats.TotalAlloc
+	return memStats.HeapInuse
 }
 
 /*
