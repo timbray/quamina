@@ -49,6 +49,7 @@ func BenchmarkMemoryBoundaries(b *testing.B) {
 					break
 				}
 			}
+			fmt.Println(stStats(cm) + "\n")
 		}
 	}
 	fmt.Printf("Total patterns: %d\n", totalPatternsAdded)

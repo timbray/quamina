@@ -77,7 +77,6 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 	defer m.lock.Unlock()
 
 	// we build up the new coreMatcher state in freshStart so that we can atomically switch it in once complete
-	// lastBaseAlloc := bytesAllocated()
 
 	freshStart := &coreFields{}
 	currentFields := m.fields()
