@@ -73,18 +73,16 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 			if err == nil {
 				if vmFields.isNondeterministic {
 					return traverseNFA(vmFields.startTable, qNum, transitions, bufs)
-				} else {
-					return traverseDFA(vmFields.startTable, qNum, transitions)
 				}
+				return traverseDFA(vmFields.startTable, qNum, transitions)
 			}
 		}
 
 		// if it doesn't work as a Q number for some reason, go ahead and compare the string values
 		if vmFields.isNondeterministic {
 			return traverseNFA(vmFields.startTable, val, transitions, bufs)
-		} else {
-			return traverseDFA(vmFields.startTable, val, transitions)
 		}
+		return traverseDFA(vmFields.startTable, val, transitions)
 
 	default:
 		// no FA, no singleton, nothing to do, this probably can't happen because a flattener
@@ -93,33 +91,35 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	}
 }
 
-func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatcher {
+func (m *valueMatcher) addTransition(val typedVal, monitor memoryMonitor, printer printer) (*fieldMatcher, error) {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
+	var err error
 
 	// special case - virgin state and this is a string match
 	if fields.startTable == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
 		fields.singletonMatch = valBytes
 		fields.singletonTransition = newFieldMatcher()
 		m.update(fields)
-		return fields.singletonTransition
+		return fields.singletonTransition, nil
 	}
 
 	// special case: singleton match is here and this value matches it
 	if val.vType == stringType || val.vType == literalType {
 		if bytes.Equal(fields.singletonMatch, valBytes) {
-			return fields.singletonTransition
+			return fields.singletonTransition, nil
 		}
 	}
 
 	// no dodges, we have to build an automaton to match this value
 	var nextField *fieldMatcher
+
 	var newFA *smallTable
 	switch val.vType {
 	case stringType, literalType:
-		newFA, nextField = makeStringFA(valBytes, nil, false, sharedNullPrinter)
+		newFA, nextField = makeStringFA(valBytes, nil, false)
 	case numberType:
-		newFA, nextField = makeStringFA(valBytes, nil, true, sharedNullPrinter)
+		newFA, nextField = makeStringFA(valBytes, nil, true)
 		fields.hasNumbers = true
 	case anythingButType:
 		newFA, nextField = makeMultiAnythingButFA(val.list)
@@ -145,22 +145,39 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 
 	// there's already a table, thus an out-degree > 1
 	if fields.startTable != nil {
-		fields.startTable = mergeFAs(fields.startTable, newFA, printer)
+		fields.startTable, err = mergeFAs(fields.startTable, newFA, monitor, printer)
+		if err != nil {
+			return nil, err
+		}
+
+		// in the case where you have just a handful of addTransitions but the memoryBudget
+		// is tiny, the overrun won't be caught because monitor.sample only checks
+		// every N calls. So this is to catch that probably-never-happens condition.
+		// 	if (bytesAllocated() - mm.baseAlloc) > mm.headroom {
+
+		err = monitor.check()
+		if err != nil {
+			return nil, err
+		}
 		if fields.isNondeterministic {
 			epsilonClosure(fields.startTable)
 		}
+
 		m.update(fields)
-		return nextField
+		return nextField, nil
 	}
 
 	// no start table, maybe singletons …
 	if fields.singletonMatch != nil {
 		// singleton is here, we don't match, so our outdegree becomes 2, so we have
-		// to build an automaton with two values in it
-		singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false, sharedNullPrinter)
+		// to build an automaton with two values in it.
+		singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
 
 		// now table is ready for use, nuke singleton to signal threads to use it
-		fields.startTable = mergeFAs(singletonAutomaton, newFA, sharedNullPrinter)
+		fields.startTable, err = mergeFAs(singletonAutomaton, newFA, monitor, sharedNullPrinter)
+		if err != nil {
+			return nil, err
+		}
 		if fields.isNondeterministic {
 			epsilonClosure(fields.startTable)
 		}
@@ -174,7 +191,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		}
 	}
 	m.update(fields)
-	return nextField
+	return nextField, nil
 }
 
 func makePrefixFA(val []byte) (*smallTable, *fieldMatcher) {
@@ -198,7 +215,7 @@ func makeOnePrefixFAStep(val []byte, index int, nextField *fieldMatcher) *smallT
 // is recursive because this allows the use of the makeSmallTable call, which
 // reduces memory churn. Converting from a straightforward implementation to
 // this approximately doubled the fields/second rate in addPattern
-func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool, pp printer) (*smallTable, *fieldMatcher) {
+func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*smallTable, *fieldMatcher) {
 	var nextField *fieldMatcher
 	if useThisTransition != nil {
 		nextField = useThisTransition
@@ -206,16 +223,15 @@ func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool, pp
 		nextField = newFieldMatcher()
 	}
 
-	stringFA := makeOneStringFAStep(val, 0, nextField, pp)
-	pp.labelTable(stringFA, "STRING")
+	stringFA := makeOneStringFAStep(val, 0, nextField)
 
 	// if the field is numeric, *and* if it can be converted to a float, *and* can be
 	// made into a Q number, equip the NFA with the Q number form
 	if isNumber {
 		qNum, err := qNumFromBytes(val)
 		if err == nil {
-			numberFA := makeOneStringFAStep(qNum, 0, nextField, pp)
-			stringFA = mergeFAs(stringFA, numberFA, pp)
+			numberFA := makeOneStringFAStep(qNum, 0, nextField)
+			stringFA, _ = mergeFAs(stringFA, numberFA, sharedNullMonitor, sharedNullPrinter)
 		}
 	}
 	return stringFA, nextField
@@ -252,21 +268,18 @@ func makeFAFragment(val []byte, endAt *faState, pp printer) *faState {
 	return firstStep
 }
 
-func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher, pp printer) *smallTable {
+func makeOneStringFAStep(val []byte, index int, nextField *fieldMatcher) *smallTable {
 	var nextStep *faState
 	if index == len(val)-1 {
 		lastStep := &faState{
 			table:            newSmallTable(),
 			fieldTransitions: []*fieldMatcher{nextField},
 		}
-		pp.labelTable(lastStep.table, "Last step")
 		nextStep = &faState{
 			table: makeSmallTable(nil, []byte{valueTerminator}, []*faState{lastStep}),
 		}
-		pp.labelTable(lastStep.table, "Terminator")
 	} else {
-		nextStep = &faState{table: makeOneStringFAStep(val, index+1, nextField, pp)}
-		pp.labelTable(nextStep.table, "Step")
+		nextStep = &faState{table: makeOneStringFAStep(val, index+1, nextField)}
 	}
 	return makeSmallTable(nil, []byte{val[index]}, []*faState{nextStep})
 }

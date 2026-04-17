@@ -196,6 +196,29 @@ wanted to rebuild Quamina instances for sharded
 processing or after a system failure. ***Note: Not
 yet implemented.***
 
+### Memory Budgets
+
+Adding Patterns to a Quamina instance can cause massive memory allocations
+and `AddPattern()` slowdowns if the number of patterns becomes very large,
+and/or if the patterns include complex regular expressions.
+
+To help deal with this Quamina provides a “Memory Budget” facility that
+allows you to control how much memory is allocated.
+
+```go
+func (q *Quamina) SetMemoryBudget(budget uint64) (memoryUsed uint64, err error)
+func (q *Quamina) GetMemoryBudget() (budget uint64, memoryUsed uint64)
+```
+The budget values and usage report are in bytes. The memoryUsed numbers are
+approximate for reasons described in the code comments. Furthermore, they may
+vary unpredictably depending on patterns of memory allocation in the code that
+is calling Quamina.
+
+`AddPattern` can fail and return an error if completing the call would
+cause memory allocations to exceed the specified memory budget. In this
+case, the error text will identify the Field matcher that was the proximate
+cause of the error.
+
 ### Data APIs
 
 ```go
@@ -208,9 +231,11 @@ X is defined as `any`.
 The Pattern is provided in the second argument string which
 must be a JSON object as exemplified above in this document.
 
-The `error` return is used to signal invalid Pattern
+The `error` return is used to signal either invalid Pattern
 structure, which could be bad UTF-8 or malformed JSON
-or leaf values which are not provided as arrays.
+or leaf values which are not provided as arrays, or that
+adding this Pattern would exceed the specified memory budget
+(see above).
 
 As many Patterns as desired can be added to a Quamina
 instance. More than one Pattern can be added with the
@@ -373,10 +398,13 @@ colonies before slavery was abolished.
 
 @timbray: v0.0 and patches.
 
-@jsmorph: `Pruner` and concurrency testing.
+@jsmorph: [Pruner](README-pruner.md) and concurrency testing.
 
 @embano1: CI/CD and project structure.
 
 @yosiat: Flattening optimization.
 
-@arnehormann: compact high-precision number representation.
+@arnehormann: Compact high-precision number representation.
+
+@sayrer: Generation and curation of AI-based optimizations.
+
