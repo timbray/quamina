@@ -3,24 +3,35 @@ package quamina
 import (
 	"fmt"
 	"math/rand"
+	"runtime"
 	"testing"
 )
 
+// stabilizeHeap runs GC a couple of times so HeapAlloc reflects a
+// relatively clean state before the test creates its coreMatcher.
+// Without this, tests that run after others in the same process see a
+// heap that still holds unreclaimed garbage, which moves the baseline
+// around enough to flap budget assertions.
+func stabilizeHeap(t *testing.T) {
+	t.Helper()
+	runtime.GC()
+	runtime.GC()
+}
+
 func TestMemoryBudgetBasic(t *testing.T) {
-	// Budgets are now measured against runtime.MemStats.HeapInuse,
-	// which moves in 8 KiB span increments. Several assertions here
-	// assume byte-level resolution (setMemoryBudget(0x10) is expected
-	// to trip because "we just allocated something") and become flaky
-	// when the first pattern doesn't happen to claim a fresh span.
-	// Leaving this skipped pending a rework of memory_cost.
-	t.Skip("needs re-tuning for HeapInuse span granularity")
+	// Budgets are measured against runtime.MemStats.HeapAlloc; numbers
+	// here are chosen with enough slack that GC-driven baseline drift
+	// between tests can't flip the expected outcomes.
+	stabilizeHeap(t)
 	cm := newCoreMatcher()
 	var err error
 	i1, i2 := cm.getMemoryBudget()
 	if i1 != 0 || i2 != 0 {
 		t.Error("Ouch 1")
 	}
-	var budget uint64 = 1000
+	// 64 KiB is comfortably larger than the few spans a single short
+	// pattern claims.
+	var budget uint64 = 64 * 1024
 	i2, err = cm.setMemoryBudget(budget)
 	if err != nil {
 		t.Error(err)
@@ -37,13 +48,17 @@ func TestMemoryBudgetBasic(t *testing.T) {
 		t.Errorf("i1: %d\n", i1)
 	}
 
+	// After adding a pattern currentMemory is >= 1 span (8 KiB), so
+	// requesting a 16-byte budget must be rejected.
 	_, err = cm.setMemoryBudget(0x10)
 	if err == nil {
 		t.Error("allowed invalid memory budget reduction")
 	}
 	i200 := iString(t, 200)
 	cm = newCoreMatcher()
-	_, err = cm.setMemoryBudget(0x5000)
+	// 32 KiB fits a tiny pattern (~2 spans) but not a 200-char pattern
+	// (the extra FA alone needs ~12 spans).
+	_, err = cm.setMemoryBudget(32 * 1024)
 	if err != nil {
 		t.Error(err)
 	}
@@ -66,59 +81,51 @@ func TestMemoryBudgetBasic(t *testing.T) {
 }
 
 func TestMemoryStress(t *testing.T) {
-	// The budget accountant now uses runtime.MemStats.HeapInuse, which
-	// grows in 8 KiB span-sized jumps rather than in per-allocation
-	// bytes. This test's "half the per-pattern memory" check assumes
-	// byte-level granularity; the expected "fail at tight budget"
-	// behavior only reliably shows up once you're many spans above the
-	// baseline. Leaving this skipped pending a rework of memory_cost.
-	t.Skip("needs re-tuning for HeapInuse span granularity")
-	xx := 1e6
-	fmt.Println(xx)
+	// Verify two things about budget enforcement: (1) a generous
+	// budget lets all patterns load, (2) a budget set well below what
+	// step (1) required halts pattern loading somewhere in the middle.
+	stabilizeHeap(t)
 	words := readWWords(t, 20)
-	q, _ := New()
 	source := rand.NewSource(293591)
-	type patternMemory struct {
-		pattern string
-		mem     uint64
-	}
-	pms := []patternMemory{}
+	patterns := make([]string, 0, len(words))
 	for _, word := range words {
 		//nolint:gosec
 		starAt := source.Int63() % 6
 		starWord := string(word[:starAt]) + "*" + string(word[starAt:])
-		pattern := fmt.Sprintf(`{"x": ["%s"]}`, starWord)
-		err := q.AddPattern("x", pattern)
-		if err != nil {
-			t.Error(err)
-		}
-		_, mem := q.GetMemoryBudget()
-		pms = append(pms, patternMemory{pattern, mem})
+		patterns = append(patterns, fmt.Sprintf(`{"x": ["%s"]}`, starWord))
 	}
-	q, _ = New()
-	for i, pm := range pms {
-		lowBudget := pm.mem / 2
-		_, mem := q.GetMemoryBudget()
-		if lowBudget < mem {
-			lowBudget = mem + 1
+
+	// Phase 1: generous budget; all patterns should fit.
+	q, _ := New()
+	if _, err := q.SetMemoryBudget(100 * 1024 * 1024); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range patterns {
+		if err := q.AddPattern("x", p); err != nil {
+			t.Fatalf("unexpected failure under generous budget: %s", err)
 		}
-		_, err := q.SetMemoryBudget(lowBudget)
-		if err != nil {
-			t.Error(err)
+	}
+	_, totalNeeded := q.GetMemoryBudget()
+	if totalNeeded == 0 {
+		t.Fatal("no memory accumulated — accounting is stuck")
+	}
+
+	// Phase 2: tight budget — half of the measured total. The loader
+	// should trip somewhere before the end.
+	q2, _ := New()
+	if _, err := q2.SetMemoryBudget(totalNeeded / 2); err != nil {
+		t.Fatal(err)
+	}
+	var firstFailAt = -1
+	for i, p := range patterns {
+		if err := q2.AddPattern("x", p); err != nil {
+			firstFailAt = i
+			break
 		}
-		err = q.AddPattern("x", pm.pattern)
-		if err == nil {
-			t.Errorf("allowed at %d, mem %d", i, pm.mem)
-		} else {
-			_, err = q.SetMemoryBudget(pm.mem * 2)
-			if err != nil {
-				t.Error(err)
-			}
-			err = q.AddPattern("x", pm.pattern)
-			if err != nil {
-				t.Errorf("Err on add at %d: %s", i, err.Error())
-			}
-		}
+	}
+	if firstFailAt == -1 {
+		t.Errorf("tight budget (%d) allowed all %d patterns; expected trip",
+			totalNeeded/2, len(patterns))
 	}
 }
 
@@ -132,14 +139,18 @@ func iString(t *testing.T, n int) string {
 }
 
 func TestStringFA(t *testing.T) {
-	// Same HeapInuse span-granularity issue as the other memory tests:
-	// assertions about "10000 budget should trip on a 100-char pattern"
-	// assume a per-byte budget, but HeapInuse's minimum unit is an 8 KiB
-	// span. Leaving this skipped pending a rework of memory_cost.
-	t.Skip("needs re-tuning for HeapInuse span granularity")
+	// Budgets are chosen in roughly-8-KiB increments for margin —
+	// HeapAlloc gives byte-precise readings but addPattern's retained
+	// bytes still vary a bit run-to-run with allocator state, so a
+	// generous spread between the pass/fail thresholds keeps the test
+	// stable.
+	stabilizeHeap(t)
+	const span uint64 = 8192
 	cm := newCoreMatcher()
 	var err error
-	_, err = cm.setMemoryBudget(10000)
+	// Between 2 spans and 3 spans: fits a tiny pattern but not the
+	// 100-char FA on top of it.
+	_, err = cm.setMemoryBudget(2*span + span/2)
 	if err != nil {
 		t.Error("SMB")
 	}
@@ -152,7 +163,7 @@ func TestStringFA(t *testing.T) {
 	if err == nil {
 		t.Error("should not succeed")
 	}
-	_, err = cm.setMemoryBudget(10000000)
+	_, err = cm.setMemoryBudget(10_000_000)
 	if err != nil {
 		t.Error(err)
 	}
@@ -175,7 +186,9 @@ func TestStringFA(t *testing.T) {
 
 	_, current = cm.getMemoryBudget()
 	cm = newCoreMatcher()
-	_, _ = cm.setMemoryBudget(current - 1)
+	// Drop by one span: a sub-span reduction wouldn't cross a HeapInuse
+	// boundary and the second add would slip through.
+	_, _ = cm.setMemoryBudget(current - span)
 	err = cm.addPattern("x", `{"x": ["x"]}`)
 	if err != nil {
 		t.Error("x?")

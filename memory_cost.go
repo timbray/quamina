@@ -68,7 +68,7 @@ func (mm *samplingMemoryMonitor) sample() error {
 }
 
 func (mm *samplingMemoryMonitor) check() error {
-	// HeapInuse can decrease mid-build when GC reclaims spans, so
+	// HeapAlloc can decrease mid-build when GC reclaims objects, so
 	// bytesAllocated() may fall below baseAlloc. Clamp the delta to 0
 	// rather than letting the uint64 subtraction underflow into a huge
 	// value that would spuriously trip the budget.
@@ -79,18 +79,15 @@ func (mm *samplingMemoryMonitor) check() error {
 	return nil
 }
 
-// Return HeapInuse — bytes held in spans that have at least one live
-// object. Unlike TotalAlloc, this tracks retained memory (not cumulative
-// allocation), which matches the semantic a user is asking about with
-// SetMemoryBudget. The reading is slightly lagged relative to the GC but
-// that fuzziness is acceptable for a budget heuristic. In particular, it
-// credits the old+new matcher overlap during atomic swap (both are held),
-// while not penalizing transient build-time scratch buffers that GC will
-// reclaim.
+// Return HeapAlloc — bytes occupied by live-or-not-yet-reclaimed heap
+// objects. Unlike TotalAlloc, this tracks retained memory (it drops as
+// GC reclaims); unlike HeapInuse, it's byte-precise rather than span-
+// rounded, which matters for Quamina's workload of many small objects
+// that tend to fit in already-claimed warm spans.
 func bytesAllocated() uint64 {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	return memStats.HeapInuse
+	return memStats.HeapAlloc
 }
 
 /*

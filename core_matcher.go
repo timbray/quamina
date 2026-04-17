@@ -39,10 +39,10 @@ type coreFields struct {
 	segmentsTree  *segmentsTree
 	memoryBudget  uint64
 	currentMemory uint64
-	// baselineAlloc is HeapInuse at matcher creation. currentMemory is
+	// baselineAlloc is HeapAlloc at matcher creation. currentMemory is
 	// measured as bytesAllocated() - baselineAlloc so it reflects this
 	// matcher's retained-heap delta, monotonically tracked (it never
-	// decreases, even when HeapInuse dips mid-build due to GC).
+	// decreases, even when HeapAlloc dips mid-build due to GC).
 	baselineAlloc uint64
 }
 
@@ -147,7 +147,7 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 		return err
 	}
 	// Track retained heap since matcher creation. Clamp-only-up so that
-	// momentary HeapInuse dips (GC reclaiming spans mid-build) don't
+	// momentary HeapAlloc dips (GC reclaiming objects mid-build) don't
 	// silently reduce the accumulator.
 	if current := bytesAllocated(); current > freshStart.baselineAlloc {
 		delta := current - freshStart.baselineAlloc
