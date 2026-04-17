@@ -156,7 +156,11 @@ func TestStringFA(t *testing.T) {
 
 	_, current = cm.getMemoryBudget()
 	cm = newCoreMatcher()
-	_, _ = cm.setMemoryBudget(current - 1)
+	// Leave a margin larger than typical TotalAlloc variance across Go
+	// versions and the race detector's bookkeeping overhead. A 1-byte
+	// margin was flaky under Go 1.23 + -race; the i100 pattern's FA
+	// comfortably exceeds any reasonable margin below its own cost.
+	_, _ = cm.setMemoryBudget(current - uint64(len(i100)))
 	err = cm.addPattern("x", `{"x": ["x"]}`)
 	if err != nil {
 		t.Error("x?")

@@ -67,40 +67,34 @@ func (t *smallTable) isEpsilonOnly() bool {
 	return len(t.epsilons) > 0 && len(t.ceilings) == 1
 }
 
-type stepOut struct {
-	step     *faState
-	epsilons []*faState
-}
-
-var forbiddenBytes = map[byte]bool{
-	0xC0: true, 0xC1: true,
-	0xF5: true, 0xF6: true, 0xF7: true, 0xF8: true, 0xF9: true, 0xFA: true,
-	0xFB: true, 0xFC: true, 0xFD: true, 0xFE: true, 0xFF: true,
-}
-
 func (t *smallTable) isJustEpsilons() bool {
 	// TODO I think the second of the three conditions is unnecessary
 	return len(t.steps) == 1 && t.steps[0] == nil && len(t.epsilons) != 0
 }
 
-// step finds the list of states that result from a transition on the utf8Byte argument. The states can come
-// as a result of looking in the table structure, and also the "epsilon" transitions that occur on every
-// input byte.  Since this is the white-hot center of Quamina's runtime CPU, we don't want to be merging
-// the two lists. So to avoid any memory allocation, the caller passes in a structure with the two lists
-// and step fills them in.
-func (t *smallTable) step(utf8Byte byte, out *stepOut) {
-	out.epsilons = t.epsilons
+// step returns the faState that results from a transition on utf8Byte, or nil
+// if the table has no step for that byte. Epsilon transitions are handled
+// separately (via precomputed epsilonClosure), so step never touches t.epsilons.
+// This is the white-hot center of Quamina's runtime CPU; keep it inlinable.
+func (t *smallTable) step(utf8Byte byte) *faState {
 	for index, ceiling := range t.ceilings {
 		if utf8Byte < ceiling {
-			out.step = t.steps[index]
-			return
+			return t.steps[index]
 		}
 	}
-	_, forbidden := forbiddenBytes[utf8Byte]
-	if forbidden {
-		return
+	// utf8Byte >= byteCeiling (0xF6): only valid if it's a forbidden UTF-8 byte,
+	// in which case we return nil so the caller can drop this path.
+	if isForbiddenUTF8(utf8Byte) {
+		return nil
 	}
 	panic("Malformed smallTable")
+}
+
+// isForbiddenUTF8 reports whether the byte can never appear in valid UTF-8.
+// Range check instead of a map lookup — strictly faster and the forbidden set
+// is three compact ranges: {0xC0, 0xC1} and {0xF5–0xFF}.
+func isForbiddenUTF8(b byte) bool {
+	return b == 0xC0 || b == 0xC1 || b >= 0xF5
 }
 
 // dStep takes a step through an NFA in the case where it is known that the NFA in question
@@ -112,8 +106,7 @@ func (t *smallTable) dStep(utf8Byte byte) *faState {
 			return t.steps[index]
 		}
 	}
-	_, forbidden := forbiddenBytes[utf8Byte]
-	if forbidden {
+	if isForbiddenUTF8(utf8Byte) {
 		return nil
 	}
 	panic("Malformed smallTable")
