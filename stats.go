@@ -1,6 +1,8 @@
 package quamina
 
-import "fmt"
+import (
+	"fmt"
+)
 
 /*
 func nfaBufStats(bufs *nfaBuffers) (string, *faState) {

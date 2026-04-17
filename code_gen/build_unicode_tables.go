@@ -113,6 +113,7 @@ func buildCharPropsTable() {
 			fatalf("codepoint out of range: %d", r64)
 		}
 		property := string(matches[3])
+		//nolint:gosec
 		r := rune(r64)
 
 		// if the line is a range, grab the next line too and fill in the range
@@ -124,6 +125,7 @@ func buildCharPropsTable() {
 			if nextR64 < 0 || nextR64 > math.MaxInt32 {
 				fatalf("codepoint out of range: %d", nextR64)
 			}
+			//nolint:gosec
 			nextRune := rune(nextR64)
 			for i := r; i <= nextRune; i++ {
 				props[i] = property
