@@ -46,7 +46,7 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition 
 			nextBranch = faFromBranch(branch, nextStep, addQuoteTransition, pp)
 		}
 		if fa != nil {
-			fa = mergeFAs(fa, nextBranch, pp)
+			fa, _ = mergeFAs(fa, nextBranch, sharedNullMonitor, pp)
 		} else {
 			fa = nextBranch
 		}
