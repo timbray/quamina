@@ -186,8 +186,10 @@ func TestStringFA(t *testing.T) {
 
 	_, current = cm.getMemoryBudget()
 	cm = newCoreMatcher()
-	// Drop by one span: a sub-span reduction wouldn't cross a HeapInuse
-	// boundary and the second add would slip through.
+	// Drop by one span: under HeapAlloc with per-byte resolution, a
+	// sub-span reduction would still leave plenty of headroom for the
+	// second add to slip through. A full span's margin is comfortably
+	// larger than typical HeapAlloc jitter between runs.
 	_, _ = cm.setMemoryBudget(current - span)
 	err = cm.addPattern("x", `{"x": ["x"]}`)
 	if err != nil {
