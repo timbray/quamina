@@ -16,10 +16,12 @@ func BenchmarkMemoryBoundaries(b *testing.B) {
 	patterns := make([]string, 0, len(words))
 	source := rand.NewSource(293591)
 
-	meg := uint64(1e6)
-	gig := uint64(1e9)
+	// Budgets scaled for HeapAlloc-based accounting (retained memory,
+	// not cumulative alloc traffic). 8 MiB matches RE2's default cache
+	// ceiling; the sweep spans an order of magnitude around that.
+	meg := uint64(1 << 20)
 	k := 1024.0
-	budgets := []uint64{100 * meg, 200 * meg, 400 * meg, 800 * meg, 2 * gig}
+	budgets := []uint64{2 * meg, 4 * meg, 8 * meg, 16 * meg, 32 * meg, 64 * meg}
 	for _, word := range words {
 		//nolint:gosec
 		starAt := source.Int63() % 6
