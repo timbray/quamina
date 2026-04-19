@@ -1,35 +1,53 @@
 package quamina
 
-// closureGeneration is a global counter used for generation-based visited
-// tracking. It is incremented by epsilonClosure (for NFA walk dedup via
-// lastVisitedGen) and by closureForState (for table-pointer dedup
-// via closureGen). Each smallTable stores the generation it was last
-// visited in, avoiding the need for a visited map. This works because
-// epsilonClosure snapshots the counter into bufs.generation before the
-// walk begins, so subsequent increments by the dedup pass don't interfere.
-var closureGeneration uint64
+// tableMark carries the per-smallTable scratch used only during epsilon
+// closure computation (lastVisitedGen for NFA walk dedup, and closureGen /
+// closureRep for table-pointer dedup). These used to live as fields on
+// smallTable itself, but they are purely build-time state and their
+// permanent presence on every smallTable was wasted steady-state memory.
+// They now live in a per-call side table.
+//
+// Stored by VALUE inside the tables map so that adding a new entry is one
+// map-insert rather than one map-insert plus a separate heap allocation
+// for *tableMark.
+type tableMark struct {
+	lastVisitedGen uint32
+	closureGen     uint32
+	closureRep     *faState
+}
 
+// closureBuffers carries per-epsilonClosure-call scratch. The two maps
+// replace build-time fields that used to sit on smallTable/faState.
 type closureBuffers struct {
-	generation    uint64     // used by closureForNfa to avoid revisiting smallTables
-	closureSetGen uint64     // used by traverseEpsilons to avoid revisiting faStates
-	closureList   []*faState // accumulated closure members, reused across calls
+	gen           uint32
+	closureSetGen uint32
+	closureList   []*faState
+	tables        map[*smallTable]tableMark
+	states        map[*faState]uint32
+}
+
+func newClosureBuffers() *closureBuffers {
+	return &closureBuffers{
+		gen:    1,
+		tables: make(map[*smallTable]tableMark),
+		states: make(map[*faState]uint32),
+	}
 }
 
 // epsilonClosure walks the automaton starting from the given table
 // and precomputes the epsilon closure for every reachable faState.
 func epsilonClosure(table *smallTable) {
-	closureGeneration++
-	bufs := &closureBuffers{
-		generation: closureGeneration,
-	}
+	bufs := newClosureBuffers()
 	closureForNfa(table, bufs)
 }
 
 func closureForNfa(table *smallTable, bufs *closureBuffers) {
-	if table.lastVisitedGen == bufs.generation {
+	mark := bufs.tables[table]
+	if mark.lastVisitedGen == bufs.gen {
 		return
 	}
-	table.lastVisitedGen = bufs.generation
+	mark.lastVisitedGen = bufs.gen
+	bufs.tables[table] = mark
 
 	for _, state := range table.steps {
 		if state != nil {
@@ -46,7 +64,7 @@ func closureForNfa(table *smallTable, bufs *closureBuffers) {
 // closureForStateNoBufs computes the epsilon closure for a single state.
 // Used directly in tests; production code uses closureForState.
 func closureForStateNoBufs(state *faState) {
-	bufs := &closureBuffers{}
+	bufs := newClosureBuffers()
 	closureForState(state, bufs)
 }
 
@@ -60,12 +78,13 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		return
 	}
 
-	// Use generation-based visited tracking instead of a map
-	closureGeneration++
-	bufs.closureSetGen = closureGeneration
+	// Use generation-based visited tracking instead of a fresh map per
+	// traversal. bufs.states records which gen last visited each state.
+	bufs.gen++
+	bufs.closureSetGen = bufs.gen
 	bufs.closureList = bufs.closureList[:0]
 	if !state.table.isEpsilonOnly() {
-		state.closureSetGen = bufs.closureSetGen
+		bufs.states[state] = bufs.closureSetGen
 		bufs.closureList = append(bufs.closureList, state)
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
@@ -75,16 +94,19 @@ func closureForState(state *faState, bufs *closureBuffers) {
 	// representative is needed. This is done as a post-pass over the
 	// closure list rather than during traversal to keep traverseEpsilons
 	// zero-overhead. States with different fieldTransitions are preserved.
-	closureGeneration++
+	bufs.gen++
+	dedupGen := bufs.gen
 	closure := make([]*faState, 0, len(bufs.closureList))
 	for _, s := range bufs.closureList {
-		if s.table.closureGen == closureGeneration {
-			if sameFieldTransitions(s.table.closureRep, s) {
+		mark := bufs.tables[s.table]
+		if mark.closureGen == dedupGen {
+			if sameFieldTransitions(mark.closureRep, s) {
 				continue
 			}
 		} else {
-			s.table.closureGen = closureGeneration
-			s.table.closureRep = s
+			mark.closureGen = dedupGen
+			mark.closureRep = s
+			bufs.tables[s.table] = mark
 		}
 		closure = append(closure, s)
 	}
@@ -95,10 +117,10 @@ func closureForState(state *faState, bufs *closureBuffers) {
 // via epsilon transitions into bufs.closureList.
 func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers) {
 	for _, eps := range epsilons {
-		if eps == start || eps.closureSetGen == bufs.closureSetGen {
+		if eps == start || bufs.states[eps] == bufs.closureSetGen {
 			continue
 		}
-		eps.closureSetGen = bufs.closureSetGen
+		bufs.states[eps] = bufs.closureSetGen
 		if !eps.table.isEpsilonOnly() {
 			bufs.closureList = append(bufs.closureList, eps)
 		}
