@@ -438,9 +438,12 @@ func BenchmarkShellstyleZWJEmoji(b *testing.B) {
 			q, _ := New()
 			rng := rand.New(rand.NewSource(2025))
 
+			type emojiPair struct{ e1, e2 string }
+			patternEmojis := make([]emojiPair, 0, bc.patternCount)
 			for i := 0; i < bc.patternCount; i++ {
 				e1 := zwjEmoji[rng.Intn(len(zwjEmoji))]
 				e2 := zwjEmoji[rng.Intn(len(zwjEmoji))]
+				patternEmojis = append(patternEmojis, emojiPair{e1, e2})
 				shellstyle := fmt.Sprintf("*%s*%s*", e1, e2)
 				pattern := fmt.Sprintf(`{"val": [{"shellstyle": %q}]}`, shellstyle)
 				if err := q.AddPattern(fmt.Sprintf("p%d", i), pattern); err != nil {
@@ -449,16 +452,20 @@ func BenchmarkShellstyleZWJEmoji(b *testing.B) {
 			}
 
 			// Events: Japanese filler interspersed with ZWJ emoji anchors.
-			// The NFA sees a stream of 0xE2, 0xE3, 0xE4, 0xEF bytes and
+			// Each event uses an emoji pair drawn from the pattern set so
+			// it's guaranteed to match at least one pattern — the benchmark
+			// measures NFA traversal cost, not match selectivity. The NFA
+			// still sees a dense stream of 0xE2, 0xE3, 0xE4, 0xEF bytes and
 			// must disambiguate at every step.
 			const poolSize = 64
 			events := make([][]byte, poolSize)
 			for i := range events {
+				pair := patternEmojis[rng.Intn(len(patternEmojis))]
 				var buf strings.Builder
 				buf.WriteString(japaneseFiller[rng.Intn(len(japaneseFiller))])
-				buf.WriteString(zwjEmoji[rng.Intn(len(zwjEmoji))])
+				buf.WriteString(pair.e1)
 				buf.WriteString(japaneseFiller[rng.Intn(len(japaneseFiller))])
-				buf.WriteString(zwjEmoji[rng.Intn(len(zwjEmoji))])
+				buf.WriteString(pair.e2)
 				buf.WriteString(japaneseFiller[rng.Intn(len(japaneseFiller))])
 				events[i] = []byte(fmt.Sprintf(`{"val": %q}`, buf.String()))
 			}
