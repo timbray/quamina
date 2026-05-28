@@ -1,172 +1,70 @@
 package quamina
 
 import (
-	"fmt"
-	"math/rand"
 	"testing"
+	"unsafe"
 )
 
-func TestMemoryBudgetBasic(t *testing.T) {
-	cm := newCoreMatcher()
-	var err error
-	i1, i2 := cm.getMemoryBudget()
-	if i1 != 0 || i2 != 0 {
-		t.Error("Ouch 1")
+func TestMcBasicSizes(t *testing.T) {
+	tableBase := int64(unsafe.Sizeof(smallTable{}))
+	table := newSmallTable()
+	// NewSmallTable output: base + 1 byte of ceiling + 1 pointer of steps (8b) +
+	want := tableBase + 1 + mcPointer
+	tableGot := mcSmallTable(table)
+	if want != tableGot {
+		t.Errorf("Table wanted %d got %d", want, mcSmallTable(table))
 	}
-	var budget uint64 = 1000
-	i2, err = cm.setMemoryBudget(budget)
-	if err != nil {
-		t.Error(err)
-	}
-	if i2 != 0 {
-		t.Errorf("i1/2 %d/%d\n", i1, i2)
-	}
-	err = cm.addPattern("x", `{"x":["abc"]}`)
-	if err != nil {
-		t.Error(err)
-	}
-	i1, _ = cm.getMemoryBudget()
-	if i1 != budget {
-		t.Errorf("i1: %d\n", i1)
-	}
-
-	_, err = cm.setMemoryBudget(0x10)
-	if err == nil {
-		t.Error("allowed invalid memory budget reduction")
-	}
-	i200 := iString(t, 200)
-	cm = newCoreMatcher()
-	_, err = cm.setMemoryBudget(0x5000)
-	if err != nil {
-		t.Error(err)
-	}
-	err = cm.addPattern("x", fmt.Sprintf(`{"x": ["%s"]}`, "xyz"))
-	if err != nil {
-		t.Error(err)
-	}
-	_, _ = cm.getMemoryBudget()
-
-	err = cm.addPattern("x", fmt.Sprintf(`{"x": ["%s"]}`, "abc"))
-	if err != nil {
-		t.Error(err)
-	}
-	err = cm.addPattern("x", fmt.Sprintf(`{"x": ["%s"]}`, i200))
-	if err == nil {
-		t.Error("Accepted overly long string")
-	} else {
-		fmt.Println("E: " + err.Error())
+	stateBase := int64(unsafe.Sizeof(faState{}))
+	state := faState{table: table}
+	// want base + tableActual
+	want = stateBase + tableGot
+	stateGot := mcFaState(&state)
+	if stateGot != want {
+		t.Errorf("State wanted %d got %d", want, stateGot)
 	}
 }
 
-func TestMemoryStress(t *testing.T) {
-	xx := 1e6
-	fmt.Println(xx)
-	words := readWWords(t, 20)
+func TestQuaminaMemoryCost(t *testing.T) {
 	q, _ := New()
-	source := rand.NewSource(293591)
-	type patternMemory struct {
-		pattern string
-		mem     uint64
-	}
-	pms := []patternMemory{}
-	for _, word := range words {
-		//nolint:gosec
-		starAt := source.Int63() % 6
-		starWord := string(word[:starAt]) + "*" + string(word[starAt:])
-		pattern := fmt.Sprintf(`{"x": ["%s"]}`, starWord)
-		err := q.AddPattern("x", pattern)
-		if err != nil {
-			t.Error(err)
-		}
-		_, mem := q.GetMemoryBudget()
-		pms = append(pms, patternMemory{pattern, mem})
-	}
-	q, _ = New()
-	for i, pm := range pms {
-		lowBudget := pm.mem / 2
-		_, mem := q.GetMemoryBudget()
-		if lowBudget < mem {
-			lowBudget = mem + 1
-		}
-		_, err := q.SetMemoryBudget(lowBudget)
-		if err != nil {
-			t.Error(err)
-		}
-		err = q.AddPattern("x", pm.pattern)
-		if err == nil {
-			t.Errorf("allowed at %d, mem %d", i, pm.mem)
-		} else {
-			_, err = q.SetMemoryBudget(pm.mem * 2)
-			if err != nil {
-				t.Error(err)
-			}
-			err = q.AddPattern("x", pm.pattern)
-			if err != nil {
-				t.Errorf("Err on add at %d: %s", i, err.Error())
-			}
-		}
-	}
-}
-
-func iString(t *testing.T, n int) string {
-	t.Helper()
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = 'i'
-	}
-	return string(b)
-}
-
-func TestStringFA(t *testing.T) {
-	cm := newCoreMatcher()
-	var err error
-	_, err = cm.setMemoryBudget(10000)
-	if err != nil {
-		t.Error("SMB")
-	}
-	// force it to build an FA
-	err = cm.addPattern("x", `{"x": ["x"]}`)
-	if err != nil {
-		t.Error("x?")
-	}
-	err = cm.addPattern("x", fmt.Sprintf(`{"x": ["%s"]}`, iString(t, 100)))
-	if err == nil {
-		t.Error("should not succeed")
-	}
-	_, err = cm.setMemoryBudget(10000000)
+	err := q.AddPattern("x", `{"x":[{"wildcard": "*z"}]}}`)
 	if err != nil {
 		t.Error(err)
 	}
-	err = cm.addPattern("x", fmt.Sprintf(`{"x": ["%s"]}`, iString(t, 100)))
-	if err != nil {
-		t.Error("should succeed")
+	bytes := q.GetMatcherStats()["bytes"]
+	if bytes != 1481 {
+		t.Error("WRONG NUMBERS")
 	}
-	_, current := cm.getMemoryBudget()
-	cm = newCoreMatcher()
-	_, _ = cm.setMemoryBudget(current)
-	err = cm.addPattern("x", `{"x": ["x"]}`)
+	err = q.AddPattern("x", `{"y":[{"wildcard": "*y"}]}}`)
 	if err != nil {
-		t.Error("x?")
+		t.Error(err)
 	}
-	i100 := iString(t, 100)
-	err = cm.addPattern("x", fmt.Sprintf(`{"x": ["%s"]}`, i100))
-	if err != nil {
-		t.Error("should succeed")
+	bytes = q.GetMatcherStats()["bytes"]
+	if bytes != 2*1481 {
+		t.Error("WRONG NUMBERS")
 	}
+}
 
-	_, current = cm.getMemoryBudget()
-	cm = newCoreMatcher()
-	// Leave a margin larger than typical TotalAlloc variance across Go
-	// versions and the race detector's bookkeeping overhead. A 1-byte
-	// margin was flaky under Go 1.23 + -race; the i100 pattern's FA
-	// comfortably exceeds any reasonable margin below its own cost.
-	_, _ = cm.setMemoryBudget(current - uint64(len(i100)))
-	err = cm.addPattern("x", `{"x": ["x"]}`)
-	if err != nil {
-		t.Error("x?")
+func TestMcNfaSizes(t *testing.T) {
+	pp := newPrettyPrinter(2355)
+	wc1 := `"*z"`
+	fa1, _ := makeWildCardFA([]byte(wc1), pp)
+	epsilonClosure(fa1)
+	//fmt.Println("FA1: " + pp.printNFA(fa1))
+
+	stats := &matcherStats{
+		seenStates: make(map[*faState]bool),
 	}
-	err = cm.addPattern("x", fmt.Sprintf(`{"x": ["%s"]}`, i100))
-	if err == nil {
-		t.Error("should fail")
+	cmStateStats(&faState{table: fa1}, stats, pp)
+	wantedBytes := int64(1481) // laboriously hand-calculated
+	wantedFanout := int64(5)
+	wantedMaxFanout := int64(2)
+	if stats.bytes != wantedBytes {
+		t.Errorf("Wanted %d bytes, got %d", wantedBytes, stats.bytes)
+	}
+	if stats.fanouts != wantedFanout {
+		t.Errorf("wanted %d fanout, got %d", wantedFanout, stats.fanouts)
+	}
+	if stats.maxFanout != wantedMaxFanout {
+		t.Errorf("wanted %d maxFanout, got %d", wantedMaxFanout, stats.maxFanout)
 	}
 }

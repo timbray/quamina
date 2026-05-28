@@ -17,7 +17,7 @@ func logf(format string, args ...interface{}) {
 }
 
 func (m *prunerMatcher) printStats() {
-	logf("%#v", m.getStats())
+	logf("%#v", m.getPrunerStats())
 }
 
 func TestBasic(t *testing.T) {
@@ -146,7 +146,7 @@ func TestRebuildSome(t *testing.T) {
 		depopulate()
 		query(false)
 		m.printStats()
-		if s := m.getStats(); s.RebuildDuration == 0 {
+		if s := m.getPrunerStats(); s.RebuildDuration == 0 {
 			t.Fatal(s)
 		}
 	})
@@ -159,7 +159,7 @@ func TestRebuildSome(t *testing.T) {
 		query(true)
 		depopulate()
 		query(false)
-		if s := m.getStats(); s.RebuildDuration != 0 {
+		if s := m.getPrunerStats(); s.RebuildDuration != 0 {
 			t.Fatal(s)
 		}
 	})
@@ -170,7 +170,7 @@ func TestRebuildSome(t *testing.T) {
 		queryFast(false)
 		depopulate()
 		queryFast(false)
-		if s := m.getStats(); s.RebuildDuration == 0 {
+		if s := m.getPrunerStats(); s.RebuildDuration == 0 {
 			t.Fatal(s)
 		}
 	})
@@ -252,7 +252,7 @@ func TestTriggerRebuild(t *testing.T) {
 	// printState()
 	m.printStats()
 
-	s := m.getStats()
+	s := m.getPrunerStats()
 	if n <= s.Live {
 		t.Fatal(s.Live)
 	}
@@ -413,7 +413,7 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 
 	check()
 
-	s := m.getStats()
+	s := m.getPrunerStats()
 
 	if s.Live != 2 {
 		t.Fatal(s.Live)
@@ -423,7 +423,7 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s = m.getStats()
+	s = m.getPrunerStats()
 
 	if s.Live != 0 {
 		t.Fatal(s.Live)

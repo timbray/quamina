@@ -149,22 +149,34 @@ func (q *Quamina) MatchesForEvent(event []byte) ([]X, error) {
 	return q.matcher.matchesForFields(fields, q.bufs)
 }
 
-// SetMemoryBudget sets an approximate limit on the number of bytes allocated in building matchers for complex
-// patterns, especially regular expressions. If successful, it returns the approximate amount of memory currently
-// in use in matchers. It can fail if you try to set a budget value that is loser than the current memory used.
-// The input and output values are approximate because the cost of computing the exact usage is unacceptable, so
-// Quamina simply asks the Go memory allocator how much memory has been allocated, but it only does so when building
-// matchers that might be complex, and the reported usage can include memory allocated for other purpoeses.
-// If no memory budget has been set, Quamina will not check for any maximum value and will report a budget of 0.
-func (q *Quamina) SetMemoryBudget(budget uint64) (memoryUsed uint64, err error) {
-	memoryUsed, err = q.matcher.setMemoryBudget(budget)
-	return
+// GetMatcherStats retrieves resource consumption data from a Quamina instance; its results depend only
+// on the AddPattern() calls that have been made previously. It runs in read-only mode without mutex
+// locking, so it should not be run in parallel with AddPattern() calls.
+// It returns a map to allow for the addition of consumption metrics in future. At the moment, the
+// only useful key is "bytes" and the corresponding value is the number of bytes consumed by the Quamina
+// matcher's data structures. The growth in this value correlates reasonably well with the slowdown
+// in AddPattern() and MatchesForEvent() performance in the case when the Patterns being added are
+// of the "wildcard" or "regexp" flavors.
+func (q *Quamina) GetMatcherStats() map[string]float64 {
+	stats := q.matcher.getStats()
+	return map[string]float64{
+		"states":    float64(stats.states),
+		"bytes":     float64(stats.bytes),
+		"fanouts":   float64(stats.fanouts),
+		"maxFanout": float64(stats.maxFanout),
+	}
 }
 
-// GetMemoryBudget retrieves the current memory budget as set by SetMemoryBudget, and the approximate amount of
-// memory currently in use in matchers. If no memory budget has ben set, it will return zero. The value of the
-// in-use is approximate for reasons described above in the comment on SetMemoryBudget
-func (q *Quamina) GetMemoryBudget() (budget uint64, memoryUsed uint64) {
-	budget, memoryUsed = q.matcher.getMemoryBudget()
-	return
+// deprecated from here down
+
+// SetMemoryBudget used to set an approximate limit on the number of bytes allocated in building matchers for complex
+// patterns. However, it proved difficult to find an implementation that was both deterministic and had
+// acceptable cost. Thus, this method is deprecated.
+func (q *Quamina) SetMemoryBudget(budget uint64) (uint64, error) {
+	return 0, errors.New("the MemoryBudget API is deprecated")
+}
+
+// GetMemoryBudget is depcrecated; see the comment on SetMemoryBudget
+func (q *Quamina) GetMemoryBudget() (uint64, uint64) {
+	return 0, 0
 }

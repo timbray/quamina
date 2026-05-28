@@ -135,7 +135,7 @@ func TestCityLots(t *testing.T) {
 		}
 	}
 	results := make(map[X]int)
-	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
+	fmt.Println(coreMatcherStats(q.matcher.(*coreMatcher)))
 
 	lines := getCityLotsLines(t)
 	before := time.Now()

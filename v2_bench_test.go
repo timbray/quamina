@@ -58,7 +58,7 @@ func Benchmark8259Example(b *testing.B) {
 	}
 	elapsed := time.Since(before).Seconds()
 	b.Logf("Adds/sec %.1f", float64(len(patternsFromReadme))/elapsed)
-	b.Logf("FA: %s", matcherStats(m))
+	b.Logf("FA: %s", coreMatcherStats(m))
 	bytes := []byte(j)
 	b.ResetTimer()
 	b.ReportAllocs()

@@ -28,7 +28,6 @@ func makeRegexpNFA(root regexpRoot, pp printer) (*smallTable, *fieldMatcher) {
 	pp.labelTable(table, "</Field>")
 	nextStep = &faState{table: table}
 	fa := makeNFAFromBranches(root, nextStep, true, pp)
-	epsilonClosure(fa)
 	return fa, nextField
 }
 func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition bool, pp printer) *smallTable {
@@ -46,7 +45,7 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition 
 			nextBranch = faFromBranch(branch, nextStep, addQuoteTransition, pp)
 		}
 		if fa != nil {
-			fa, _ = mergeFAs(fa, nextBranch, sharedNullMonitor, pp)
+			fa = mergeFAs(fa, nextBranch, pp)
 		} else {
 			fa = nextBranch
 		}
