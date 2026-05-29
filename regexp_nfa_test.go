@@ -98,6 +98,7 @@ func TestRegexpPlus(t *testing.T) {
 	var fa *smallTable
 	for _, re := range res {
 		fa = faFromRegexp(t, re, pp)
+		epsilonClosure(fa)
 	}
 	goods := []string{
 		`"123"`,
@@ -252,6 +253,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 			t.Error("Parse " + err.Error())
 		}
 		st, wanted := makeRegexpNFA(parsed.tree, sharedNullPrinter)
+		epsilonClosure(st)
 		bufs := newNfaBuffers()
 		for _, r := range runes {
 			// func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *bufpair) []*fieldMatcher {
@@ -300,6 +302,7 @@ func TestMakeDotRegexpNFA(t *testing.T) {
 			t.Error("Parse failure: " + pat)
 		}
 		st, wanted := makeRegexpNFA(parsed.tree, sharedNullPrinter)
+		epsilonClosure(st)
 		found := testTraverseNFA(st, []byte(`"`+daodechingorig+`"`), nil, bufs)
 		if len(found) != 1 {
 			t.Errorf("Failed to match ")

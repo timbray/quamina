@@ -27,6 +27,7 @@ func TestEmptyRegexp(t *testing.T) {
 		fmt.Println("OOPS: " + err.Error())
 	}
 	table, fm := makeRegexpNFA(parse.tree, sharedNullPrinter)
+	epsilonClosure(table)
 	// empty quoted string should match empty regexp
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
@@ -66,6 +67,7 @@ func TestToxicStack(t *testing.T) {
 		t.Error("OOPS: " + err.Error())
 	}
 	table, _ = makeRegexpNFA(parse.tree, pp)
+	epsilonClosure(table)
 
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
@@ -109,9 +111,6 @@ func TestRegexpValidity(t *testing.T) {
 	featureMatchTests := make(map[regexpFeature]int)
 	featureNotMatchTests := make(map[regexpFeature]int)
 
-	// TODO: Was 6.42s user 0.80s system 242% cpu 2.979 total from command line
-	// TestRegexpValidity (2.53s) in JetBrains
-
 	for _, sample := range regexpSamples {
 		tests++
 		parse := newRxParseState([]byte(sample.regex))
@@ -122,6 +121,7 @@ func TestRegexpValidity(t *testing.T) {
 			if len(parse.features.foundUnimplemented()) == 0 {
 				implemented++
 				table, dest := makeRegexpNFA(parse.tree, sharedNullPrinter)
+				epsilonClosure(table)
 				for _, should := range sample.matches {
 					var transitions []*fieldMatcher
 					bufs := newNfaBuffers()
