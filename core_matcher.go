@@ -132,15 +132,30 @@ func (m *coreMatcher) deletePatterns(_ X) error {
 // This is a leftover from previous times, is only used by tests, but it's used by a *lot*
 // and it's a convenient API for testing.
 func (m *coreMatcher) matchesForJSONEvent(event []byte) ([]X, error) {
-	return m.matchesForJSONWithFlattener(event, newJSONFlattener())
+	f := flattenerPool.Get().(*flattenJSON)
+	defer flattenerPool.Put(f)
+	return m.matchesForJSONWithFlattener(event, f)
 }
 
 // if your test is a benchmark, call newJSONFlattener and pass it to this routine, matchesForJSONWithFlattener
 // because newJSONFlattener() is fairly heavyweight and you want it out of the benchmark loop
 func (m *coreMatcher) matchesForJSONWithFlattener(event []byte, f Flattener) ([]X, error) {
 	fields, _ := f.Flatten(event, m.getSegmentsTreeTracker())
-	return m.matchesForFields(fields, newNfaBuffers())
+	bufs := nfaBuffersPool.Get().(*nfaBuffers)
+	defer func() {
+		// Detach the result slice from bufs before returning to the pool: the
+		// returned []X aliases bufs.resultBuf's backing array, and a subsequent
+		// pool user must not be able to write through it.
+		bufs.resultBuf = make([]X, 0, 16)
+		nfaBuffersPool.Put(bufs)
+	}()
+	return m.matchesForFields(fields, bufs)
 }
+
+var (
+	nfaBuffersPool = sync.Pool{New: func() any { return newNfaBuffers() }}
+	flattenerPool  = sync.Pool{New: func() any { return newJSONFlattener().(*flattenJSON) }}
+)
 
 // emptyFields returns a fake []Field list containing a single field whose name is lexically greater than any that
 // can occur in real data
