@@ -300,7 +300,7 @@ func (bm *benchmarker) addRules(rules []string, wanted []int, report bool) {
 		bm.wanted[rname] = wanted[i]
 	}
 	if report {
-		fmt.Println(matcherStats(cm))
+		fmt.Println(coreMatcherStats(cm))
 	}
 }
 

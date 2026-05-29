@@ -91,7 +91,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	}
 }
 
-func (m *valueMatcher) addTransition(val typedVal, monitor memoryMonitor, printer printer) (*fieldMatcher, error) {
+func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatcher {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
 	var err error
@@ -101,13 +101,13 @@ func (m *valueMatcher) addTransition(val typedVal, monitor memoryMonitor, printe
 		fields.singletonMatch = valBytes
 		fields.singletonTransition = newFieldMatcher()
 		m.update(fields)
-		return fields.singletonTransition, nil
+		return fields.singletonTransition
 	}
 
 	// special case: singleton match is here and this value matches it
 	if val.vType == stringType || val.vType == literalType {
 		if bytes.Equal(fields.singletonMatch, valBytes) {
-			return fields.singletonTransition, nil
+			return fields.singletonTransition
 		}
 	}
 
@@ -145,9 +145,9 @@ func (m *valueMatcher) addTransition(val typedVal, monitor memoryMonitor, printe
 
 	// there's already a table, thus an out-degree > 1
 	if fields.startTable != nil {
-		fields.startTable, err = mergeFAs(fields.startTable, newFA, monitor, printer)
+		fields.startTable = mergeFAs(fields.startTable, newFA, printer)
 		if err != nil {
-			return nil, err
+			return nil
 		}
 
 		// in the case where you have just a handful of addTransitions but the memoryBudget
@@ -155,16 +155,12 @@ func (m *valueMatcher) addTransition(val typedVal, monitor memoryMonitor, printe
 		// every N calls. So this is to catch that probably-never-happens condition.
 		// 	if (bytesAllocated() - mm.baseAlloc) > mm.headroom {
 
-		err = monitor.check()
-		if err != nil {
-			return nil, err
-		}
 		if fields.isNondeterministic {
 			epsilonClosure(fields.startTable)
 		}
 
 		m.update(fields)
-		return nextField, nil
+		return nextField
 	}
 
 	// no start table, maybe singletons …
@@ -174,9 +170,9 @@ func (m *valueMatcher) addTransition(val typedVal, monitor memoryMonitor, printe
 		singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
 
 		// now table is ready for use, nuke singleton to signal threads to use it
-		fields.startTable, err = mergeFAs(singletonAutomaton, newFA, monitor, sharedNullPrinter)
+		fields.startTable = mergeFAs(singletonAutomaton, newFA, sharedNullPrinter)
 		if err != nil {
-			return nil, err
+			return nil
 		}
 		if fields.isNondeterministic {
 			epsilonClosure(fields.startTable)
@@ -191,7 +187,7 @@ func (m *valueMatcher) addTransition(val typedVal, monitor memoryMonitor, printe
 		}
 	}
 	m.update(fields)
-	return nextField, nil
+	return nextField
 }
 
 func makePrefixFA(val []byte) (*smallTable, *fieldMatcher) {
@@ -231,7 +227,7 @@ func makeStringFA(val []byte, useThisTransition *fieldMatcher, isNumber bool) (*
 		qNum, err := qNumFromBytes(val)
 		if err == nil {
 			numberFA := makeOneStringFAStep(qNum, 0, nextField)
-			stringFA, _ = mergeFAs(stringFA, numberFA, sharedNullMonitor, sharedNullPrinter)
+			stringFA = mergeFAs(stringFA, numberFA, sharedNullPrinter)
 		}
 	}
 	return stringFA, nextField

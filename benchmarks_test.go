@@ -65,7 +65,7 @@ func TestCRANLEIGH(t *testing.T) {
 	if err != nil {
 		t.Error("!? " + err.Error())
 	}
-	fmt.Println(matcherStats(m))
+	fmt.Println(coreMatcherStats(m))
 
 	var matches []X
 	lines := [][]byte{[]byte(jCranleigh), []byte(j108492)}
@@ -145,7 +145,7 @@ func TestBigShellStyle(t *testing.T) {
 			t.Errorf("err on %s: %s", funk, err.Error())
 		}
 	}
-	fmt.Println(matcherStats(m))
+	fmt.Println(coreMatcherStats(m))
 
 	lCounts := make(map[X]int)
 	before := time.Now()
@@ -218,7 +218,7 @@ func TestPatternAddition(t *testing.T) {
 	runtime.ReadMemStats(&msAfter)
 	delta := 1.0 / 1000000.0 * float64(msAfter.Alloc-msBefore.Alloc)
 	fmt.Printf("before %d, after %d, delta %f\n", msBefore.Alloc, msAfter.Alloc, delta)
-	fmt.Println("statsAccum:" + matcherStats(m))
+	fmt.Println("statsAccum:" + coreMatcherStats(m))
 	elapsed := float64(time.Since(before).Milliseconds())
 	perSecond := float64(fieldCount) / (elapsed / 1000.0)
 	fmt.Printf("%.2f fields/second\n\n", perSecond)

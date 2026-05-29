@@ -31,7 +31,7 @@ func BenchmarkCityLots(b *testing.B) {
 			b.Fatalf("AddPattern failed: %s", err.Error())
 		}
 	}
-	b.Log(matcherStats(q.matcher.(*coreMatcher)))
+	b.Log(coreMatcherStats(q.matcher.(*coreMatcher)))
 
 	lines := getCityLotsLines(b)
 
