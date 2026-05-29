@@ -71,12 +71,8 @@ func TestFocusedMerge(t *testing.T) {
 	}
 
 	merged := newSmallTable()
-	var err error
 	for _, automaton := range automata {
-		merged, err = mergeFAs(merged, automaton, sharedNullMonitor, sharedNullPrinter)
-		if err != nil {
-			t.Error("OUCH: " + err.Error())
-		}
+		merged = mergeFAs(merged, automaton, sharedNullPrinter)
 		s := statsAccum{
 			fmVisited: make(map[*fieldMatcher]bool),
 			vmVisited: make(map[*valueMatcher]bool),
@@ -146,6 +142,7 @@ func TestNfa2Dfa(t *testing.T) {
 	bufs := newNfaBuffers()
 	for _, test := range tests {
 		nfa, _ := makeShellStyleFA(asQuotedBytes(t, test.pattern), pp)
+		epsilonClosure(nfa)
 		//fmt.Println("NFA: " + pp.printNFA(nfa))
 
 		for _, should := range test.shoulds {

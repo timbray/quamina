@@ -79,27 +79,51 @@ func (pp *prettyPrinter) printSerial(table *smallTable) string {
 	return fmt.Sprintf("%d[%s]", pp.tableSerials[table], label)
 }
 
-func (pp *prettyPrinter) printState(state *faState) string {
+func (pp *prettyPrinter) printState(state *`faState`) string {
 	return fmt.Sprintf("State @%p table %s", state, pp.printSerial(state.table))
 }
 */
 
-func (pp *prettyPrinter) printNFA(t *smallTable) string {
-	return pp.printNFAStep(&faState{table: t}, 0, make(map[*smallTable]bool))
+// This structure is necessitated by the fact that it seems possible that Quamina sometimes
+// generates FAs in which more than one faState has the same smallTable. So to make sure that
+// all the states show up in the prettyprint output, we have to match on both the state and
+// table.
+type ppPair struct {
+	state *faState
+	table *smallTable
+}
+type ppAlready map[ppPair]bool
+
+func newPpAlready() ppAlready {
+	return make(map[ppPair]bool)
 }
 
-func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already map[*smallTable]bool) string {
+func (a ppAlready) sawThis(state *faState, table *smallTable) bool {
+	return a[ppPair{state, table}]
+}
+func (a ppAlready) remember(state *faState, table *smallTable) {
+	a[ppPair{state, table}] = true
+}
+
+func (pp *prettyPrinter) printNFA(t *smallTable) string {
+	return pp.printNFAStep(&faState{table: t}, 0, newPpAlready())
+}
+
+func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already ppAlready) string {
 	t := fas.table
-	_, ok := already[t]
-	if ok {
+	if already.sawThis(fas, t) {
 		return ""
 	}
-	already[t] = true
-
-	trailer := "\n"
-	if len(fas.fieldTransitions) != 0 {
-		trailer = fmt.Sprintf(" [%d transition(s)]\n", len(fas.fieldTransitions))
+	already.remember(fas, t)
+	trailer := ""
+	if len(fas.epsilonClosure) > 0 {
+		trailer += fmt.Sprintf(" [%d in closure]", len(fas.epsilonClosure))
 	}
+	if len(fas.fieldTransitions) != 0 {
+		trailer += fmt.Sprintf(" [%d transition(s)]", len(fas.fieldTransitions))
+	}
+	trailer += fmt.Sprintf("[s/t %d/%d] ", mcSmallTable(fas.table), mcFaState(fas))
+	trailer += "\n"
 	s := " " + pp.printTable(t) + trailer
 	for _, step := range t.steps {
 		if step != nil {
@@ -111,6 +135,17 @@ func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already map[*sma
 	}
 	return s
 }
+func shortTableAddress(p *smallTable) string {
+	long := fmt.Sprintf("%p", p)
+	return long[len(long)-4:]
+}
+
+/*
+func shortStateAddress(p *faState) string {
+	long := fmt.Sprintf("%p", p)
+	return long[len(long)-4:]
+}
+*/
 
 func (pp *prettyPrinter) printTable(t *smallTable) string {
 	// going to build a string rep of a smallTable based on the unpacked form
@@ -154,14 +189,14 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 			} else {
 				row += fmt.Sprintf("'%s'…'%s'", branchChar(byte(rangeStart)), branchChar(b-1))
 			}
-			row += " → " + pp.nextString(lastN)
+			row += " → " + "(" + pp.nextString(lastN)
 			rows = append(rows, row)
 		}
 	}
 	serial := pp.tableSerial(t)
 	label := pp.tableLabel(t)
 	if len(label) == 0 {
-		label = fmt.Sprintf("%p", t)[7:]
+		label = shortTableAddress(t)
 	}
 	if defTrans != nil {
 		dtString := "★ → " + pp.nextString(defTrans)
@@ -174,7 +209,7 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 func (pp *prettyPrinter) nextString(n *faState) string {
 	label := pp.tableLabel(n.table)
 	if len(label) == 0 {
-		label = fmt.Sprintf("%p", n.table)[7:]
+		label = shortTableAddress(n.table)
 	}
 	return fmt.Sprintf("%d[%s]", pp.tableSerial(n.table), label)
 }

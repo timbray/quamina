@@ -66,5 +66,5 @@ func (s prunerStats) sane() error {
 }
 
 func (m *prunerMatcher) checkStats() error {
-	return m.getStats().sane()
+	return m.getPrunerStats().sane()
 }
