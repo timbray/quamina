@@ -60,6 +60,7 @@ func TestMakeShellStyleFA(t *testing.T) {
 
 	for i, pattern := range patterns {
 		a, wanted := makeShellStyleFA([]byte(pattern), sharedNullPrinter)
+		epsilonClosure(a)
 		vm := newValueMatcher()
 		vmf := vmFields{startTable: a}
 		vm.update(&vmf)
@@ -161,7 +162,7 @@ func TestShellStyleBuildTime(t *testing.T) {
 	// automaton building or very slow (~2K/second) matching.  The current version settles for the
 	// latter. With a thousand patterns the automaton building is instant and the matching runs at
 	// ~16K/second.  I retain optimism that there is a path forward to win back the fast performance.
-	words := readWWords(t, 1000)
+	words := readWWords(t, 2000)
 
 	fmt.Printf("WC %d\n", len(words))
 	starWords := make([]string, 0, len(words))
@@ -190,10 +191,10 @@ func TestShellStyleBuildTime(t *testing.T) {
 	}
 
 	fmt.Println("Done adding patterns")
-	elapsed := float64(time.Since(before).Seconds())
+	elapsed := time.Since(before).Seconds()
 	eps := float64(len(words)) / elapsed
 	fmt.Printf("Patterns/sec: %.1f\n", eps)
-	fmt.Println(matcherStats(q.matcher.(*coreMatcher)))
+	fmt.Println(coreMatcherStats(q.matcher.(*coreMatcher)))
 
 	// make sure that all the words actually are matched
 	before = time.Now()
@@ -216,7 +217,7 @@ func TestShellStyleBuildTime(t *testing.T) {
 			t.Error("no matches for " + record)
 		}
 	}
-	elapsed = float64(time.Since(before).Seconds())
+	elapsed = time.Since(before).Seconds()
 	eps = float64(len(words)) / elapsed
 	// we're doing two searches
 	eps *= 2
@@ -254,7 +255,7 @@ func TestMixedPatterns(t *testing.T) {
 			t.Error("addPattern: " + name + ", prob=" + err.Error())
 		}
 	}
-	fmt.Println("M: " + matcherStats(m))
+	fmt.Println("M: " + coreMatcherStats(m))
 
 	got := make(map[X]int)
 	lines := getCityLotsLines(t)

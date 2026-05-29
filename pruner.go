@@ -224,11 +224,8 @@ func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
 	return m.matchesForFields(fs, newNfaBuffers())
 }
 
-func (m *prunerMatcher) getMemoryBudget() (uint64, uint64) {
-	return m.Matcher.getMemoryBudget()
-}
-func (m *prunerMatcher) setMemoryBudget(budget uint64) (uint64, error) {
-	return m.Matcher.setMemoryBudget(budget)
+func (m *prunerMatcher) getStats() *matcherStats {
+	return m.Matcher.getStats()
 }
 
 // MatchesForFields calls the underlying
@@ -338,7 +335,7 @@ func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 
 // prunerStats returns some statistics that might be helpful to rebuildWhileLocked
 // policies.
-func (m *prunerMatcher) getStats() prunerStats {
+func (m *prunerMatcher) getPrunerStats() prunerStats {
 	m.lock.RLock()
 	s := m.stats // Copies
 	m.lock.RUnlock()

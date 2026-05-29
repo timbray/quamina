@@ -279,7 +279,7 @@ func TestExerciseMatching(t *testing.T) {
 			t.Error("add one of many: " + err.Error())
 		}
 	}
-	fmt.Println("MS: " + matcherStats(m))
+	fmt.Println("MS: " + coreMatcherStats(m))
 	matches, err := m.matchesForJSONEvent([]byte(j))
 	if err != nil {
 		t.Error("m4J on all: " + err.Error())

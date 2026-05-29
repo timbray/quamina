@@ -5,6 +5,13 @@ type matcher interface {
 	matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, error)
 	deletePatterns(x X) error
 	getSegmentsTreeTracker() SegmentsTreeTracker
-	getMemoryBudget() (uint64, uint64)
-	setMemoryBudget(uint64) (uint64, error)
+	getStats() *matcherStats
+}
+
+type matcherStats struct {
+	states     int64
+	bytes      int64
+	fanouts    int64
+	maxFanout  int64
+	seenStates map[*faState]bool
 }

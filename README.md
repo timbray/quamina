@@ -198,26 +198,25 @@ yet implemented.***
 
 ### Memory Budgets
 
-Adding Patterns to a Quamina instance can cause massive memory allocations
-and `AddPattern()` slowdowns if the number of patterns becomes very large,
-and/or if the patterns include complex regular expressions.
+The `SetMemoryBudget()` and `GetMemoryBudget()` APIs are deprecated. As implemented
+they were too expensive and occasionally nondeterministic.
 
-To help deal with this Quamina provides a “Memory Budget” facility that
-allows you to control how much memory is allocated.
+### Matcher Statistics
+
+Certain combinations of regular-expression and wildcard patterns can cause Quamina's memory
+structures to grow excessively large and slow down `AddPattern()` calls. The slowdown and 
+the size of the memory structures are related almost linearly; the performance slows down
+a little more quickly than the size grows, but the relationship is close enough to be useful.
 
 ```go
-func (q *Quamina) SetMemoryBudget(budget uint64) (memoryUsed uint64, err error)
-func (q *Quamina) GetMemoryBudget() (budget uint64, memoryUsed uint64)
+func (q *Quamina) GetMatcherStats() map[string]float64
 ```
-The budget values and usage report are in bytes. The memoryUsed numbers are
-approximate for reasons described in the code comments. Furthermore, they may
-vary unpredictably depending on patterns of memory allocation in the code that
-is calling Quamina.
+The return value is a map with string keys to allow for the addition of metrics in
+the future, should they be found useful.  At the moment, the only metric known to be valuable  
+is the total amount of memory, in bytes, used in the Event-matching data structure; the 
+map key is “bytes”.
 
-`AddPattern` can fail and return an error if completing the call would
-cause memory allocations to exceed the specified memory budget. In this
-case, the error text will identify the Field matcher that was the proximate
-cause of the error.
+This API may produce incorrect results if run while `AddPattern()` calls are in progress. 
 
 ### Data APIs
 
@@ -275,13 +274,12 @@ func (q *Quamina) Copy() *Quamina
 This generates a copy of the target instance. Such
 copies may safely run in parallel in different
 goroutines executing any combination of
-`MatchesForEvent()`, `AddPattern()`, and
+`MatchesForEvent()`, `AddPattern()`, `GetMatcherStats()` and
 `DeletePattern()` calls. There is a significant
 performance penalty if a high proportion of these
 calls are `AddPattern()`.
 
-Note that the `Copy()` API is somewhat expensive, and
-that a Quamina instance exhibits “warm-up” behavior,
+Note that a freshly created or copied Quamina instance exhibits “warm-up” behavior,
 i.e. the performance of `MatchesForEvent()` improves
 slightly upon repeated calls, especially over the
 first few calls. The conclusion is that, for maximum efficiency, once
@@ -297,13 +295,13 @@ become larger, but not unreasonably so. The amount of
 available memory is the only significant limit to the
 number of patterns an instance can carry.
 
-There is one known way to make `AddPattern()` run slowly: The use
-of regular-expression Patterns such as `~p{L}` - the cost in CPU
-and memory of building a matcher for every Unicode character that
-is not some form of “Letter” is very high. There may be a way to
-reduce this cost in the future. Note that the penalty only applies
-at build-time; an instance which has had such patterns added will
-still have good Event-matching performance.
+If the Patterns being added include neither “wildcard” nor “regexp” flavors,
+the performance is only moderately affected by the number added. 
+However, the addition of wildcard or regexp Patterns will cause a
+slowdown in the `AddPattern()` call which is slightly worse than
+linear, increasing at about the same rate as
+the size of the Pattern-matching data structures; that size
+can be queried using the `GetMatcherStats()` API.
 
 ### `MatchesForEvent()` Performance (no regexp)
 
@@ -331,8 +329,7 @@ growth in the size of the necessary data structures.
 
 However, adding another pattern that looks like the
 following, in the case that the Events have a top-level
-`number` field, would decrease the performance by a factor of
-roughly 2:
+`number` field, would decrease the performance noticeably:
 ```json
 {"number": [11, 22, 33]}
 ```
@@ -350,7 +347,7 @@ can avoid processing every byte of the event. It’s complicated.
 
 Once the list of fields which might match a Pattern is
 extracted, the cost of traversing the automaton
-is at most N, the number of fields left after discarding.
+is linear in the number of fields left after discarding.
 
 So, adding a new Pattern that only mentions fields which are
 already mentioned in previous Patterns is effectively free,
@@ -359,24 +356,11 @@ i.e. O(1) in terms of run-time performance.
 ### Performance with regular expressions
 
 The use of Patterns with `regexp` or `shellstyle` or `wildcard` can
-cause significant slowdowns in the performance both of `AddPattern()`
-and `MatchesForEvent`.  In the worst case, the addition of many
-such patterns can cause `AddPattern()` to encounter explosive memory
-growth and slow down, sometimes to a halt.
-
-Such patterns also slow down `MatchesForEvent()`, but only to levels that, while
-much less than Quamina’s top speed, are still usable for most
-applications.
-
-It’s important to note that it’s quite difficult to drive Quamina into
-this kind of misbehavior; the addition of small numbers of thousands of
-complex Patterns will usually cause no problems.
-
-At the moment, the only way to avoid surprises is to benchmark the
-performance and ensure that your combination of Patterns will not
-slow Quamina down excessively.  We are working on adding facilities which
-would allow callers to set a time or memory budget and have `AddPattern()`
-fail with a helpful error report if that is being exceeded.
+cause significant slowdowns in the performance of
+`MatchesForEvent()`.  The slowdown is slightly worse than linear and
+is very similar to the increase in the total memory used by the Pattern-matching
+data structures. The amount of total memory can be retrieved using
+the `GetMatcherStats()` API.
 
 ### Further documentation
 
