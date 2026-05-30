@@ -44,6 +44,21 @@ func TestQuaminaMemoryCost(t *testing.T) {
 	}
 }
 
+// Regression: GetMatcherStats panicked when a valueMatcher used the
+// singleton-match optimization (singletonMatch set, startTable nil),
+// e.g. boolean-valued patterns. cmFieldMatcherStats now skips the nil
+// startTable rather than building a faState with state.table == nil.
+func TestQuaminaMemoryCostSingleton(t *testing.T) {
+	q, _ := New()
+	if err := q.AddPattern("p", `{"Animated": [false]}`); err != nil {
+		t.Fatal(err)
+	}
+	s := q.GetMatcherStats()
+	if s["bytes"] == 0 {
+		t.Errorf("expected bytes > 0 for singleton matcher, got %v", s["bytes"])
+	}
+}
+
 func TestMcNfaSizes(t *testing.T) {
 	pp := newPrettyPrinter(2355)
 	wc1 := `"*z"`

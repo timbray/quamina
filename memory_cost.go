@@ -24,6 +24,9 @@ func cmFieldMatcherStats(fm *fieldMatcher, stats *matcherStats, pp printer) {
 			stats.bytes += int64(len(singleton))
 		}
 		table := vm.fields().startTable
+		if table == nil {
+			continue
+		}
 		cmStateStats(&faState{table: table}, stats, pp)
 	}
 }
