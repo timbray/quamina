@@ -10,9 +10,9 @@ func TestMcBasicSizes(t *testing.T) {
 	table := newSmallTable()
 	// NewSmallTable output: base + 1 byte of ceiling + 1 pointer of steps (8b) +
 	want := tableBase + 1 + mcPointer
-	tableGot := mcSmallTable(table)
+	tableGot := mcSmallTable(&table)
 	if want != tableGot {
-		t.Errorf("Table wanted %d got %d", want, mcSmallTable(table))
+		t.Errorf("Table wanted %d got %d", want, mcSmallTable(&table))
 	}
 	stateBase := int64(unsafe.Sizeof(faState{}))
 	state := faState{table: table}
@@ -69,7 +69,7 @@ func TestMcNfaSizes(t *testing.T) {
 	stats := &matcherStats{
 		seenStates: make(map[*faState]bool),
 	}
-	cmStateStats(&faState{table: fa1}, stats, pp)
+	cmStateStats(fa1, stats, pp)
 	wantedBytes := int64(1321) // laboriously hand-calculated
 	wantedFanout := int64(5)
 	wantedMaxFanout := int64(2)

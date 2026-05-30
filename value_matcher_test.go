@@ -348,9 +348,8 @@ func TestMakeFAFragment(t *testing.T) {
 	pp := newPrettyPrinter(3234)
 	for _, datum := range data {
 		frag := makeFAFragment([]byte(datum), targetState, pp)
-		startTable := frag.table
 		var transIn []*fieldMatcher
-		transOut := traverseDFA(startTable, []byte(datum)[1:], transIn)
+		transOut := traverseDFA(frag, []byte(datum)[1:], transIn)
 		if len(transOut) != 1 || transOut[0] != targetFA {
 			t.Error("fail on ", datum)
 		}
@@ -462,8 +461,8 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 	}
 
 	// Walk the automaton and verify all states have epsilon closures computed
-	visited := make(map[*smallTable]bool)
-	missingClosures := checkEpsilonClosures(fields.startTable, visited)
+	visited := make(map[*faState]bool)
+	missingClosures := checkEpsilonClosures(fields.startState, visited)
 	if len(missingClosures) > 0 {
 		t.Errorf("found %d states with missing epsilon closures", len(missingClosures))
 	}
@@ -489,26 +488,26 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 
 // checkEpsilonClosures walks the automaton and returns states that have
 // epsilon transitions but no computed epsilon closure.
-func checkEpsilonClosures(table *smallTable, visited map[*smallTable]bool) []*faState {
+func checkEpsilonClosures(start *faState, visited map[*faState]bool) []*faState {
 	var missing []*faState
-	if visited[table] {
+	if visited[start] {
 		return missing
 	}
-	visited[table] = true
+	visited[start] = true
 
-	for _, state := range table.steps {
+	for _, state := range start.table.steps {
 		if state != nil {
 			if len(state.table.epsilons) > 0 && state.epsilonClosure == nil {
 				missing = append(missing, state)
 			}
-			missing = append(missing, checkEpsilonClosures(state.table, visited)...)
+			missing = append(missing, checkEpsilonClosures(state, visited)...)
 		}
 	}
-	for _, eps := range table.epsilons {
+	for _, eps := range start.table.epsilons {
 		if eps.epsilonClosure == nil {
 			missing = append(missing, eps)
 		}
-		missing = append(missing, checkEpsilonClosures(eps.table, visited)...)
+		missing = append(missing, checkEpsilonClosures(eps, visited)...)
 	}
 	return missing
 }
@@ -547,7 +546,7 @@ func TestEpsilonClosureRequired(t *testing.T) {
 
 	// Step 2: Clear all epsilon closures to simulate missing epsilonClosure call
 	fields := vm.fields()
-	clearEpsilonClosures(fields.startTable, make(map[*smallTable]bool))
+	clearEpsilonClosures(fields.startState, make(map[*faState]bool))
 
 	// Step 3: Without closures, traverseNFA fails because it iterates over
 	// state.epsilonClosure which is now nil (empty loop = no matches)
@@ -563,7 +562,7 @@ func TestEpsilonClosureRequired(t *testing.T) {
 	}
 
 	// Step 4: Restore closures and verify matching works again
-	epsilonClosure(fields.startTable)
+	epsilonClosure(fields.startState)
 
 	trans = testTransitionOn(vm, []byte("abc"), bufs)
 	if len(trans) != 1 {
@@ -576,20 +575,19 @@ func TestEpsilonClosureRequired(t *testing.T) {
 }
 
 // clearEpsilonClosures walks the automaton and sets all epsilonClosure fields to nil
-func clearEpsilonClosures(table *smallTable, visited map[*smallTable]bool) {
-	if visited[table] {
+func clearEpsilonClosures(start *faState, visited map[*faState]bool) {
+	if visited[start] {
 		return
 	}
-	visited[table] = true
+	visited[start] = true
+	start.epsilonClosure = nil
 
-	for _, state := range table.steps {
+	for _, state := range start.table.steps {
 		if state != nil {
-			state.epsilonClosure = nil
-			clearEpsilonClosures(state.table, visited)
+			clearEpsilonClosures(state, visited)
 		}
 	}
-	for _, eps := range table.epsilons {
-		eps.epsilonClosure = nil
-		clearEpsilonClosures(eps.table, visited)
+	for _, eps := range start.table.epsilons {
+		clearEpsilonClosures(eps, visited)
 	}
 }

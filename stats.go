@@ -152,8 +152,8 @@ func vmStats(m *valueMatcher, s *statsAccum) {
 		s.siCount++
 		fmStats(state.singletonTransition, s)
 	}
-	if state.startTable != nil {
-		faStats(state.startTable, s)
+	if state.startState != nil {
+		faStats(&state.startState.table, s)
 	}
 }
 
@@ -180,10 +180,10 @@ func faStats(t *smallTable, s *statsAccum) {
 	}
 	for _, next := range t.steps {
 		if next != nil {
-			faStats(next.table, s)
+			faStats(&next.table, s)
 		}
 	}
 	for _, epsilon := range t.epsilons {
-		faStats(epsilon.table, s)
+		faStats(&epsilon.table, s)
 	}
 }

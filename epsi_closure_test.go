@@ -6,23 +6,19 @@ import (
 )
 
 func TestEpsilonClosure(t *testing.T) {
-	var st *smallTable
-
 	pp := newPrettyPrinter(4589)
 
-	st = newSmallTable()
-	aSa := &faState{table: st}
-	pp.labelTable(aSa.table, "aSa")
+	aSa := &faState{table: newSmallTable()}
+	pp.labelTable(&aSa.table, "aSa")
 	aSstar := &faState{}
 	aSc := &faState{}
-	st.addByteStep('b', aSstar)
-	st = newSmallTable()
-	st.epsilons = []*faState{aSstar}
-	st.addByteStep('c', aSc)
-	aSstar.table = st
-	pp.labelTable(aSstar.table, "aSstar")
+	aSa.table.addByteStep('b', aSstar)
+	aSstar.table = newSmallTable()
+	aSstar.table.epsilons = []*faState{aSstar}
+	aSstar.table.addByteStep('c', aSc)
+	pp.labelTable(&aSstar.table, "aSstar")
 	aSc.table = newSmallTable()
-	pp.labelTable(aSc.table, "aSc")
+	pp.labelTable(&aSc.table, "aSc")
 	aFM := newFieldMatcher()
 	aSc.fieldTransitions = []*fieldMatcher{aFM}
 
@@ -41,31 +37,28 @@ func TestEpsilonClosure(t *testing.T) {
 
 	// (b) ab|*x
 	var bSa, bSb, bSsplice, bSstar, bSx *faState
-	st = newSmallTable()
 
-	bSa = &faState{table: st}
+	bSa = &faState{table: newSmallTable()}
 	bFM1 := newFieldMatcher()
 	bSb = &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{bFM1}}
 	bSa.table.addByteStep('b', bSb)
 	bFM2 := newFieldMatcher()
 	bSx = &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{bFM2}}
 
-	st = newSmallTable()
-	bSstar = &faState{table: st}
-	st.epsilons = []*faState{bSstar}
-	st.addByteStep('x', bSx)
-	st.epsilons = []*faState{bSstar}
+	bSstar = &faState{table: newSmallTable()}
+	bSstar.table.epsilons = []*faState{bSstar}
+	bSstar.table.addByteStep('x', bSx)
+	bSstar.table.epsilons = []*faState{bSstar}
 
-	st = newSmallTable()
-	st.epsilons = []*faState{bSa, bSstar}
-	bSsplice = &faState{table: st}
+	bSsplice = &faState{table: newSmallTable()}
+	bSsplice.table.epsilons = []*faState{bSa, bSstar}
 
 	// 	var bSa, bSb, bSsplice, bSstar, bSx *faState
-	pp.labelTable(bSa.table, "bSa")
-	pp.labelTable(bSb.table, "bSb")
-	pp.labelTable(bSstar.table, "bSstar")
-	pp.labelTable(bSx.table, "bSx")
-	pp.labelTable(bSsplice.table, "bSsplice")
+	pp.labelTable(&bSa.table, "bSa")
+	pp.labelTable(&bSb.table, "bSb")
+	pp.labelTable(&bSstar.table, "bSstar")
+	pp.labelTable(&bSx.table, "bSx")
+	pp.labelTable(&bSsplice.table, "bSsplice")
 
 	bEcShouldBeOne := []*faState{bSa, bSb, bSx, bSstar}
 	zNames := []string{"bSa", "bSb", "bSx", "bSstar"}
@@ -102,8 +95,7 @@ func TestEpsilonClosure(t *testing.T) {
 	names := []string{"cStart", "cSa", "cSb", "cSc", "cSz"}
 	states := []*faState{cStart, cSa, cSb, cSc, cSz}
 	for i, name := range names {
-		st = states[i].table
-		pp.labelTable(st, name)
+		pp.labelTable(&states[i].table, name)
 	}
 
 	closureForStateNoBufs(cStart)
@@ -158,16 +150,15 @@ func TestTablePointerDedupPreservesFieldTransitions(t *testing.T) {
 	xState := &faState{table: xTable}
 
 	// quoteState transitions on 'x' to xState
-	quoteTable := newSmallTable()
-	quoteTable.addByteStep('x', xState)
-	quoteState := &faState{table: quoteTable}
+	quoteState := &faState{table: newSmallTable()}
+	quoteState.table.addByteStep('x', xState)
 
 	// start transitions on '"' to quoteState
-	startTable := newSmallTable()
-	startTable.addByteStep('"', quoteState)
+	start := &faState{table: newSmallTable()}
+	start.table.addByteStep('"', quoteState)
 
 	// Compute epsilon closures for the whole automaton
-	epsilonClosure(startTable)
+	epsilonClosure(start)
 
 	// Verify: xState's closure must include both stateA and stateB
 	if !containsState(t, xState.epsilonClosure, stateA) {
@@ -181,7 +172,7 @@ func TestTablePointerDedupPreservesFieldTransitions(t *testing.T) {
 	bufs := newNfaBuffers()
 	tm := bufs.getTransmap()
 	tm.push()
-	nfaResult := traverseNFA(startTable, []byte(`"x"`), nil, bufs)
+	nfaResult := traverseNFA(start, []byte(`"x"`), nil, bufs)
 	tm.pop()
 
 	if !slices.Contains(nfaResult, fmA) {
@@ -192,8 +183,8 @@ func TestTablePointerDedupPreservesFieldTransitions(t *testing.T) {
 	}
 
 	// Verify via DFA conversion: both field matchers must survive
-	dfa := nfa2Dfa(startTable)
-	dfaResult := traverseDFA(dfa.table, []byte(`"x"`), nil)
+	dfa := nfa2Dfa(start)
+	dfaResult := traverseDFA(dfa, []byte(`"x"`), nil)
 
 	if !slices.Contains(dfaResult, fmA) {
 		t.Error("DFA traversal missing fmA")

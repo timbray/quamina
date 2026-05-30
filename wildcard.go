@@ -74,10 +74,10 @@ func readWildcardSpecial(pb *patternBuild, valsIn []typedVal) ([]typedVal, error
 
 // makeWildcardFA is a replacement for shellstyle patterns, the only difference being that escaping is
 // provided for * and \.
-func makeWildCardFA(val []byte, pp printer) (start *smallTable, nextField *fieldMatcher) {
+func makeWildCardFA(val []byte, pp printer) (start *faState, nextField *fieldMatcher) {
 	state := &faState{table: newSmallTable()}
-	start = state.table
-	pp.labelTable(start, "WILDCARD")
+	start = state
+	pp.labelTable(&start.table, "WILDCARD")
 	nextField = newFieldMatcher()
 
 	// for each byte in the pattern. \-escape processing is simplified because illegal constructs such as \a and \
@@ -99,19 +99,19 @@ func makeWildCardFA(val []byte, pp printer) (start *smallTable, nextField *field
 			spinEscape.table.epsilons = []*faState{spinner}
 			spinner.table = makeByteDotFA(spinner, pp)
 			spinner.table.addByteStep(val[valIndex], spinEscape)
-			pp.labelTable(spinner.table, "*-Spinner")
-			pp.labelTable(spinEscape.table, fmt.Sprintf("spinEscape on %c at %d", val[valIndex], valIndex))
+			pp.labelTable(&spinner.table, "*-Spinner")
+			pp.labelTable(&spinEscape.table, fmt.Sprintf("spinEscape on %c at %d", val[valIndex], valIndex))
 			state = spinEscape
 		} else {
 			nextStep := &faState{table: newSmallTable()}
-			pp.labelTable(nextStep.table, fmt.Sprintf("on %c at %d", val[valIndex], valIndex))
+			pp.labelTable(&nextStep.table, fmt.Sprintf("on %c at %d", val[valIndex], valIndex))
 			state.table.addByteStep(ch, nextStep)
 			state = nextStep
 		}
 		valIndex++
 	}
 	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
-	pp.labelTable(lastStep.table, fmt.Sprintf("last step at %d", valIndex))
+	pp.labelTable(&lastStep.table, fmt.Sprintf("last step at %d", valIndex))
 	state.table.addByteStep(valueTerminator, lastStep)
 	return
 }

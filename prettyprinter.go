@@ -106,11 +106,33 @@ func (a ppAlready) remember(state *faState, table *smallTable) {
 }
 
 func (pp *prettyPrinter) printNFA(t *smallTable) string {
-	return pp.printNFAStep(&faState{table: t}, 0, newPpAlready())
+	// Use the caller's *smallTable pointer for label lookup. Building a
+	// throwaway faState{table: *t} would re-locate the smallTable in memory
+	// and lose the label (labels are keyed by address).
+	return pp.printNFAFromTable(t, newPpAlready())
+}
+
+// printNFAFromTable prints starting from a smallTable, using its address for
+// label lookup. Used for the start node where there's no real *faState owning
+// the requested address.
+func (pp *prettyPrinter) printNFAFromTable(t *smallTable, already ppAlready) string {
+	tableCost := mcSmallTable(t)
+	stateCost := mcFaStateBase + tableCost - mcSmallTableBase
+	trailer := fmt.Sprintf("[s/t %d/%d] \n", tableCost, stateCost)
+	s := " " + pp.printTable(t) + trailer
+	for _, step := range t.steps {
+		if step != nil {
+			s += pp.printNFAStep(step, 1, already)
+		}
+	}
+	for _, step := range t.epsilons {
+		s += pp.printNFAStep(step, 1, already)
+	}
+	return s
 }
 
 func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already ppAlready) string {
-	t := fas.table
+	t := &fas.table
 	if already.sawThis(fas, t) {
 		return ""
 	}
@@ -122,7 +144,7 @@ func (pp *prettyPrinter) printNFAStep(fas *faState, indent int, already ppAlread
 	if len(fas.fieldTransitions) != 0 {
 		trailer += fmt.Sprintf(" [%d transition(s)]", len(fas.fieldTransitions))
 	}
-	trailer += fmt.Sprintf("[s/t %d/%d] ", mcSmallTable(fas.table), mcFaState(fas))
+	trailer += fmt.Sprintf("[s/t %d/%d] ", mcSmallTable(&fas.table), mcFaState(fas))
 	trailer += "\n"
 	s := " " + pp.printTable(t) + trailer
 	for _, step := range t.steps {
@@ -207,11 +229,11 @@ func (pp *prettyPrinter) printTable(t *smallTable) string {
 }
 
 func (pp *prettyPrinter) nextString(n *faState) string {
-	label := pp.tableLabel(n.table)
+	label := pp.tableLabel(&n.table)
 	if len(label) == 0 {
-		label = shortTableAddress(n.table)
+		label = shortTableAddress(&n.table)
 	}
-	return fmt.Sprintf("%d[%s]", pp.tableSerial(n.table), label)
+	return fmt.Sprintf("%d[%s]", pp.tableSerial(&n.table), label)
 }
 
 func branchChar(b byte) string {

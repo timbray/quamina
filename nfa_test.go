@@ -54,7 +54,7 @@ func TestFocusedMerge(t *testing.T) {
 		"ab*",
 		"*ab",
 	}
-	var automata []*smallTable
+	var automata []*faState
 	var matchers []*fieldMatcher
 
 	for _, shellStyle := range shellStyles {
@@ -72,13 +72,13 @@ func TestFocusedMerge(t *testing.T) {
 
 	merged := newSmallTable()
 	for _, automaton := range automata {
-		merged = mergeFAs(merged, automaton, sharedNullPrinter)
+		merged = mergeFAs(&merged, &automaton.table, sharedNullPrinter)
 		s := statsAccum{
 			fmVisited: make(map[*fieldMatcher]bool),
 			vmVisited: make(map[*valueMatcher]bool),
 			stVisited: make(map[*smallTable]bool),
 		}
-		faStats(merged, &s)
+		faStats(&merged, &s)
 		fmt.Println(s.stStats())
 	}
 }
@@ -158,15 +158,15 @@ func TestNfa2Dfa(t *testing.T) {
 			}
 		}
 		dfa := nfa2Dfa(nfa)
-		// fmt.Println("DFA: " + pp.printNFA(dfa.table))
+		// fmt.Println("DFA: " + pp.printNFA(&dfa.table))
 		for _, should := range test.shoulds {
-			matched := traverseDFA(dfa.table, asQuotedBytes(t, should), transitions)
+			matched := traverseDFA(dfa, asQuotedBytes(t, should), transitions)
 			if len(matched) != 1 {
 				t.Errorf("DFA %s didn't match %s ", test.pattern, should)
 			}
 		}
 		for _, nope := range test.nopes {
-			matched := traverseDFA(dfa.table, asQuotedBytes(t, nope), transitions)
+			matched := traverseDFA(dfa, asQuotedBytes(t, nope), transitions)
 			if len(matched) != 0 {
 				t.Errorf("DFA %s matched %s", test.pattern, nope)
 			}
@@ -182,10 +182,10 @@ func asQuotedBytes(t *testing.T, s string) []byte {
 // testTraverseNFA wraps traverseNFA with the push/pop that tryToMatch
 // normally provides. Test-only convenience so direct callers don't need
 // to manage the transmap stack themselves.
-func testTraverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
+func testTraverseNFA(start *faState, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	tm := bufs.getTransmap()
 	tm.push()
-	result := traverseNFA(table, val, transitions, bufs)
+	result := traverseNFA(start, val, transitions, bufs)
 	tm.pop()
 	return result
 }
@@ -432,10 +432,10 @@ func TestTransmapBufferReuse(t *testing.T) {
 }
 
 // collectClosureStats walks an NFA and reports epsilon closure size statistics.
-func collectClosureStats(startTable *smallTable) (stateCount, totalEntries, maxClosure int, tableSharing int) {
+func collectClosureStats(start *faState) (stateCount, totalEntries, maxClosure int, tableSharing int) {
 	visitedTables := make(map[*smallTable]bool)
 	visitedStates := make(map[*faState]bool)
-	tableCounts := make(map[*smallTable]int)
+	tableCounts := make(map[tableShareKey]int)
 
 	var walkTable func(t *smallTable)
 	walkTable = func(t *smallTable) {
@@ -446,29 +446,31 @@ func collectClosureStats(startTable *smallTable) (stateCount, totalEntries, maxC
 		for _, state := range t.steps {
 			if state != nil && !visitedStates[state] {
 				visitedStates[state] = true
-				tableCounts[state.table]++
+				tableCounts[newTableShareKey(&state.table)]++
 				ec := len(state.epsilonClosure)
 				totalEntries += ec
 				if ec > maxClosure {
 					maxClosure = ec
 				}
-				walkTable(state.table)
+				walkTable(&state.table)
 			}
 		}
 		for _, eps := range t.epsilons {
 			if !visitedStates[eps] {
 				visitedStates[eps] = true
-				tableCounts[eps.table]++
+				tableCounts[newTableShareKey(&eps.table)]++
 				ec := len(eps.epsilonClosure)
 				totalEntries += ec
 				if ec > maxClosure {
 					maxClosure = ec
 				}
-				walkTable(eps.table)
+				walkTable(&eps.table)
 			}
 		}
 	}
-	walkTable(startTable)
+	if start != nil {
+		walkTable(&start.table)
+	}
 
 	for _, count := range tableCounts {
 		if count > 1 {
@@ -612,7 +614,7 @@ func TestTablePointerDedup(t *testing.T) {
 			m := q.matcher.(*coreMatcher)
 
 			vm := m.fields().state.fields().transitions["val"]
-			nfaStart := vm.fields().startTable
+			nfaStart := vm.fields().startState
 			stateCount, totalEntries, maxClosure, tableSharing := collectClosureStats(nfaStart)
 
 			if stateCount != wl.stateCount {

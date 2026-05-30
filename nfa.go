@@ -11,7 +11,7 @@ import (
 // automaton requires a smallTable and for some of them, taking the step means you've matched a value and can
 // transition to a new fieldMatcher, in which case the fieldTransitions slice will be non-nil
 type faState struct {
-	table            *smallTable
+	table            smallTable
 	fieldTransitions []*fieldMatcher
 	epsilonClosure   []*faState // precomputed epsilon closure including self
 	isSpinner        bool
@@ -93,8 +93,6 @@ type nfaBuffers struct {
 	resultBuf      []X
 	transmap       *transmap
 	fieldSet       map[*fieldMatcher]bool
-	startState     *faState
-	startClosure   []*faState
 	qNumBuf        [MaxBytesInEncoding]byte
 }
 
@@ -140,25 +138,13 @@ func (nb *nfaBuffers) getFieldSet() map[*fieldMatcher]bool {
 	return nb.fieldSet
 }
 
-func (nb *nfaBuffers) getStartState(table *smallTable) *faState {
-	if nb.startState == nil {
-		nb.startState = &faState{}
-		nb.startClosure = make([]*faState, 1)
-	}
-	nb.startState.table = table
-	nb.startClosure[0] = nb.startState
-	nb.startState.epsilonClosure = nb.startClosure
-	return nb.startState
-}
-
 // nfa2Dfa does what the name says, but as of 2026/01 is not used.
-func nfa2Dfa(nfaTable *smallTable) *faState {
+func nfa2Dfa(nfaStart *faState) *faState {
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
 	// table therefore has a single transition on `"` and never has epsilons.
-	startState := &faState{table: nfaTable}
-	startState.epsilonClosure = []*faState{startState}
-	startNfa := []*faState{startState}
+	nfaStart.epsilonClosure = []*faState{nfaStart}
+	startNfa := []*faState{nfaStart}
 	return n2dNode(startNfa, newStateLists())
 }
 
@@ -189,14 +175,14 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 	// to simplify, let's unpack all the ingredients
 	nUnpacked := make([]*unpackedTable, len(ingredients))
 	for i, nState := range ingredients {
-		nUnpacked[i] = unpackTable(nState.table)
+		nUnpacked[i] = unpackTable(&nState.table)
 	}
 
 	// Unpack the DFA table once, set all byte transitions, then pack once —
 	// the old code called addByteStep per byte which unpacked and repacked
 	// for each of up to 256 values. rawStates is allocated once and reset
 	// with [:0] each iteration to avoid per-byte-value slice allocation.
-	dfaUnpacked := unpackTable(dfaState.table)
+	dfaUnpacked := unpackTable(&dfaState.table)
 	rawStates := make([]*faState, 0, len(ingredients))
 	for utf8byte := 0; utf8byte < byteCeiling; utf8byte++ {
 		rawStates = rawStates[:0]
@@ -238,7 +224,8 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 // NFA-capable data structure, we can traverse it deterministically if we know in advance that every
 // combination of an faState with a byte will transition to at most one other faState.
 
-func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
+func traverseDFA(start *faState, val []byte, transitions []*fieldMatcher) []*fieldMatcher {
+	table := &start.table
 	for index := 0; index <= len(val); index++ {
 		var utf8Byte byte
 		if index < len(val) {
@@ -251,7 +238,7 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 			break
 		}
 		transitions = append(transitions, next.fieldTransitions...)
-		table = next.table
+		table = &next.table
 	}
 	return transitions
 }
@@ -262,12 +249,12 @@ func traverseDFA(table *smallTable, val []byte, transitions []*fieldMatcher) []*
 // collected in the nextStates list.  The bufs structure contains three buffers, one each for
 // currentStates, nextStates, and the epsilon closure of one particular state. These are re-used
 // and should grow with use and minimize the need for memory allocation.
-func traverseNFA(table *smallTable, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
+func traverseNFA(start *faState, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
 	// table therefore has a single transition on `"` and never has epsilons.
-	currentStates = append(currentStates, bufs.getStartState(table))
+	currentStates = append(currentStates, start)
 	nextStates := bufs.getBuf2()
 
 	// Use flat dedup set — no stacking needed since traverseNFA is not recursive
@@ -376,9 +363,9 @@ func simplifyCollect(s *faState, visited map[*faState]struct{}, targets []*faSta
 // minimal or even avoids being wasteful.
 // INVARIANT: neither argument is nil
 // INVARIANT: To be thread-safe, no existing table can be updated except when we're building it
-func mergeFAs(table1, table2 *smallTable, pp printer) *smallTable {
-	state1 := &faState{table: table1}
-	state2 := &faState{table: table2}
+func mergeFAs(table1, table2 *smallTable, pp printer) smallTable {
+	state1 := &faState{table: *table1}
+	state2 := &faState{table: *table2}
 	s := mergeFAStates(state1, state2, make(map[faStepKey]*faState), pp)
 	return s.table
 }
@@ -399,7 +386,7 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 	// TODO: This is still creating way too many splice states and slowing down traversal. Fix that.
 	switch {
 	case state1.isSpinner && state2.isSpinner:
-		pp.labelTable(combined.table, "2Spinners")
+		pp.labelTable(&combined.table, "2Spinners")
 		combined = symmetricSpinnerMerge(state1, state2, keyMemo, pp)
 		keyMemo[mKey] = combined
 		return combined
@@ -420,7 +407,7 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 	// If either of the states to be merged has epsilons we have to do a splice.
 	// To avoid deep nesting of splice states, we flatten the epsilon targets.
 	if len(state1.table.epsilons) != 0 || len(state2.table.epsilons) != 0 {
-		pp.labelTable(combined.table, "Splice")
+		pp.labelTable(&combined.table, "Splice")
 		combined.table.epsilons = simplifySplices(state1, state2)
 		keyMemo[mKey] = combined
 		return combined
@@ -428,14 +415,14 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 
 	combined.fieldTransitions = append(state1.fieldTransitions, state2.fieldTransitions...)
 
-	pp.labelTable(combined.table, fmt.Sprintf("%d∎%d",
-		pp.tableSerial(state1.table), pp.tableSerial(state2.table)))
+	pp.labelTable(&combined.table, fmt.Sprintf("%d∎%d",
+		pp.tableSerial(&state1.table), pp.tableSerial(&state2.table)))
 
 	keyMemo[mKey] = combined
 
 	var iter1, iter2 stIterator
-	iter1.table = state1.table
-	iter2.table = state2.table
+	iter1.table = &state1.table
+	iter2.table = &state2.table
 	var uComb unpackedTable
 	var merged *faState
 
@@ -478,14 +465,14 @@ func asymmetricSpinnerMerge(spinner, nonSpinner *faState, keyMemo map[faStepKey]
 	combined := &faState{table: newSmallTable()}
 	combined.fieldTransitions = append(spinner.fieldTransitions, nonSpinner.fieldTransitions...)
 
-	pp.labelTable(combined.table, fmt.Sprintf("%d∎%d",
-		pp.tableSerial(spinner.table), pp.tableSerial(nonSpinner.table)))
+	pp.labelTable(&combined.table, fmt.Sprintf("%d∎%d",
+		pp.tableSerial(&spinner.table), pp.tableSerial(&nonSpinner.table)))
 
 	keyMemo[mKey] = combined
 
 	var iter1, iter2 stIterator
-	iter1.table = spinner.table
-	iter2.table = nonSpinner.table
+	iter1.table = &spinner.table
+	iter2.table = &nonSpinner.table
 	var uComb unpackedTable
 	var mergedState *faState
 
@@ -505,7 +492,7 @@ func asymmetricSpinnerMerge(spinner, nonSpinner *faState, keyMemo map[faStepKey]
 			// nonspinner has a branch here
 			// if the current spinner value is a loopback, we need to make a new state whose value
 			// is the nonspinner with the addition of the epsilon link back to the spinner
-			mergedTable := &smallTable{
+			mergedTable := smallTable{
 				steps:    nonSpinnernext.table.steps,
 				ceilings: nonSpinnernext.table.ceilings,
 				epsilons: append(nonSpinnernext.table.epsilons, spinner),
@@ -545,14 +532,14 @@ func symmetricSpinnerMerge(state1, state2 *faState, keyMemo map[faStepKey]*faSta
 	combined := &faState{table: newSmallTable()}
 	combined.fieldTransitions = append(state1.fieldTransitions, state2.fieldTransitions...)
 
-	pp.labelTable(combined.table, fmt.Sprintf("%d∎%d",
-		pp.tableSerial(state1.table), pp.tableSerial(state2.table)))
+	pp.labelTable(&combined.table, fmt.Sprintf("%d∎%d",
+		pp.tableSerial(&state1.table), pp.tableSerial(&state2.table)))
 
 	keyMemo[makeFaStepKey(state1, state2)] = combined
 
 	var iter1, iter2 stIterator
-	iter1.table = state1.table
-	iter2.table = state2.table
+	iter1.table = &state1.table
+	iter2.table = &state2.table
 	var uComb unpackedTable
 	var mergedState *faState
 
@@ -570,7 +557,7 @@ func symmetricSpinnerMerge(state1, state2 *faState, keyMemo map[faStepKey]*faSta
 
 		case next1 == state1 && next2 != state2:
 			// next2 is an actual branch, so we will have to install the spin pointer in the target
-			table := &smallTable{
+			table := smallTable{
 				ceilings: next2.table.ceilings,
 				steps:    next2.table.steps,
 				epsilons: append(state2.table.epsilons, combined),
@@ -581,7 +568,7 @@ func symmetricSpinnerMerge(state1, state2 *faState, keyMemo map[faStepKey]*faSta
 			}
 		case next2 == state2 && next1 != state1:
 			// next1 is an actual branch, so we will have to install the spin pointer in the target
-			table := &smallTable{
+			table := smallTable{
 				ceilings: next1.table.ceilings,
 				steps:    next1.table.steps,
 				epsilons: append(state1.table.epsilons, combined),

@@ -23,11 +23,11 @@ func cmFieldMatcherStats(fm *fieldMatcher, stats *matcherStats, pp printer) {
 		if singleton != nil {
 			stats.bytes += int64(len(singleton))
 		}
-		table := vm.fields().startTable
-		if table == nil {
+		start := vm.fields().startState
+		if start == nil {
 			continue
 		}
-		cmStateStats(&faState{table: table}, stats, pp)
+		cmStateStats(start, stats, pp)
 	}
 }
 
@@ -49,7 +49,9 @@ func cmStateStats(state *faState, stats *matcherStats, pp printer) {
 		}
 	}
 	for _, eps := range state.table.epsilons {
-		cmStateStats(eps, stats, pp)
+		if eps != nil {
+			cmStateStats(eps, stats, pp)
+		}
 	}
 	for _, trans := range state.fieldTransitions {
 		cmFieldMatcherStats(trans, stats, pp)
@@ -66,9 +68,9 @@ func mcSmallTable(st *smallTable) int64 {
 
 func mcFaState(state *faState) int64 {
 	cost := mcFaStateBase
-	if state.table != nil {
-		cost += mcSmallTable(state.table)
-	}
+	cost += int64(cap(state.table.ceilings))
+	cost += mcPointer * int64(cap(state.table.steps))
+	cost += mcPointer * int64(cap(state.table.epsilons))
 	cost += mcPointer * int64(cap(state.fieldTransitions))
 	cost += mcPointer * int64(cap(state.epsilonClosure))
 	return cost

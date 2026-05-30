@@ -43,29 +43,30 @@ func (b *closureBuffers) tableMarkOf(t *smallTable) *tableMark {
 	return m
 }
 
-// epsilonClosure walks the automaton starting from the given table
+// epsilonClosure walks the automaton starting from the given state
 // and precomputes the epsilon closure for every reachable faState.
-func epsilonClosure(table *smallTable) {
+func epsilonClosure(start *faState) {
 	bufs := newClosureBuffers()
-	closureForNfa(table, bufs)
+	closureForState(start, bufs)
+	closureForNfa(start, bufs)
 }
 
-func closureForNfa(table *smallTable, bufs *closureBuffers) {
-	mark := bufs.tableMarkOf(table)
+func closureForNfa(state *faState, bufs *closureBuffers) {
+	mark := bufs.tableMarkOf(&state.table)
 	if mark.lastVisitedGen == bufs.gen {
 		return
 	}
 	mark.lastVisitedGen = bufs.gen
 
-	for _, state := range table.steps {
-		if state != nil {
-			closureForState(state, bufs)
-			closureForNfa(state.table, bufs)
+	for _, s := range state.table.steps {
+		if s != nil {
+			closureForState(s, bufs)
+			closureForNfa(s, bufs)
 		}
 	}
-	for _, eps := range table.epsilons {
+	for _, eps := range state.table.epsilons {
 		closureForState(eps, bufs)
-		closureForNfa(eps.table, bufs)
+		closureForNfa(eps, bufs)
 	}
 }
 
@@ -106,7 +107,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 	dedupGen := bufs.gen
 	closure := make([]*faState, 0, len(bufs.closureList))
 	for _, s := range bufs.closureList {
-		mark := bufs.tableMarkOf(s.table)
+		mark := bufs.tableMarkOf(&s.table)
 		if mark.closureGen == dedupGen {
 			if sameFieldTransitions(mark.closureRep, s) {
 				continue
