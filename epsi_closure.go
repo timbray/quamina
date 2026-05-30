@@ -20,24 +20,25 @@ type closureBuffers struct {
 	gen           uint32
 	closureSetGen uint32
 	closureList   []*faState
-	tables        map[*smallTable]*tableMark
+	tables        map[tableShareKey]*tableMark
 	states        map[*faState]uint32
 }
 
 func newClosureBuffers() *closureBuffers {
 	return &closureBuffers{
 		gen:    1,
-		tables: make(map[*smallTable]*tableMark),
+		tables: make(map[tableShareKey]*tableMark),
 		states: make(map[*faState]uint32),
 	}
 }
 
 // tableMarkOf returns the tableMark for t, creating one on first access.
 func (b *closureBuffers) tableMarkOf(t *smallTable) *tableMark {
-	m, ok := b.tables[t]
+	key := newTableShareKey(t)
+	m, ok := b.tables[key]
 	if !ok {
 		m = &tableMark{}
-		b.tables[t] = m
+		b.tables[key] = m
 	}
 	return m
 }
