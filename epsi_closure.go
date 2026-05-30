@@ -17,11 +17,11 @@ type tableMark struct {
 // replace build-time fields that used to sit on smallTable/faState;
 // they live only for the duration of the closure computation.
 type closureBuffers struct {
-	gen           uint32
-	closureSetGen uint32
-	closureList   []*faState
-	tables        map[*smallTable]*tableMark
-	states        map[*faState]uint32
+	gen           uint32                     // bumped by closureForNfa (NFA walk dedup) and the closureForState post-pass (table-pointer dedup)
+	closureSetGen uint32                     // snapshot of gen used by traverseEpsilons to dedup faState visits within one closure
+	closureList   []*faState                 // reusable accumulator for the state list before the dedup post-pass
+	tables        map[*smallTable]*tableMark // per-call side-table for smallTable scratch (lastVisitedGen, closureRep)
+	states        map[*faState]uint32        // per-faState last-visited generation, used by traverseEpsilons
 }
 
 func newClosureBuffers() *closureBuffers {
