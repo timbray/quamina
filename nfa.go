@@ -346,21 +346,18 @@ func simplifySplices(state1, state2 *faState) []*faState {
 	// A freshly-allocated visited map is used as a side table; the old
 	// approach stored a generation counter on faState itself, which bloated
 	// every state permanently for build-only state.
-	visited := make(map[*faState]struct{})
+	visited := make(map[*faState]bool)
 	targets := make([]*faState, 0, 4)
 	targets = simplifyCollect(state1, visited, targets)
 	targets = simplifyCollect(state2, visited, targets)
 	return targets
 }
 
-func simplifyCollect(s *faState, visited map[*faState]struct{}, targets []*faState) []*faState {
-	if _, seen := visited[s]; seen {
+func simplifyCollect(s *faState, visited map[*faState]bool, targets []*faState) []*faState {
+	if visited[s] {
 		return targets
 	}
-	// map[K]struct{} is the idiomatic Go set: struct{}{} is a zero-byte
-	// value, so the map's value half costs nothing. Insert with
-	// `m[k] = struct{}{}`, test with `_, ok := m[k]`.
-	visited[s] = struct{}{}
+	visited[s] = true
 
 	if s.table.isEpsilonOnly() {
 		for _, eps := range s.table.epsilons {

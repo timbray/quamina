@@ -22,13 +22,13 @@ type stateLists struct {
 	// Scratch space reused across intern() calls
 	sortBuf []*faState            // reusable sorted buffer
 	keyBuf  []byte                // reusable key bytes buffer
-	seen    map[*faState]struct{} // reusable dedup set, cleared per call
+	seen    map[*faState]bool // reusable dedup set, cleared per call
 }
 
 func newStateLists() *stateLists {
 	return &stateLists{
 		entries: make(map[string]internEntry),
-		seen:    make(map[*faState]struct{}),
+		seen:    make(map[*faState]bool),
 	}
 }
 
@@ -44,10 +44,10 @@ func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
 	clear(sl.seen)
 	sl.sortBuf = sl.sortBuf[:0]
 	for _, state := range list {
-		if _, ok := sl.seen[state]; ok {
+		if sl.seen[state] {
 			continue
 		}
-		sl.seen[state] = struct{}{}
+		sl.seen[state] = true
 		sl.sortBuf = append(sl.sortBuf, state)
 	}
 
