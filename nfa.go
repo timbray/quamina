@@ -357,6 +357,9 @@ func simplifyCollect(s *faState, visited map[*faState]struct{}, targets []*faSta
 	if _, seen := visited[s]; seen {
 		return targets
 	}
+	// map[K]struct{} is the idiomatic Go set: struct{}{} is a zero-byte
+	// value, so the map's value half costs nothing. Insert with
+	// `m[k] = struct{}{}`, test with `_, ok := m[k]`.
 	visited[s] = struct{}{}
 
 	if s.table.isEpsilonOnly() {
