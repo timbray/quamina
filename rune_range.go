@@ -25,12 +25,11 @@ func copyShellNode(shell *faState, oldNext *faState, newNext *faState, mem map[*
 	if ok {
 		return already
 	}
-	table := smallTable{
+	state := &faState{table: smallTable{
 		ceilings: slices.Clone(shell.table.ceilings),
 		steps:    make([]*faState, len(shell.table.steps)),
 		epsilons: make([]*faState, len(shell.table.epsilons)),
-	}
-	state := &faState{table: table}
+	}}
 	mem[shell] = state
 	for i, step := range shell.table.steps {
 		switch step {

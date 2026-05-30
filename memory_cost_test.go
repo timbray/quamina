@@ -16,8 +16,10 @@ func TestMcBasicSizes(t *testing.T) {
 	}
 	stateBase := int64(unsafe.Sizeof(faState{}))
 	state := faState{table: table}
-	// want base + tableActual
-	want = stateBase + tableGot
+	// faState embeds smallTable, so stateBase already covers the smallTable struct.
+	// Add only the slice-backing bytes (1 ceiling byte + 1 step pointer), not tableGot
+	// (which includes mcSmallTableBase again and would double-count the struct overhead).
+	want = stateBase + 1 + mcPointer
 	stateGot := mcFaState(&state)
 	if stateGot != want {
 		t.Errorf("State wanted %d got %d", want, stateGot)
@@ -31,7 +33,7 @@ func TestQuaminaMemoryCost(t *testing.T) {
 		t.Error(err)
 	}
 	bytes := q.GetMatcherStats()["bytes"]
-	if bytes != 1321 {
+	if bytes != 1289 {
 		t.Error("WRONG NUMBERS")
 	}
 	err = q.AddPattern("x", `{"y":[{"wildcard": "*y"}]}}`)
@@ -39,15 +41,15 @@ func TestQuaminaMemoryCost(t *testing.T) {
 		t.Error(err)
 	}
 	bytes = q.GetMatcherStats()["bytes"]
-	if bytes != 2*1321 {
+	if bytes != 2*1289 {
 		t.Error("WRONG NUMBERS")
 	}
 }
 
 // Regression: GetMatcherStats panicked when a valueMatcher used the
-// singleton-match optimization (singletonMatch set, startTable nil),
+// singleton-match optimization (singletonMatch set, startState nil),
 // e.g. boolean-valued patterns. cmFieldMatcherStats now skips the nil
-// startTable rather than building a faState with state.table == nil.
+// startState rather than building a faState with state.table == nil.
 func TestQuaminaMemoryCostSingleton(t *testing.T) {
 	q, _ := New()
 	if err := q.AddPattern("p", `{"Animated": [false]}`); err != nil {
@@ -70,8 +72,8 @@ func TestMcNfaSizes(t *testing.T) {
 		seenStates: make(map[*faState]bool),
 	}
 	cmStateStats(fa1, stats, pp)
-	wantedBytes := int64(1321) // laboriously hand-calculated
-	wantedFanout := int64(5)
+	wantedBytes := int64(1289) // recalibrated after embedding smallTable in faState
+	wantedFanout := int64(6)
 	wantedMaxFanout := int64(2)
 	if stats.bytes != wantedBytes {
 		t.Errorf("Wanted %d bytes, got %d", wantedBytes, stats.bytes)
