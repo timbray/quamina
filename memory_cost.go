@@ -21,7 +21,7 @@ func cmFieldMatcherStats(fm *fieldMatcher, stats *matcherStats, pp printer) {
 	for _, vm := range fmTrans {
 		singleton := vm.fields().singletonMatch
 		if singleton != nil {
-			stats.bytes += int64(len(singleton))
+			stats.bytes += int64(cap(singleton))
 		}
 		table := vm.fields().startTable
 		if table == nil {
