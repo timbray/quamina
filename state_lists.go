@@ -20,8 +20,8 @@ type internEntry struct {
 type stateLists struct {
 	entries map[string]internEntry
 	// Scratch space reused across intern() calls
-	sortBuf []*faState            // reusable sorted buffer
-	keyBuf  []byte                // reusable key bytes buffer
+	sortBuf []*faState        // reusable sorted buffer
+	keyBuf  []byte            // reusable key bytes buffer
 	seen    map[*faState]bool // reusable dedup set, cleared per call
 }
 
