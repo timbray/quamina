@@ -30,8 +30,10 @@ type closureBuffers struct {
 	states        map[*faState]uint64         // per-faState last-visited gen, used by traverseEpsilons
 	walkVisited   map[*faState]uint64         // per-faState last-walked gen, used by closureForNfa
 	// nfaWalkCount counts states actually processed by closureForNfa (past the
-	// prune + dedup guards). Used by tests to assert the walk is incremental;
-	// negligible in production and never read there.
+	// prune + dedup guards). Reset to zero at the start of each epsilonClosure
+	// call (per-walk count, not a pooled lifetime total). Used by tests to
+	// assert the walk is incremental; negligible in production and never read
+	// there.
 	nfaWalkCount uint64
 }
 
@@ -55,6 +57,7 @@ var closureBufferPool = sync.Pool{
 // and precomputes the epsilon closure for every reachable faState.
 func epsilonClosure(start *faState) {
 	bufs := closureBufferPool.Get().(*closureBuffers)
+	bufs.nfaWalkCount = 0
 	// Take a fresh generation for this walk. closureForState bumps bufs.gen
 	// for its own dedup phases, but it never touches walkGen, so the state
 	// dedup in closureForNfa compares against a value that stays fixed for
@@ -68,8 +71,8 @@ func epsilonClosure(start *faState) {
 // closureForNfa dedups by faState identity, not table-share key: each state
 // must be walked once. (Share-key dedup is unsafe here — distinct states can
 // share a steps backing array yet have different epsilons, and the zero key
-// collapses all no-byte tables; the post-pass below re-checks fieldTransitions
-// on collision, but the walk has no such guard.)
+// collapses all no-byte tables; the dedup post-pass in closureForState
+// re-checks fieldTransitions on collision, but the walk has no such guard.)
 func closureForNfa(state *faState, bufs *closureBuffers) {
 	if bufs.walkVisited[state] == bufs.walkGen {
 		return
@@ -79,6 +82,9 @@ func closureForNfa(state *faState, bufs *closureBuffers) {
 		// Closed by a previous epsilonClosure call: everything reachable from
 		// here was built and closed then and is unchanged, so there is nothing
 		// new to compute below it. This makes each add's walk incremental.
+		// Pruning is safe because mergeFAs only ever creates new states as
+		// ancestors of (never descendants of) already-closed states, so no
+		// nil-closure state is reachable exclusively through a closed one.
 		return
 	}
 	bufs.nfaWalkCount++
