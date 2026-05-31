@@ -29,6 +29,10 @@ type closureBuffers struct {
 	tables        map[tableShareKey]tableMark // share-group scratch for the post-pass (closureGen, closureRep)
 	states        map[*faState]uint64         // per-faState last-visited gen, used by traverseEpsilons
 	walkVisited   map[*faState]uint64         // per-faState last-walked gen, used by closureForNfa
+	// nfaWalkCount counts states actually processed by closureForNfa (past the
+	// prune + dedup guards). Used by tests to assert the walk is incremental;
+	// negligible in production and never read there.
+	nfaWalkCount uint64
 }
 
 func newClosureBuffers() *closureBuffers {
@@ -57,7 +61,6 @@ func epsilonClosure(start *faState) {
 	// the whole walk.
 	bufs.gen++
 	bufs.walkGen = bufs.gen
-	closureForState(start, bufs)
 	closureForNfa(start, bufs)
 	closureBufferPool.Put(bufs)
 }
@@ -72,15 +75,20 @@ func closureForNfa(state *faState, bufs *closureBuffers) {
 		return
 	}
 	bufs.walkVisited[state] = bufs.walkGen
-
+	if state.epsilonClosure != nil {
+		// Closed by a previous epsilonClosure call: everything reachable from
+		// here was built and closed then and is unchanged, so there is nothing
+		// new to compute below it. This makes each add's walk incremental.
+		return
+	}
+	bufs.nfaWalkCount++
+	closureForState(state, bufs)
 	for _, s := range state.table.steps {
 		if s != nil {
-			closureForState(s, bufs)
 			closureForNfa(s, bufs)
 		}
 	}
 	for _, eps := range state.table.epsilons {
-		closureForState(eps, bufs)
 		closureForNfa(eps, bufs)
 	}
 }

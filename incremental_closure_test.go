@@ -48,6 +48,25 @@ func buildAndMatch(t *testing.T, order []int) map[string][]string {
 	return out
 }
 
+// TestClosureWalkPrunesClosedSubtree fully closes an NFA, then re-runs the
+// closure walk (as epsilonClosure does) with an inspectable buffer. A
+// fully-closed NFA must be walked in zero state-visits: every state should be
+// pruned because it was closed by the prior epsilonClosure call.
+func TestClosureWalkPrunesClosedSubtree(t *testing.T) {
+	pp := newPrettyPrinter(99)
+	nfa, _ := makeShellStyleFA([]byte(`"*foo*bar*"`), pp)
+	epsilonClosure(nfa) // fully close every reachable state
+
+	bufs := newClosureBuffers()
+	bufs.gen++
+	bufs.walkGen = bufs.gen
+	closureForNfa(nfa, bufs)
+
+	if bufs.nfaWalkCount != 0 {
+		t.Errorf("re-walking a fully-closed NFA should process 0 states, processed %d", bufs.nfaWalkCount)
+	}
+}
+
 func TestIncrementalClosureOrderIndependence(t *testing.T) {
 	forward := []int{0, 1, 2, 3, 4, 5, 6}
 	reverse := []int{6, 5, 4, 3, 2, 1, 0}
