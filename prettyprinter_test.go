@@ -8,12 +8,12 @@ func TestPP(t *testing.T) {
 	pp := newPrettyPrinter(1)
 	table, _ := makeShellStyleFA([]byte(`"x*9"`), pp)
 	pp.labelTable(table, "START HERE")
-	wanted := ` 884[START HERE] '22/"' → (914[on " at 0][s/t 240/312] 
- 914[on " at 0] '78/x' → (384[*-Spinner][s/t 240/312] 
- 384[*-Spinner] '39/9' → (322[spinEscape on 9 at 3] / ★ → 384[*-Spinner][s/t 240/312] 
- 322[spinEscape on 9 at 3] ε → 384[*-Spinner] / '22/"' → (769[on " at 4][s/t 248/320] 
- 769[on " at 4] 'f5/ℵ' → (301[last step at 5][s/t 240/312] 
- 301[last step at 5]  [1 transition(s)][s/t 105/185] 
+	wanted := ` 884[START HERE] '22/"' → (914[on " at 0][s/t 216/280] 
+ 914[on " at 0] '78/x' → (384[*-Spinner][s/t 216/280] 
+ 384[*-Spinner] '39/9' → (322[spinEscape on 9 at 3] / ★ → 384[*-Spinner][s/t 216/280] 
+ 322[spinEscape on 9 at 3] ε → 384[*-Spinner] / '22/"' → (769[on " at 4][s/t 224/288] 
+ 769[on " at 4] 'f5/ℵ' → (301[last step at 5][s/t 216/280] 
+ 301[last step at 5]  [1 transition(s)][s/t 81/153] 
 `
 	s := pp.printNFA(table)
 	if s != wanted {

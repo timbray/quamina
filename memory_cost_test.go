@@ -31,7 +31,7 @@ func TestQuaminaMemoryCost(t *testing.T) {
 		t.Error(err)
 	}
 	bytes := q.GetMatcherStats()["bytes"]
-	if bytes != 1481 {
+	if bytes != 1321 {
 		t.Error("WRONG NUMBERS")
 	}
 	err = q.AddPattern("x", `{"y":[{"wildcard": "*y"}]}}`)
@@ -39,8 +39,25 @@ func TestQuaminaMemoryCost(t *testing.T) {
 		t.Error(err)
 	}
 	bytes = q.GetMatcherStats()["bytes"]
-	if bytes != 2*1481 {
+	if bytes != 2*1321 {
 		t.Error("WRONG NUMBERS")
+	}
+}
+
+// Regression: GetMatcherStats panicked when a valueMatcher used the
+// singleton-match optimization (singletonMatch set, startTable nil).
+// That optimization fires for any field with a single string or literal
+// value — the matcher uses bytes.Compare instead of building an FA.
+// Minimal repro: {"Animated": [false]}. cmFieldMatcherStats now skips
+// the nil startTable rather than building a faState with state.table == nil.
+func TestQuaminaMemoryCostSingleton(t *testing.T) {
+	q, _ := New()
+	if err := q.AddPattern("p", `{"Animated": [false]}`); err != nil {
+		t.Fatal(err)
+	}
+	s := q.GetMatcherStats()
+	if s["bytes"] == 0 {
+		t.Errorf("expected bytes > 0 for singleton matcher, got %v", s["bytes"])
 	}
 }
 
@@ -55,7 +72,7 @@ func TestMcNfaSizes(t *testing.T) {
 		seenStates: make(map[*faState]bool),
 	}
 	cmStateStats(&faState{table: fa1}, stats, pp)
-	wantedBytes := int64(1481) // laboriously hand-calculated
+	wantedBytes := int64(1321) // laboriously hand-calculated
 	wantedFanout := int64(5)
 	wantedMaxFanout := int64(2)
 	if stats.bytes != wantedBytes {
