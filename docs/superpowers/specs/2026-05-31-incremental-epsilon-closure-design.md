@@ -127,3 +127,27 @@ so it is no longer a hot path.
 In scope: `closureForNfa` prune + the immutability verification + the
 differential test. Out of scope: lazy/on-demand construction, closure storage
 sharing (Phase-2 gate), any change to the match-time traversal.
+
+## Implementation note: immutability verification
+
+Verified (2026-05-31) that the load-bearing invariant holds. Every assignment to
+`.epsilons` / `.steps` / `.ceilings` in the build code targets a **freshly
+created** state or table, never one that could already carry a computed
+`epsilonClosure`:
+
+- `nfa.go`: `mergeFAStates` L411/458/459 (`combined`), `asymmetricSpinnerMerge`
+  L506/526/527, `symmetricSpinnerMerge` L583/601/602 — all target the new
+  `combined`/`mergedState` returned by `mergeFAStates` (`&faState{table:
+  newSmallTable()}`). The spinner appends at L506/L583 append onto that fresh
+  merge result, not onto an input state.
+- `regexp_nfa.go` L88/97/110/119/124/144, `shell_style.go` L63, `wildcard.go`
+  L99 — each targets a state allocated 1–2 lines earlier in the same FA
+  constructor.
+- `small_table.go` `makeSmallTable`/`pack` — operate on a local table being
+  built (and `pack` is only on the unused `nfa2Dfa` path).
+
+Structural reason: `epsilonClosure()` is called only in `value_matcher.go`
+`addTransition` (L167/187/195), strictly *after* `mergeFAs` has fully returned
+and the new FA tree is built; `keyMemo` is scoped to one `mergeFAs` call, so even
+memoized `combined` states have `epsilonClosure == nil` when they receive an
+epsilon append. The prune is therefore safe.
