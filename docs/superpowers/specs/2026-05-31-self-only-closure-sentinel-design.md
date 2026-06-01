@@ -132,3 +132,35 @@ the `len==0` discriminator in `traverseNFA`/`n2dNode` + test recalibration. Out
 of scope: inlining size-2 closures (Approach B), any sharing of multi-member or
 hub closures (shown infeasible — closures are unique by self and self must stay
 in the dedup), lazy/on-demand construction.
+
+## Results (measured 2026-05-31, Apple M1 Ultra)
+
+Measured pre-feature parent vs the implemented sentinel, via two independent
+approaches. Headline: a **large, confirmed match-throughput win**, a modest
+memory win, and roughly neutral build time.
+
+### Approach 1 — `benchstat` (go test -bench, n=6) on the shellstyle match suite
+`sec/op`, negative = faster after the sentinel:
+
+- **geomean −12.04%**
+- `ShellstyleWidePatternsScaling`: −7% (8 patterns) scaling to **−33.95%** (512) / −28.5% (256) — the win grows with matcher size (better cache locality as more states are self-only).
+- `ShellstyleNarrowInput/…/patterns=128`: −14% to **−21%**.
+- `ShellstyleZWJEmoji`: −15% to −17%.
+- `ShellstyleSimpleWildcard` / `…Scaling`: −6% to −9%.
+- `B/op` unchanged (0 match-time allocs either way).
+
+### Approach 2 — `research/research-main.go` harness (10k shellstyle patterns, single run)
+The harness samples `GetMatcherStats` + matches/sec every 100 adds:
+
+- **matches/sec: +37%** at ~5k patterns (29,223 → 39,978), **+34%** at ~10k (12,769 → 17,132) — independently confirms Approach 1.
+- model `byte count` @10k: 26.97 MB → 26.49 MB (**−1.8%**); resident-heap probe agreed (≈−2%, ~7 B/state, from dropping the 1-pointer backing array on the ~half of states that are self-only).
+- `Patterns/sec` (build): 411.9 → 377.6 in this single, GC-noisy run; the separate build-scale probe (N=250→2000) was neutral (N=2000 819 vs 800 ms; N=1000 215 vs 225 ms). Build impact is roughly neutral — possibly a hair slower from the extra per-`closureForState` checks (`isEpsilonOnly()` + the two `len==1` guards). Not a regression.
+
+### Conclusion
+Why it helps matching: in `traverseNFA` the majority of current-states are
+self-only; the sentinel replaces a 1-element-slice iteration with a direct
+field/step access and removes the per-state backing array, improving locality —
+an effect that compounds as the matcher grows. The change is provably
+match-result-identical (see the spec reviewer's analysis: no epsilon-only state
+carries fieldTransitions). Build superlinearity is untouched — it lives in the
+few huge hub closures, which cannot be cheaply shared. Net: keep it.
