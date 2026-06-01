@@ -13,7 +13,13 @@ import (
 type faState struct {
 	table            smallTable
 	fieldTransitions []*fieldMatcher
-	epsilonClosure   []*faState // precomputed epsilon closure including self
+	// epsilonClosure is the precomputed epsilon closure for this state:
+	//   nil   = not yet computed (build phase only; never nil during matching)
+	//   len 0 = computed; closure is exactly {self} (the shared selfOnlyClosure
+	//           sentinel — zero allocation). Consumers process self directly.
+	//   len>=2 = computed; explicit list that includes self.
+	// len 1 is never stored: a {self} result collapses to the sentinel.
+	epsilonClosure []*faState
 	isSpinner        bool
 }
 

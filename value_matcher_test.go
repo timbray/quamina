@@ -497,7 +497,7 @@ func checkEpsilonClosures(start *faState, visited map[*faState]bool) []*faState 
 
 	for _, state := range start.table.steps {
 		if state != nil {
-			if len(state.table.epsilons) > 0 && state.epsilonClosure == nil {
+			if state.epsilonClosure == nil {
 				missing = append(missing, state)
 			}
 			missing = append(missing, checkEpsilonClosures(state, visited)...)

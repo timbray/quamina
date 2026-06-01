@@ -486,8 +486,8 @@ type dedupWorkload struct {
 	patterns     []string // shellstyle patterns
 	regexps      []string // regexp patterns
 	stateCount   int      // expected NFA state count
-	totalEntries int      // expected total epsilon closure entries
-	maxMax       int      // max closure must not exceed this
+	totalEntries int      // total explicit closure entries; self-only states contribute 0 (sentinel)
+	maxMax       int      // max explicit closure size; self-only closures count as 0
 	tableSharing int      // expected count of states sharing a smallTable
 	matches      []int    // expected match counts for the 3 standard events
 }
