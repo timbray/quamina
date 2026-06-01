@@ -143,7 +143,7 @@ func nfa2Dfa(nfaStart *faState) *faState {
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
 	// table therefore has a single transition on `"` and never has epsilons.
-	nfaStart.epsilonClosure = []*faState{nfaStart}
+	nfaStart.epsilonClosure = selfOnlyClosure
 	startNfa := []*faState{nfaStart}
 	return n2dNode(startNfa, newStateLists())
 }

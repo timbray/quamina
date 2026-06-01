@@ -2,6 +2,12 @@ package quamina
 
 import "sync"
 
+// selfOnlyClosure is the shared sentinel for a closure equal to {self}: non-nil
+// (distinct from nil = "not computed") and zero-length (so consumers take their
+// len==0 self-only branch). The empty composite literal points at runtime
+// zerobase, so this allocates nothing.
+var selfOnlyClosure = []*faState{}
+
 // tableMark carries the per-table-share-group scratch used by the closure
 // post-pass that collapses states sharing a smallTable. It used to live as
 // fields on smallTable itself, but that is purely build-time state whose
@@ -112,7 +118,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 	}
 
 	if len(state.table.epsilons) == 0 {
-		state.epsilonClosure = []*faState{state}
+		state.epsilonClosure = selfOnlyClosure
 		return
 	}
 
@@ -126,6 +132,17 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		bufs.closureList = append(bufs.closureList, state)
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
+
+	// Self-only closure (no other reachable non-epsilon-only state): use the
+	// shared sentinel instead of allocating a 1-element slice. closureList has
+	// length 1 exactly when only `self` was collected — but only when self is
+	// non-epsilon-only (so it was added to closureList). Epsilon-only states
+	// are not added to closureList, so length 1 there means a single other
+	// state was found (not self), and we must not conflate that with self-only.
+	if !state.table.isEpsilonOnly() && len(bufs.closureList) == 1 {
+		state.epsilonClosure = selfOnlyClosure
+		return
+	}
 
 	// Table-pointer dedup: when multiple states in the closure share the
 	// same smallTable (steps backing array), their byte transitions are
@@ -153,6 +170,14 @@ func closureForState(state *faState, bufs *closureBuffers) {
 			bufs.tables[key] = mark
 		}
 		closure = append(closure, s)
+	}
+	if !state.table.isEpsilonOnly() && len(closure) == 1 {
+		// dedup collapsed everything into self (self was the sole surviving
+		// representative); use the sentinel. Guard: epsilon-only states are
+		// not self-added to closureList, so a singleton closure there means
+		// one other state survived, not self.
+		state.epsilonClosure = selfOnlyClosure
+		return
 	}
 	state.epsilonClosure = closure
 }

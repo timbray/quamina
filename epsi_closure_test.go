@@ -23,16 +23,16 @@ func TestEpsilonClosure(t *testing.T) {
 	aSc.fieldTransitions = []*fieldMatcher{aFM}
 
 	closureForStateNoBufs(aSa)
-	if len(aSa.epsilonClosure) != 1 || !containsState(t, aSa.epsilonClosure, aSa) {
-		t.Errorf("len(ec) = %d; want 1", len(aSa.epsilonClosure))
+	if len(aSa.epsilonClosure) != 0 {
+		t.Errorf("len(ec) = %d; want 0 (self-only sentinel)", len(aSa.epsilonClosure))
 	}
 	closureForStateNoBufs(aSstar)
-	if len(aSstar.epsilonClosure) != 1 || !containsState(t, aSstar.epsilonClosure, aSstar) {
-		t.Error("aSstar")
+	if len(aSstar.epsilonClosure) != 0 {
+		t.Errorf("aSstar: len(ec) = %d; want 0 (self-only sentinel)", len(aSstar.epsilonClosure))
 	}
 	closureForStateNoBufs(aSc)
-	if len(aSc.epsilonClosure) != 1 || !containsState(t, aSc.epsilonClosure, aSc) {
-		t.Error("aSc")
+	if len(aSc.epsilonClosure) != 0 {
+		t.Errorf("aSc: len(ec) = %d; want 0 (self-only sentinel)", len(aSc.epsilonClosure))
 	}
 
 	// (b) ab|*x
@@ -60,12 +60,12 @@ func TestEpsilonClosure(t *testing.T) {
 	pp.labelTable(&bSx.table, "bSx")
 	pp.labelTable(&bSsplice.table, "bSsplice")
 
-	bEcShouldBeOne := []*faState{bSa, bSb, bSx, bSstar}
+	bEcShouldBeZero := []*faState{bSa, bSb, bSx, bSstar}
 	zNames := []string{"bSa", "bSb", "bSx", "bSstar"}
-	for i, state := range bEcShouldBeOne {
+	for i, state := range bEcShouldBeZero {
 		closureForStateNoBufs(state)
-		if len(state.epsilonClosure) != 1 || !containsState(t, state.epsilonClosure, state) {
-			t.Errorf("should be 1 for %s, isn't", zNames[i])
+		if len(state.epsilonClosure) != 0 {
+			t.Errorf("should be 0 (self-only sentinel) for %s, got len %d", zNames[i], len(state.epsilonClosure))
 		}
 	}
 

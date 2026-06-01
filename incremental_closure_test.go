@@ -85,3 +85,17 @@ func TestIncrementalClosureOrderIndependence(t *testing.T) {
 		t.Errorf(`expected matches for {"x":"foobar"}, got none`)
 	}
 }
+
+// TestSelfOnlyClosureSentinel: a state with no epsilon transitions has closure
+// {self}, which must be stored as the non-nil, zero-length self-only sentinel
+// (not a 1-element slice). nil still means "not computed".
+func TestSelfOnlyClosureSentinel(t *testing.T) {
+	s := &faState{table: newSmallTable()} // no epsilons
+	closureForStateNoBufs(s)
+	if s.epsilonClosure == nil {
+		t.Fatal("self-only closure must be non-nil (nil means 'not computed')")
+	}
+	if len(s.epsilonClosure) != 0 {
+		t.Errorf("self-only closure: want len-0 sentinel, got len %d", len(s.epsilonClosure))
+	}
+}
