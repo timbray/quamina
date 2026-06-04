@@ -2,6 +2,12 @@ package quamina
 
 import "sync"
 
+// selfOnlyClosure is the shared sentinel for a closure equal to {self}: non-nil
+// (distinct from nil = "not computed") and zero-length (so consumers take their
+// len==0 self-only branch). The empty composite literal points at runtime
+// zerobase, so this allocates nothing.
+var selfOnlyClosure = []*faState{}
+
 // tableMark carries the per-table-share-group scratch used by the closure
 // post-pass that collapses states sharing a smallTable. It used to live as
 // fields on smallTable itself, but that is purely build-time state whose
@@ -29,6 +35,12 @@ type closureBuffers struct {
 	tables        map[tableShareKey]tableMark // share-group scratch for the post-pass (closureGen, closureRep)
 	states        map[*faState]uint64         // per-faState last-visited gen, used by traverseEpsilons
 	walkVisited   map[*faState]uint64         // per-faState last-walked gen, used by closureForNfa
+	// nfaWalkCount counts states actually processed by closureForNfa (past the
+	// prune + dedup guards). Reset to zero at the start of each epsilonClosure
+	// call (per-walk count, not a pooled lifetime total). Used by tests to
+	// assert the walk is incremental; negligible in production and never read
+	// there.
+	nfaWalkCount uint64
 }
 
 func newClosureBuffers() *closureBuffers {
@@ -51,13 +63,13 @@ var closureBufferPool = sync.Pool{
 // and precomputes the epsilon closure for every reachable faState.
 func epsilonClosure(start *faState) {
 	bufs := closureBufferPool.Get().(*closureBuffers)
+	bufs.nfaWalkCount = 0
 	// Take a fresh generation for this walk. closureForState bumps bufs.gen
 	// for its own dedup phases, but it never touches walkGen, so the state
 	// dedup in closureForNfa compares against a value that stays fixed for
 	// the whole walk.
 	bufs.gen++
 	bufs.walkGen = bufs.gen
-	closureForState(start, bufs)
 	closureForNfa(start, bufs)
 	closureBufferPool.Put(bufs)
 }
@@ -65,22 +77,30 @@ func epsilonClosure(start *faState) {
 // closureForNfa dedups by faState identity, not table-share key: each state
 // must be walked once. (Share-key dedup is unsafe here — distinct states can
 // share a steps backing array yet have different epsilons, and the zero key
-// collapses all no-byte tables; the post-pass below re-checks fieldTransitions
-// on collision, but the walk has no such guard.)
+// collapses all no-byte tables; the dedup post-pass in closureForState
+// re-checks fieldTransitions on collision, but the walk has no such guard.)
 func closureForNfa(state *faState, bufs *closureBuffers) {
 	if bufs.walkVisited[state] == bufs.walkGen {
 		return
 	}
 	bufs.walkVisited[state] = bufs.walkGen
-
+	if state.epsilonClosure != nil {
+		// Closed by a previous epsilonClosure call: everything reachable from
+		// here was built and closed then and is unchanged, so there is nothing
+		// new to compute below it. This makes each add's walk incremental.
+		// Pruning is safe because mergeFAs only ever creates new states as
+		// ancestors of (never descendants of) already-closed states, so no
+		// nil-closure state is reachable exclusively through a closed one.
+		return
+	}
+	bufs.nfaWalkCount++
+	closureForState(state, bufs)
 	for _, s := range state.table.steps {
 		if s != nil {
-			closureForState(s, bufs)
 			closureForNfa(s, bufs)
 		}
 	}
 	for _, eps := range state.table.epsilons {
-		closureForState(eps, bufs)
 		closureForNfa(eps, bufs)
 	}
 }
@@ -98,7 +118,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 	}
 
 	if len(state.table.epsilons) == 0 {
-		state.epsilonClosure = []*faState{state}
+		state.epsilonClosure = selfOnlyClosure
 		return
 	}
 
@@ -112,6 +132,17 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		bufs.closureList = append(bufs.closureList, state)
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
+
+	// Self-only closure (no other reachable non-epsilon-only state): use the
+	// shared sentinel instead of allocating a 1-element slice. closureList has
+	// length 1 exactly when only `self` was collected — but only when self is
+	// non-epsilon-only (so it was added to closureList). Epsilon-only states
+	// are not added to closureList, so length 1 there means a single other
+	// state was found (not self), and we must not conflate that with self-only.
+	if !state.table.isEpsilonOnly() && len(bufs.closureList) == 1 {
+		state.epsilonClosure = selfOnlyClosure
+		return
+	}
 
 	// Table-pointer dedup: when multiple states in the closure share the
 	// same smallTable (steps backing array), their byte transitions are
@@ -139,6 +170,14 @@ func closureForState(state *faState, bufs *closureBuffers) {
 			bufs.tables[key] = mark
 		}
 		closure = append(closure, s)
+	}
+	if !state.table.isEpsilonOnly() && len(closure) == 1 {
+		// dedup collapsed everything into self (self was the sole surviving
+		// representative); use the sentinel. Guard: epsilon-only states are
+		// not self-added to closureList, so a singleton closure there means
+		// one other state survived, not self.
+		state.epsilonClosure = selfOnlyClosure
+		return
 	}
 	state.epsilonClosure = closure
 }

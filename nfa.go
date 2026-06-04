@@ -13,7 +13,13 @@ import (
 type faState struct {
 	table            smallTable
 	fieldTransitions []*fieldMatcher
-	epsilonClosure   []*faState // precomputed epsilon closure including self
+	// epsilonClosure is the precomputed epsilon closure for this state:
+	//   nil   = not yet computed (build phase only; never nil during matching)
+	//   len 0 = computed; closure is exactly {self} (the shared selfOnlyClosure
+	//           sentinel — zero allocation). Consumers process self directly.
+	//   len>=2 = computed; explicit list that includes self.
+	// len 1 is never stored: a {self} result collapses to the sentinel.
+	epsilonClosure []*faState
 	isSpinner        bool
 }
 
@@ -143,7 +149,7 @@ func nfa2Dfa(nfaStart *faState) *faState {
 	// The start state always has a trivial epsilon closure (just itself) because
 	// all Quamina automata begin by matching the opening quote (0x22). The start
 	// table therefore has a single transition on `"` and never has epsilons.
-	nfaStart.epsilonClosure = []*faState{nfaStart}
+	nfaStart.epsilonClosure = selfOnlyClosure
 	startNfa := []*faState{nfaStart}
 	return n2dNode(startNfa, newStateLists())
 }
@@ -157,7 +163,11 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 	// we expand the raw list of states by adding the epsilon closure of each
 	nStates := make([]*faState, 0, len(rawNStates))
 	for _, rawNState := range rawNStates {
-		nStates = append(nStates, rawNState.epsilonClosure...) // a state's closure includes itself
+		if len(rawNState.epsilonClosure) == 0 {
+			nStates = append(nStates, rawNState) // self-only closure: self is implicit
+		} else {
+			nStates = append(nStates, rawNState.epsilonClosure...) // includes self
+		}
 	}
 
 	// the collection of states may have duplicates and, deduplicated, considered'
@@ -272,6 +282,16 @@ func traverseNFA(start *faState, val []byte, transitions []*fieldMatcher, bufs *
 			utf8Byte = valueTerminator
 		}
 		for _, state := range currentStates {
+			if len(state.epsilonClosure) == 0 {
+				// self-only closure: process the state itself
+				for _, fm := range state.fieldTransitions {
+					fieldSet[fm] = true
+				}
+				if nextStep := state.table.step(utf8Byte); nextStep != nil {
+					nextStates = append(nextStates, nextStep)
+				}
+				continue
+			}
 			for _, ecState := range state.epsilonClosure {
 				for _, fm := range ecState.fieldTransitions {
 					fieldSet[fm] = true
@@ -291,6 +311,12 @@ func traverseNFA(start *faState, val []byte, transitions []*fieldMatcher, bufs *
 	// we've run out of input bytes so we need to check the current states and their
 	// epsilon closures for matches
 	for _, state := range currentStates {
+		if len(state.epsilonClosure) == 0 {
+			for _, fm := range state.fieldTransitions {
+				fieldSet[fm] = true
+			}
+			continue
+		}
 		for _, ecState := range state.epsilonClosure {
 			for _, fm := range ecState.fieldTransitions {
 				fieldSet[fm] = true
