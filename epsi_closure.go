@@ -1,6 +1,18 @@
 package quamina
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
+
+// closureGenCounter is a globally monotonic generation source for epsilon-closure
+// visited tracking. Because the visited stamps now live on the shared faState
+// (walkVisitedGen, closureVisitedGen) rather than in per-buffer maps, the
+// generation must be unique across all pooled buffers and concurrent builds, not
+// just within one buffer. uint64 never wraps in any realistic build.
+var closureGenCounter atomic.Uint64
+
+func nextClosureGen() uint64 { return closureGenCounter.Add(1) }
 
 // selfOnlyClosure is the shared sentinel for a closure equal to {self}: non-nil
 // (distinct from nil = "not computed") and zero-length (so consumers take their
@@ -28,13 +40,10 @@ type tableMark struct {
 // entries from a previous use are simply older than the current generation
 // and need no clearing.
 type closureBuffers struct {
-	gen           uint64                      // monotonic counter; bumped by closureForState's two dedup phases
-	walkGen       uint64                      // snapshot of gen for the current closureForNfa walk (NFA state dedup)
-	closureSetGen uint64                      // snapshot of gen for the current closureForState faState dedup
+	walkGen       uint64                      // global gen for the current closureForNfa walk (NFA state dedup)
+	closureSetGen uint64                      // global gen for the current closureForState faState dedup
 	closureList   []*faState                  // reusable accumulator for the state list before the dedup post-pass
 	tables        map[tableShareKey]tableMark // share-group scratch for the post-pass (closureGen, closureRep)
-	states        map[*faState]uint64         // per-faState last-visited gen, used by traverseEpsilons
-	walkVisited   map[*faState]uint64         // per-faState last-walked gen, used by closureForNfa
 	// nfaWalkCount counts states actually processed by closureForNfa (past the
 	// prune + dedup guards). Reset to zero at the start of each epsilonClosure
 	// call (per-walk count, not a pooled lifetime total). Used by tests to
@@ -45,9 +54,7 @@ type closureBuffers struct {
 
 func newClosureBuffers() *closureBuffers {
 	return &closureBuffers{
-		tables:      make(map[tableShareKey]tableMark),
-		states:      make(map[*faState]uint64),
-		walkVisited: make(map[*faState]uint64),
+		tables: make(map[tableShareKey]tableMark),
 	}
 }
 
@@ -64,12 +71,10 @@ var closureBufferPool = sync.Pool{
 func epsilonClosure(start *faState) {
 	bufs := closureBufferPool.Get().(*closureBuffers)
 	bufs.nfaWalkCount = 0
-	// Take a fresh generation for this walk. closureForState bumps bufs.gen
-	// for its own dedup phases, but it never touches walkGen, so the state
-	// dedup in closureForNfa compares against a value that stays fixed for
-	// the whole walk.
-	bufs.gen++
-	bufs.walkGen = bufs.gen
+	// Take a fresh global generation for this walk. closureForState takes its
+	// own generations for its dedup phases, but never touches walkGen, so the
+	// state dedup in closureForNfa compares against a value fixed for the walk.
+	bufs.walkGen = nextClosureGen()
 	closureForNfa(start, bufs)
 	closureBufferPool.Put(bufs)
 }
@@ -80,10 +85,10 @@ func epsilonClosure(start *faState) {
 // collapses all no-byte tables; the dedup post-pass in closureForState
 // re-checks fieldTransitions on collision, but the walk has no such guard.)
 func closureForNfa(state *faState, bufs *closureBuffers) {
-	if bufs.walkVisited[state] == bufs.walkGen {
+	if state.walkVisitedGen == bufs.walkGen {
 		return
 	}
-	bufs.walkVisited[state] = bufs.walkGen
+	state.walkVisitedGen = bufs.walkGen
 	if state.epsilonClosure != nil {
 		// Closed by a previous epsilonClosure call: everything reachable from
 		// here was built and closed then and is unchanged, so there is nothing
@@ -122,13 +127,12 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		return
 	}
 
-	// Generation-based visited tracking: bufs.states records which gen last
-	// visited each state, so we never clear the map between traversals.
-	bufs.gen++
-	bufs.closureSetGen = bufs.gen
+	// Generation-based visited tracking: each state's closureVisitedGen records
+	// which gen last visited it, so we never clear anything between traversals.
+	bufs.closureSetGen = nextClosureGen()
 	bufs.closureList = bufs.closureList[:0]
 	if !state.table.isEpsilonOnly() {
-		bufs.states[state] = bufs.closureSetGen
+		state.closureVisitedGen = bufs.closureSetGen
 		bufs.closureList = append(bufs.closureList, state)
 	}
 	traverseEpsilons(state, state.table.epsilons, bufs)
@@ -150,8 +154,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 	// over the closure list to keep traverseEpsilons zero-overhead. The
 	// zero key (no byte transitions) is never deduped, and states with
 	// different fieldTransitions are preserved.
-	bufs.gen++
-	dedupGen := bufs.gen
+	dedupGen := nextClosureGen()
 	closure := make([]*faState, 0, len(bufs.closureList))
 	for _, s := range bufs.closureList {
 		key := newTableShareKey(&s.table)
@@ -186,10 +189,10 @@ func closureForState(state *faState, bufs *closureBuffers) {
 // via epsilon transitions into bufs.closureList.
 func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers) {
 	for _, eps := range epsilons {
-		if eps == start || bufs.states[eps] == bufs.closureSetGen {
+		if eps == start || eps.closureVisitedGen == bufs.closureSetGen {
 			continue
 		}
-		bufs.states[eps] = bufs.closureSetGen
+		eps.closureVisitedGen = bufs.closureSetGen
 		if !eps.table.isEpsilonOnly() {
 			bufs.closureList = append(bufs.closureList, eps)
 		}
