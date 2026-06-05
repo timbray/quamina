@@ -20,7 +20,7 @@ type faState struct {
 	//   len>=2 = computed; explicit list that includes self.
 	// len 1 is never stored: a {self} result collapses to the sentinel.
 	epsilonClosure []*faState
-	isSpinner        bool
+	isSpinner      bool
 }
 
 /*
