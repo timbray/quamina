@@ -23,7 +23,7 @@ type valueMatcher struct {
 	updateable atomic.Pointer[vmFields]
 }
 type vmFields struct {
-	startState          *faState
+	start               *faState
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
 	hasNumbers          bool
@@ -66,23 +66,23 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 		}
 		return transitions
 
-	case vmFields.startState != nil:
+	case vmFields.start != nil:
 		// if there is a potential for a numeric match, try making a Q number from the event
 		if vmFields.hasNumbers && eventField.IsNumber {
 			qNum, err := qNumFromBytesBuf(val, &bufs.qNumBuf)
 			if err == nil {
 				if vmFields.isNondeterministic {
-					return traverseNFA(vmFields.startState, qNum, transitions, bufs)
+					return traverseNFA(vmFields.start, qNum, transitions, bufs)
 				}
-				return traverseDFA(vmFields.startState, qNum, transitions)
+				return traverseDFA(vmFields.start, qNum, transitions)
 			}
 		}
 
 		// if it doesn't work as a Q number for some reason, go ahead and compare the string values
 		if vmFields.isNondeterministic {
-			return traverseNFA(vmFields.startState, val, transitions, bufs)
+			return traverseNFA(vmFields.start, val, transitions, bufs)
 		}
-		return traverseDFA(vmFields.startState, val, transitions)
+		return traverseDFA(vmFields.start, val, transitions)
 
 	default:
 		// no FA, no singleton, nothing to do, this probably can't happen because a flattener
@@ -97,7 +97,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	var err error
 
 	// special case - virgin state and this is a string match
-	if fields.startState == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
+	if fields.start == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
 		fields.singletonMatch = valBytes
 		fields.singletonTransition = newFieldMatcher()
 		m.update(fields)
@@ -151,9 +151,9 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	}
 
 	// there's already a table, thus an out-degree > 1
-	if fields.startState != nil {
-		mergedTable := mergeFAs(&fields.startState.table, &newFAState.table, printer)
-		fields.startState = &faState{table: mergedTable}
+	if fields.start != nil {
+		mergedTable := mergeFAs(&fields.start.table, &newFAState.table, printer)
+		fields.start = &faState{table: mergedTable}
 		if err != nil {
 			return nil
 		}
@@ -164,7 +164,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		// 	if (bytesAllocated() - mm.baseAlloc) > mm.headroom {
 
 		if fields.isNondeterministic {
-			epsilonClosure(fields.startState)
+			epsilonClosure(fields.start)
 		}
 
 		m.update(fields)
@@ -179,20 +179,20 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 
 		// now table is ready for use, nuke singleton to signal threads to use it
 		mergedTable := mergeFAs(&singletonTable, &newFAState.table, sharedNullPrinter)
-		fields.startState = &faState{table: mergedTable}
+		fields.start = &faState{table: mergedTable}
 		if err != nil {
 			return nil
 		}
 		if fields.isNondeterministic {
-			epsilonClosure(fields.startState)
+			epsilonClosure(fields.start)
 		}
 		fields.singletonMatch = nil
 		fields.singletonTransition = nil
 	} else {
 		// empty valueMatcher, no special cases, just jam in the new FA
-		fields.startState = newFAState
+		fields.start = newFAState
 		if fields.isNondeterministic {
-			epsilonClosure(fields.startState)
+			epsilonClosure(fields.start)
 		}
 	}
 	m.update(fields)

@@ -462,7 +462,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 
 	// Walk the automaton and verify all states have epsilon closures computed
 	visited := make(map[*faState]bool)
-	missingClosures := checkEpsilonClosures(fields.startState, visited)
+	missingClosures := checkEpsilonClosures(fields.start, visited)
 	if len(missingClosures) > 0 {
 		t.Errorf("found %d states with missing epsilon closures", len(missingClosures))
 	}
@@ -534,13 +534,13 @@ func TestEpsilonClosureRequired(t *testing.T) {
 	// Clear all closures to simulate a skipped epsilonClosure call. The match
 	// now disappears: reaching the accepting state required the multi-member
 	// closure, which self-processing of the intermediate state cannot replace.
-	clearEpsilonClosures(vm.fields().startState, make(map[*faState]bool))
+	clearEpsilonClosures(vm.fields().start, make(map[*faState]bool))
 	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 0 {
 		t.Fatalf("without closures: expected 0 transitions for \"z\" (closure required), got %d", got)
 	}
 
 	// Restore closures; matching works again.
-	epsilonClosure(vm.fields().startState)
+	epsilonClosure(vm.fields().start)
 	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 1 {
 		t.Errorf("after restore: expected 1 transition for \"z\", got %d", got)
 	}

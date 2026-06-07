@@ -152,8 +152,8 @@ func vmStats(m *valueMatcher, s *statsAccum) {
 		s.siCount++
 		fmStats(state.singletonTransition, s)
 	}
-	if state.startState != nil {
-		faStats(&state.startState.table, s)
+	if state.start != nil {
+		faStats(&state.start.table, s)
 	}
 }
 

@@ -614,7 +614,7 @@ func TestTablePointerDedup(t *testing.T) {
 			m := q.matcher.(*coreMatcher)
 
 			vm := m.fields().state.fields().transitions["val"]
-			nfaStart := vm.fields().startState
+			nfaStart := vm.fields().start
 			stateCount, totalEntries, maxClosure, tableSharing := collectClosureStats(nfaStart)
 
 			if stateCount != wl.stateCount {

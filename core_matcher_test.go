@@ -333,5 +333,5 @@ func TestSimpleaddPattern(t *testing.T) {
 func fetchFAForPath(t *testing.T, cm *coreMatcher, path string) *faState {
 	t.Helper()
 	vm := cm.fields().state.fields().transitions[path]
-	return vm.fields().startState
+	return vm.fields().start
 }

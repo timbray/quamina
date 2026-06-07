@@ -23,7 +23,7 @@ func cmFieldMatcherStats(fm *fieldMatcher, stats *matcherStats, pp printer) {
 		if singleton != nil {
 			stats.bytes += int64(cap(singleton))
 		}
-		start := vm.fields().startState
+		start := vm.fields().start
 		if start == nil {
 			continue
 		}
