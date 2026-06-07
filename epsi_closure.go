@@ -61,8 +61,12 @@ func newClosureBuffers() *closureBuffers {
 
 // closureBufferPool reuses closureBuffers (and their maps) across the many
 // epsilonClosure calls a build performs, eliminating per-call map allocation.
-// The pool is concurrency-safe, and sync.Pool drops its contents on GC, so
-// the maps do not become permanent steady-state memory.
+// A single build (everything under one AddPattern) is single-threaded, so the
+// buffers are never shared concurrently within a build. sync.Pool is used
+// rather than a plain free list for two reasons: this is a package-level
+// global, so independent matcher builds running in separate goroutines draw
+// from it at once and need a safe hand-off; and sync.Pool drops its contents
+// on GC, so the maps do not become permanent steady-state memory.
 var closureBufferPool = sync.Pool{
 	New: func() any { return newClosureBuffers() },
 }
