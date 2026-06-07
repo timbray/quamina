@@ -232,6 +232,9 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		}
 		closure = append(closure, s)
 	}
+	// Pure optimization (not a correctness guard) preserving the no-length-1
+	// invariant; deliberately uncovered, as dedup collapsing a >=2-member
+	// closure entirely onto self appears structurally unreachable.
 	if !state.table.isEpsilonOnly() && len(closure) == 1 {
 		// dedup collapsed everything into self (self was the sole surviving
 		// representative); use the sentinel. Guard: epsilon-only states are
