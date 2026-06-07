@@ -2,6 +2,55 @@ package quamina
 
 import "sync"
 
+// Epsilon-closure construction
+// =============================
+//
+// An NFA state's epsilon closure is the set of states reachable from it by
+// following epsilon (zero-input) transitions, plus itself. At match time
+// traverseNFA consumes a state's precomputed closure instead of chasing
+// epsilons live, so the closures must be built eagerly: AddPattern merges the
+// new value's FA into the existing one and then calls epsilonClosure on the
+// start state, which closes every state the merge created. (This is an eager
+// architecture on purpose — closures sit on the match hot path; lazy/on-demand
+// construction is a separate line of work.)
+//
+// Construction is three nested passes:
+//
+//   epsilonClosure   — entry point; grabs pooled scratch and starts the walk.
+//   closureForNfa    — walks the reachable NFA once, calling closureForState on
+//                      each not-yet-closed state, then recursing over its steps
+//                      and epsilons.
+//   closureForState  — computes one state's closure: collects the epsilon-
+//                      reachable states (traverseEpsilons), then dedups them.
+//
+// Three optimizations keep this cheap, and they are why the scratch in
+// closureBuffers looks busier than the core idea:
+//
+//  1. Incremental walk (closureForNfa). A state whose epsilonClosure is already
+//     non-nil was closed by a previous AddPattern; merges only ever add new
+//     states as ancestors of closed subtrees, so the walk can prune at any
+//     closed state. Without this the walk re-traverses the whole, ever-growing
+//     NFA on every add — O(N²) over N adds.
+//
+//  2. Self-only sentinel (selfOnlyClosure). The vast majority of states close to
+//     just {self}; storing that as a shared zero-length slice avoids a heap
+//     allocation (and resident, GC-scanned backing array) per such state. See
+//     selfOnlyClosure below for the nil / len==0 / len>=2 encoding.
+//
+//  3. Table-pointer dedup (the post-pass in closureForState). States that share
+//     a steps backing array have identical byte transitions, so only one
+//     representative per share group is kept — see dedup_key.go and tableMark.
+//     self must stay inside multi-member closures (pulling it out defeats this
+//     dedup and reintroduces exponential blowup on adversarial regexps), which
+//     is why only the self-only case is specialized, not "drop self everywhere".
+//
+// Generation counters avoid clearing the scratch maps between the many closures
+// a build computes. Every "visited in this pass?" check compares a stored
+// generation against the current one; bumping the current generation logically
+// empties the map in O(1). closureBuffers tracks several independent passes
+// (the NFA walk, the per-closure epsilon traversal, and the dedup post-pass),
+// each with its own generation snapshot, which is what the fields below encode.
+
 // selfOnlyClosure is the shared sentinel for a closure equal to {self}: non-nil
 // (distinct from nil = "not computed") and zero-length (so consumers take their
 // len==0 self-only branch). The empty composite literal points at runtime
