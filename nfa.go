@@ -261,9 +261,15 @@ func traverseDFA(start *faState, val []byte, transitions []*fieldMatcher) []*fie
 // and should grow with use and minimize the need for memory allocation.
 func traverseNFA(start *faState, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
-	// The start state always has a trivial epsilon closure (just itself) because
-	// all Quamina automata begin by matching the opening quote (0x22). The start
-	// table therefore has a single transition on `"` and never has epsilons.
+	// The start state always has a trivial epsilon closure (just itself), so we
+	// can seed currentStates with it directly. Epsilon transitions (spinner
+	// loopbacks, splices, regexp branching) are only ever introduced in states
+	// reached after the first input byte is consumed; the entry state itself
+	// carries only byte transitions and never epsilons. (The leading byte is
+	// usually the opening quote 0x22, since nondeterminism arises from
+	// string-valued patterns — shellstyle/wildcard/regexp — but not always:
+	// this path is also taken with an unquoted Q-number value when the matcher
+	// has both numeric and nondeterministic string patterns.)
 	currentStates = append(currentStates, start)
 	nextStates := bufs.getBuf2()
 
