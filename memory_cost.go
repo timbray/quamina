@@ -48,10 +48,12 @@ func cmStateStats(state *faState, stats *matcherStats, pp printer) {
 			cmStateStats(step, stats, pp)
 		}
 	}
+	// Unlike steps (whose entries may be nil for no-transition byte ranges),
+	// epsilons only ever holds explicit, non-nil links — traverseEpsilons in
+	// the build hot path dereferences them unguarded, so a nil here would be a
+	// corrupted structure, not a normal case.
 	for _, eps := range state.table.epsilons {
-		if eps != nil {
-			cmStateStats(eps, stats, pp)
-		}
+		cmStateStats(eps, stats, pp)
 	}
 	for _, trans := range state.fieldTransitions {
 		cmFieldMatcherStats(trans, stats, pp)
