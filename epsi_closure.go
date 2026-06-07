@@ -17,7 +17,15 @@ var selfOnlyClosure = []*faState{}
 // tableMark is stored by value so marking a share group costs no per-entry
 // heap allocation.
 type tableMark struct {
+	// closureGen is the dedup generation in which this mark was last written.
+	// The map is never cleared between closures, so a mark only counts when its
+	// closureGen equals the current dedupGen; older values are stale and ignored.
 	closureGen uint64
+	// closureRep is the representative faState for this table-share group: the
+	// first state in the current closure found to use this smallTable. Later
+	// states that share the table collapse onto closureRep when their
+	// fieldTransitions match it (sameFieldTransitions), so only the
+	// representative survives into the deduped closure.
 	closureRep *faState
 }
 
