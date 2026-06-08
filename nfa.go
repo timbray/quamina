@@ -402,6 +402,16 @@ func mergeFAs(table1, table2 *smallTable, pp printer) smallTable {
 	return s.table
 }
 
+// mergeStartStates merges two FA start states into a combined start state. It is
+// the faState-typed entry point for callers that already hold faStates (the
+// value-matcher start merges), avoiding the faState->smallTable->faState
+// round-trip the *smallTable mergeFAs wrapper would force. mergeFAs remains for
+// callers composing raw smallTables. Both just allocate the per-merge memo map
+// and delegate to mergeFAStates.
+func mergeStartStates(state1, state2 *faState, pp printer) *faState {
+	return mergeFAStates(state1, state2, make(map[faStepKey]*faState), pp)
+}
+
 func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp printer) *faState {
 	// try to memo-ize
 	mKey := makeFaStepKey(state1, state2)

@@ -152,8 +152,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 
 	// there's already a table, thus an out-degree > 1
 	if fields.start != nil {
-		mergedTable := mergeFAs(&fields.start.table, &newFAState.table, printer)
-		fields.start = &faState{table: mergedTable}
+		fields.start = mergeStartStates(fields.start, newFAState, printer)
 		if err != nil {
 			return nil
 		}
@@ -178,8 +177,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		singletonTable, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
 
 		// now table is ready for use, nuke singleton to signal threads to use it
-		mergedTable := mergeFAs(&singletonTable, &newFAState.table, sharedNullPrinter)
-		fields.start = &faState{table: mergedTable}
+		fields.start = mergeStartStates(&faState{table: singletonTable}, newFAState, sharedNullPrinter)
 		if err != nil {
 			return nil
 		}
