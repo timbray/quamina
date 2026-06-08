@@ -513,36 +513,46 @@ func checkEpsilonClosures(start *faState, visited map[*faState]bool) []*faState 
 }
 
 // TestEpsilonClosureRequired demonstrates that epsilonClosure must be called
-// after merging into an NFA. Merging the two wildcard patterns "*z" and "*y"
-// creates splice/epsilon structure; matching "z" requires traversing a
-// multi-member epsilon closure to reach the accepting state (processing the
-// current state by itself is not enough). Clearing the closures — simulating a
-// skipped epsilonClosure call — therefore makes the match disappear.
+// after merging into an NFA. The wildcard "a*z" has its start matching 'a', so
+// the '*' spinner is an interior state, not the start. Merging it with the
+// string "az" (which the wildcard also matches, with '*' matching the empty
+// string) creates a splice whose accepting states are reachable only through a
+// multi-member epsilon closure. Clearing the closures — simulating a skipped
+// epsilonClosure call — therefore makes the "az" match disappear.
+//
+// Note: on this branch a self-only closure is the zero-length sentinel, so
+// clearing a closure to nil reads as "self-only" (process self) rather than
+// "no closure". The match must therefore be lost at a splice state that has no
+// useful self-transition, which is what the "az" path through the merge gives.
 func TestEpsilonClosureRequired(t *testing.T) {
 	vm := newValueMatcher()
-	_ = vm.addTransition(typedVal{vType: wildcardType, val: "*z"}, sharedNullPrinter)
-	// second add triggers the merge and the epsilonClosure call
-	_ = vm.addTransition(typedVal{vType: wildcardType, val: "*y"}, sharedNullPrinter)
+
+	// Add a wildcard pattern first - creates NFA with epsilon transitions
+	_ = vm.addTransition(typedVal{vType: wildcardType, val: "a*z"}, sharedNullPrinter)
+
+	// Add a string pattern - this triggers merge and epsilonClosure call
+	_ = vm.addTransition(typedVal{vType: stringType, val: "az"}, sharedNullPrinter)
 
 	bufs := newNfaBuffers()
 
-	// With closures computed, "z" matches "*z".
-	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 1 {
-		t.Fatalf("with closures: expected 1 transition for \"z\", got %d", got)
+	// "az" matches both patterns ('*' matching the empty string for "a*z"),
+	// which requires traversing the merged splice's epsilon closure.
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 2 {
+		t.Fatalf("with closures: expected 2 transitions for \"az\", got %d", got)
 	}
 
 	// Clear all closures to simulate a skipped epsilonClosure call. The match
-	// now disappears: reaching the accepting state required the multi-member
-	// closure, which self-processing of the intermediate state cannot replace.
+	// disappears: reaching the accepting states required the multi-member
+	// closure, which self-processing of the splice state cannot replace.
 	clearEpsilonClosures(vm.fields().start, make(map[*faState]bool))
-	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 0 {
-		t.Fatalf("without closures: expected 0 transitions for \"z\" (closure required), got %d", got)
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 0 {
+		t.Fatalf("without closures: expected 0 transitions for \"az\" (closure required), got %d", got)
 	}
 
 	// Restore closures; matching works again.
 	epsilonClosure(vm.fields().start)
-	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 1 {
-		t.Errorf("after restore: expected 1 transition for \"z\", got %d", got)
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 2 {
+		t.Errorf("after restore: expected 2 transitions for \"az\", got %d", got)
 	}
 }
 
