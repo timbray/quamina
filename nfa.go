@@ -146,9 +146,12 @@ func (nb *nfaBuffers) getFieldSet() map[*fieldMatcher]bool {
 
 // nfa2Dfa does what the name says, but as of 2026/01 is not used.
 func nfa2Dfa(nfaStart *faState) *faState {
-	// The start state always has a trivial epsilon closure (just itself) because
-	// all Quamina automata begin by matching the opening quote (0x22). The start
-	// table therefore has a single transition on `"` and never has epsilons.
+	// The start state always has a trivial epsilon closure (just itself), so we
+	// can assign the self-only sentinel directly. Epsilon transitions (spinner
+	// loopbacks, splices, regexp branching) are only ever introduced in states
+	// reached after the first input byte; the entry state itself carries only
+	// byte transitions and never epsilons. (That first byte is usually the
+	// opening quote 0x22, but not always — see traverseNFA.)
 	nfaStart.epsilonClosure = selfOnlyClosure
 	startNfa := []*faState{nfaStart}
 	return n2dNode(startNfa, newStateLists())
