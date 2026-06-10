@@ -54,7 +54,7 @@ func TestEmptyRegexp(t *testing.T) {
 }
 
 func TestToxicStack(t *testing.T) {
-	var table *smallTable
+	var start *faState
 	pp := newPrettyPrinter(34897)
 
 	re3 := "(([~.~~~?~*~+~{~}~[~]~(~)~|]?)*)+"
@@ -66,12 +66,12 @@ func TestToxicStack(t *testing.T) {
 	if err != nil {
 		t.Error("OOPS: " + err.Error())
 	}
-	table, _ = makeRegexpNFA(parse.tree, pp)
-	epsilonClosure(table)
+	start, _ = makeRegexpNFA(parse.tree, pp)
+	epsilonClosure(start)
 
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
-	trans := testTraverseNFA(table, []byte(str), transitions, bufs)
+	trans := testTraverseNFA(start, []byte(str), transitions, bufs)
 	if len(trans) != 1 {
 		t.Error("Toxic stack failure")
 	}

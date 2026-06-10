@@ -44,9 +44,9 @@ func addInvalid(t *testing.T, before []typedVal) {
 		val:   "one",
 	}
 	for _, addBefore := range before {
-		_ = m.addTransition(addBefore, &nullPrinter{})
+		_ = m.addTransition(addBefore, &nullPrinter{}, newClosureBuffers())
 	}
-	_ = m.addTransition(invalidField, &nullPrinter{})
+	_ = m.addTransition(invalidField, &nullPrinter{}, newClosureBuffers())
 }
 
 func TestNoOpTransition(t *testing.T) {
@@ -63,7 +63,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "one",
 	}
-	t1 := m.addTransition(v1, &nullPrinter{})
+	t1 := m.addTransition(v1, &nullPrinter{}, newClosureBuffers())
 	if t1 == nil {
 		t.Error("nil addTrans")
 	}
@@ -72,7 +72,7 @@ func TestAddTransition(t *testing.T) {
 		t.Error("Retrieve failed")
 	}
 
-	tXtra := m.addTransition(v1, &nullPrinter{})
+	tXtra := m.addTransition(v1, &nullPrinter{}, newClosureBuffers())
 	if tXtra != t1 {
 		t.Error("dupe trans missed")
 	}
@@ -81,7 +81,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "two",
 	}
-	t2 := m.addTransition(v2, &nullPrinter{})
+	t2 := m.addTransition(v2, &nullPrinter{}, newClosureBuffers())
 
 	t2x := m.transitionOn(&Field{Val: []byte("two")}, &nfaBuffers{})
 	if len(t2x) != 1 || t2x[0] != t2 {
@@ -95,7 +95,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "three",
 	}
-	t3 := m.addTransition(v3, &nullPrinter{})
+	t3 := m.addTransition(v3, &nullPrinter{}, newClosureBuffers())
 	t3x := m.transitionOn(&Field{Val: []byte("three")}, &nfaBuffers{})
 	if len(t3x) != 1 || t3x[0] != t3 {
 		t.Error("Match failed T3")
@@ -348,9 +348,8 @@ func TestMakeFAFragment(t *testing.T) {
 	pp := newPrettyPrinter(3234)
 	for _, datum := range data {
 		frag := makeFAFragment([]byte(datum), targetState, pp)
-		startTable := frag.table
 		var transIn []*fieldMatcher
-		transOut := traverseDFA(startTable, []byte(datum)[1:], transIn)
+		transOut := traverseDFA(frag, []byte(datum)[1:], transIn)
 		if len(transOut) != 1 || transOut[0] != targetFA {
 			t.Error("fail on ", datum)
 		}
@@ -441,7 +440,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 		vType: wildcardType,
 		val:   "a*b",
 	}
-	_ = vm.addTransition(wildcardVal, sharedNullPrinter)
+	_ = vm.addTransition(wildcardVal, sharedNullPrinter, newClosureBuffers())
 
 	fields := vm.fields()
 	if !fields.isNondeterministic {
@@ -454,7 +453,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 		vType: stringType,
 		val:   "xyz",
 	}
-	_ = vm.addTransition(stringVal, sharedNullPrinter)
+	_ = vm.addTransition(stringVal, sharedNullPrinter, newClosureBuffers())
 
 	fields = vm.fields()
 	if !fields.isNondeterministic {
@@ -462,8 +461,8 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 	}
 
 	// Walk the automaton and verify all states have epsilon closures computed
-	visited := make(map[*smallTable]bool)
-	missingClosures := checkEpsilonClosures(fields.startTable, visited)
+	visited := make(map[*faState]bool)
+	missingClosures := checkEpsilonClosures(fields.start, visited)
 	if len(missingClosures) > 0 {
 		t.Errorf("found %d states with missing epsilon closures", len(missingClosures))
 	}
@@ -489,107 +488,88 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 
 // checkEpsilonClosures walks the automaton and returns states that have
 // epsilon transitions but no computed epsilon closure.
-func checkEpsilonClosures(table *smallTable, visited map[*smallTable]bool) []*faState {
+func checkEpsilonClosures(start *faState, visited map[*faState]bool) []*faState {
 	var missing []*faState
-	if visited[table] {
+	if visited[start] {
 		return missing
 	}
-	visited[table] = true
+	visited[start] = true
 
-	for _, state := range table.steps {
+	for _, state := range start.table.steps {
 		if state != nil {
-			if len(state.table.epsilons) > 0 && state.epsilonClosure == nil {
+			if state.epsilonClosure == nil {
 				missing = append(missing, state)
 			}
-			missing = append(missing, checkEpsilonClosures(state.table, visited)...)
+			missing = append(missing, checkEpsilonClosures(state, visited)...)
 		}
 	}
-	for _, eps := range table.epsilons {
+	for _, eps := range start.table.epsilons {
 		if eps.epsilonClosure == nil {
 			missing = append(missing, eps)
 		}
-		missing = append(missing, checkEpsilonClosures(eps.table, visited)...)
+		missing = append(missing, checkEpsilonClosures(eps, visited)...)
 	}
 	return missing
 }
 
 // TestEpsilonClosureRequired demonstrates that epsilonClosure must be called
-// after merging into an NFA. This test simulates what would happen if we
-// skipped the epsilonClosure call by clearing the closures after merge.
+// after merging into an NFA. The wildcard "a*z" has its start matching 'a', so
+// the '*' spinner is an interior state, not the start. Merging it with the
+// string "az" (which the wildcard also matches, with '*' matching the empty
+// string) creates a splice whose accepting states are reachable only through a
+// multi-member epsilon closure. Clearing the closures — simulating a skipped
+// epsilonClosure call — therefore makes the "az" match disappear.
+//
+// Note: on this branch a self-only closure is the zero-length sentinel, so
+// clearing a closure to nil reads as "self-only" (process self) rather than
+// "no closure". The match must therefore be lost at a splice state that has no
+// useful self-transition, which is what the "az" path through the merge gives.
 func TestEpsilonClosureRequired(t *testing.T) {
 	vm := newValueMatcher()
 
 	// Add a wildcard pattern first - creates NFA with epsilon transitions
-	wildcardVal := typedVal{
-		vType: wildcardType,
-		val:   "a*z",
-	}
-	_ = vm.addTransition(wildcardVal, sharedNullPrinter)
+	_ = vm.addTransition(typedVal{vType: wildcardType, val: "a*z"}, sharedNullPrinter, newClosureBuffers())
 
 	// Add a string pattern - this triggers merge and epsilonClosure call
-	stringVal := typedVal{
-		vType: stringType,
-		val:   "abc",
-	}
-	_ = vm.addTransition(stringVal, sharedNullPrinter)
+	_ = vm.addTransition(typedVal{vType: stringType, val: "az"}, sharedNullPrinter, newClosureBuffers())
 
 	bufs := newNfaBuffers()
 
-	// Step 1: Verify matching works with closures computed
-	trans := testTransitionOn(vm, []byte("abc"), bufs)
-	if len(trans) != 1 {
-		t.Fatalf("with closures: expected 1 transition for 'abc', got %d", len(trans))
-	}
-	trans = testTransitionOn(vm, []byte("aXXXz"), bufs)
-	if len(trans) != 1 {
-		t.Fatalf("with closures: expected 1 transition for 'aXXXz', got %d", len(trans))
+	// "az" matches both patterns ('*' matching the empty string for "a*z"),
+	// which requires traversing the merged splice's epsilon closure.
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 2 {
+		t.Fatalf("with closures: expected 2 transitions for \"az\", got %d", got)
 	}
 
-	// Step 2: Clear all epsilon closures to simulate missing epsilonClosure call
-	fields := vm.fields()
-	clearEpsilonClosures(fields.startTable, make(map[*smallTable]bool))
-
-	// Step 3: Without closures, traverseNFA fails because it iterates over
-	// state.epsilonClosure which is now nil (empty loop = no matches)
-	trans = testTransitionOn(vm, []byte("abc"), bufs)
-	abcMatchedWithoutClosures := len(trans) == 1
-
-	trans = testTransitionOn(vm, []byte("aXXXz"), bufs)
-	wildcardMatchedWithoutClosures := len(trans) == 1
-
-	// At least one pattern must fail without closures to prove they're needed
-	if abcMatchedWithoutClosures && wildcardMatchedWithoutClosures {
-		t.Fatal("both patterns matched without closures - epsilonClosure is not needed (test invalid)")
+	// Clear all closures to simulate a skipped epsilonClosure call. The match
+	// disappears: reaching the accepting states required the multi-member
+	// closure, which self-processing of the splice state cannot replace.
+	clearEpsilonClosures(vm.fields().start, make(map[*faState]bool))
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 0 {
+		t.Fatalf("without closures: expected 0 transitions for \"az\" (closure required), got %d", got)
 	}
 
-	// Step 4: Restore closures and verify matching works again
-	epsilonClosure(fields.startTable)
-
-	trans = testTransitionOn(vm, []byte("abc"), bufs)
-	if len(trans) != 1 {
-		t.Errorf("after restore: expected 1 transition for 'abc', got %d", len(trans))
-	}
-	trans = testTransitionOn(vm, []byte("aXXXz"), bufs)
-	if len(trans) != 1 {
-		t.Errorf("after restore: expected 1 transition for 'aXXXz', got %d", len(trans))
+	// Restore closures; matching works again.
+	epsilonClosure(vm.fields().start)
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 2 {
+		t.Errorf("after restore: expected 2 transitions for \"az\", got %d", got)
 	}
 }
 
 // clearEpsilonClosures walks the automaton and sets all epsilonClosure fields to nil
-func clearEpsilonClosures(table *smallTable, visited map[*smallTable]bool) {
-	if visited[table] {
+func clearEpsilonClosures(start *faState, visited map[*faState]bool) {
+	if visited[start] {
 		return
 	}
-	visited[table] = true
+	visited[start] = true
+	start.epsilonClosure = nil
 
-	for _, state := range table.steps {
+	for _, state := range start.table.steps {
 		if state != nil {
-			state.epsilonClosure = nil
-			clearEpsilonClosures(state.table, visited)
+			clearEpsilonClosures(state, visited)
 		}
 	}
-	for _, eps := range table.epsilons {
-		eps.epsilonClosure = nil
-		clearEpsilonClosures(eps.table, visited)
+	for _, eps := range start.table.epsilons {
+		clearEpsilonClosures(eps, visited)
 	}
 }

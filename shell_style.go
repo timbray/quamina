@@ -44,10 +44,10 @@ func readShellStyleSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []type
 
 // makeShellStyleFA does what it says.  It is precisely equivalent to a regex with the only operator
 // being a single ".*". Once we've implemented regular expressions we can use that to more or less eliminate this
-func makeShellStyleFA(val []byte, pp printer) (start *smallTable, nextField *fieldMatcher) {
+func makeShellStyleFA(val []byte, pp printer) (start *faState, nextField *fieldMatcher) {
 	state := &faState{table: newSmallTable()}
-	start = state.table
-	pp.labelTable(start, "SHELLSTYLE")
+	start = state
+	pp.labelTable(&start.table, "SHELLSTYLE")
 	nextField = newFieldMatcher()
 
 	// for each byte in the pattern
@@ -63,19 +63,19 @@ func makeShellStyleFA(val []byte, pp printer) (start *smallTable, nextField *fie
 			spinEscape.table.epsilons = []*faState{spinner}
 			spinner.table = makeByteDotFA(spinner, pp)
 			spinner.table.addByteStep(val[valIndex], spinEscape)
-			pp.labelTable(spinner.table, "*-Spinner")
-			pp.labelTable(spinEscape.table, fmt.Sprintf("spinEscape on %c at %d", val[valIndex], valIndex))
+			pp.labelTable(&spinner.table, "*-Spinner")
+			pp.labelTable(&spinEscape.table, fmt.Sprintf("spinEscape on %c at %d", val[valIndex], valIndex))
 			state = spinEscape
 		} else {
 			nextStep := &faState{table: newSmallTable()}
-			pp.labelTable(nextStep.table, fmt.Sprintf("on %c at %d", val[valIndex], valIndex))
+			pp.labelTable(&nextStep.table, fmt.Sprintf("on %c at %d", val[valIndex], valIndex))
 			state.table.addByteStep(ch, nextStep)
 			state = nextStep
 		}
 		valIndex++
 	}
 	lastStep := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
-	pp.labelTable(lastStep.table, fmt.Sprintf("last step at %d", valIndex))
+	pp.labelTable(&lastStep.table, fmt.Sprintf("last step at %d", valIndex))
 	state.table.addByteStep(valueTerminator, lastStep)
 	return
 }

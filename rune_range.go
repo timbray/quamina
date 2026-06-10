@@ -15,31 +15,30 @@ import (
 // can safely build and update the cachedRRFaShells
 
 var PlaceholderState *faState = &faState{table: newSmallTable()}
-var cachedFaShells = make(map[string]*smallTable)
+var cachedFaShells = make(map[string]smallTable)
 
-func faFromShell(shell *smallTable, oldNext *faState, newNext *faState) *smallTable {
-	return copyShellNode(&faState{table: shell}, oldNext, newNext, make(map[*faState]*faState)).table
+func faFromShell(shell *smallTable, oldNext *faState, newNext *faState) smallTable {
+	return copyShellNode(&faState{table: *shell}, oldNext, newNext, make(map[*faState]*faState)).table
 }
 func copyShellNode(shell *faState, oldNext *faState, newNext *faState, mem map[*faState]*faState) *faState {
 	already, ok := mem[shell]
 	if ok {
 		return already
 	}
-	table := &smallTable{
+	state := &faState{table: smallTable{
 		ceilings: slices.Clone(shell.table.ceilings),
 		steps:    make([]*faState, len(shell.table.steps)),
 		epsilons: make([]*faState, len(shell.table.epsilons)),
-	}
-	state := &faState{table: table}
+	}}
 	mem[shell] = state
 	for i, step := range shell.table.steps {
 		switch step {
 		case nil:
 			// no-op
 		case oldNext:
-			table.steps[i] = newNext
+			state.table.steps[i] = newNext
 		default:
-			table.steps[i] = copyShellNode(step, oldNext, newNext, mem)
+			state.table.steps[i] = copyShellNode(step, oldNext, newNext, mem)
 		}
 	}
 	for i, epsilon := range shell.table.epsilons {
@@ -47,9 +46,9 @@ func copyShellNode(shell *faState, oldNext *faState, newNext *faState, mem map[*
 		case nil:
 		// no-op
 		case oldNext:
-			table.epsilons[i] = newNext
+			state.table.epsilons[i] = newNext
 		default:
-			table.epsilons[i] = copyShellNode(epsilon, oldNext, newNext, mem)
+			state.table.epsilons[i] = copyShellNode(epsilon, oldNext, newNext, mem)
 		}
 	}
 	return state
@@ -97,17 +96,17 @@ func newRuneRangeIterator(rr RuneRange) (*runeRangeIterator, error) {
 // here's the problem: A construct like [~p{L}~p[Nd}~p{Zs}] is going to be brutally expensive, because
 // it'll have to build the FA to match the combination of all those huge rune-ranges.
 
-func makeAndCacheRuneRangeFA(rr RuneRange, next *faState, name string, pp printer) *smallTable {
+func makeAndCacheRuneRangeFA(rr RuneRange, next *faState, name string, pp printer) smallTable {
 	if name != "" {
 		fa, ok := cachedFaShells[name]
 		if !ok {
 			fa = makeAndCacheRuneRangeFA(rr, PlaceholderState, "", pp)
 			cachedFaShells[name] = fa
 		}
-		return faFromShell(fa, PlaceholderState, next)
+		return faFromShell(&fa, PlaceholderState, next)
 	}
 
-	pp.labelTable(next.table, "Next")
+	pp.labelTable(&next.table, "Next")
 	// turn the slice of hi/lo inclusive endpoints into a slice of utf8 encodings
 	ri, err := newRuneRangeIterator(rr)
 
@@ -125,7 +124,7 @@ func makeAndCacheRuneRangeFA(rr RuneRange, next *faState, name string, pp printe
 	return nfaFromSkinnyRuneTree(root, pp)
 }
 
-func makeRuneRangeNFA(rr RuneRange, next *faState, pp printer) *smallTable {
+func makeRuneRangeNFA(rr RuneRange, next *faState, pp printer) smallTable {
 	return makeAndCacheRuneRangeFA(rr, next, "", pp)
 }
 
@@ -188,10 +187,10 @@ func addSkinnyRuneTreeEntry(root *skinnyRuneTreeNode, r rune, dest *faState) {
 		node = nextEntry.node
 	}
 }
-func nfaFromSkinnyRuneTree(root *skinnyRuneTreeNode, pp printer) *smallTable {
+func nfaFromSkinnyRuneTree(root *skinnyRuneTreeNode, pp printer) smallTable {
 	return tableFromSkinnyRuneTreeNode(root, pp)
 }
-func tableFromSkinnyRuneTreeNode(node *skinnyRuneTreeNode, pp printer) *smallTable {
+func tableFromSkinnyRuneTreeNode(node *skinnyRuneTreeNode, pp printer) smallTable {
 	var unpacked unpackedTable
 	for index, byteVal := range node.byteVals {
 		entry := node.entries[index]
@@ -199,7 +198,7 @@ func tableFromSkinnyRuneTreeNode(node *skinnyRuneTreeNode, pp printer) *smallTab
 			unpacked[byteVal] = entry.next
 		} else {
 			table := tableFromSkinnyRuneTreeNode(entry.node, pp)
-			pp.labelTable(table, fmt.Sprintf("on %x", byteVal))
+			pp.labelTable(&table, fmt.Sprintf("on %x", byteVal))
 			unpacked[byteVal] = &faState{table: table}
 		}
 	}

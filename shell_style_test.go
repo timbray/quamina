@@ -62,7 +62,7 @@ func TestMakeShellStyleFA(t *testing.T) {
 		a, wanted := makeShellStyleFA([]byte(pattern), sharedNullPrinter)
 		epsilonClosure(a)
 		vm := newValueMatcher()
-		vmf := vmFields{startTable: a}
+		vmf := vmFields{start: a}
 		vm.update(&vmf)
 		bufs := newNfaBuffers()
 		for _, should := range shouldsForPatterns[i] {

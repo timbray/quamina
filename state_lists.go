@@ -20,15 +20,13 @@ type internEntry struct {
 type stateLists struct {
 	entries map[string]internEntry
 	// Scratch space reused across intern() calls
-	sortBuf []*faState        // reusable sorted buffer
-	keyBuf  []byte            // reusable key bytes buffer
-	seen    map[*faState]bool // reusable dedup set, cleared per call
+	sortBuf []*faState // reusable sorted buffer
+	keyBuf  []byte     // reusable key bytes buffer
 }
 
 func newStateLists() *stateLists {
 	return &stateLists{
 		entries: make(map[string]internEntry),
-		seen:    make(map[*faState]bool),
 	}
 }
 
@@ -38,23 +36,16 @@ func newStateLists() *stateLists {
 // which either has already been computed for the set or is created and empty, and
 // a boolean indicating whether the DFA state has already been computed or not.
 func (sl *stateLists) intern(list []*faState) ([]*faState, *faState, bool) {
-	// Dedup within this call using a reused map. Previously this rode on
-	// a generation counter stored inline on each faState; that field has
-	// been removed to shrink steady-state memory.
-	clear(sl.seen)
-	sl.sortBuf = sl.sortBuf[:0]
-	for _, state := range list {
-		if sl.seen[state] {
-			continue
-		}
-		sl.seen[state] = true
-		sl.sortBuf = append(sl.sortBuf, state)
-	}
-
-	// compute a key representing the set
+	// Dedup by sorting then compacting adjacent duplicates. The set key is
+	// built from sorted pointers anyway, so sorting is not extra work; once
+	// sorted, duplicates are adjacent and Compact removes them in one linear
+	// pass. This avoids both a per-call dedup map and a per-faState
+	// generation field (the latter was removed to shrink steady-state memory).
+	sl.sortBuf = append(sl.sortBuf[:0], list...)
 	slices.SortFunc(sl.sortBuf, func(a, b *faState) int {
 		return cmp.Compare(uintptr(unsafe.Pointer(a)), uintptr(unsafe.Pointer(b)))
 	})
+	sl.sortBuf = slices.Compact(sl.sortBuf)
 
 	// Pre-size the key buffer and write pointers with PutUint64 instead of
 	// appending byte-by-byte, avoiding 8 append calls and bounds checks per state.
