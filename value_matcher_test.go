@@ -44,9 +44,9 @@ func addInvalid(t *testing.T, before []typedVal) {
 		val:   "one",
 	}
 	for _, addBefore := range before {
-		_ = m.addTransition(addBefore, &nullPrinter{})
+		_ = m.addTransition(addBefore, &nullPrinter{}, newClosureBuffers())
 	}
-	_ = m.addTransition(invalidField, &nullPrinter{})
+	_ = m.addTransition(invalidField, &nullPrinter{}, newClosureBuffers())
 }
 
 func TestNoOpTransition(t *testing.T) {
@@ -63,7 +63,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "one",
 	}
-	t1 := m.addTransition(v1, &nullPrinter{})
+	t1 := m.addTransition(v1, &nullPrinter{}, newClosureBuffers())
 	if t1 == nil {
 		t.Error("nil addTrans")
 	}
@@ -72,7 +72,7 @@ func TestAddTransition(t *testing.T) {
 		t.Error("Retrieve failed")
 	}
 
-	tXtra := m.addTransition(v1, &nullPrinter{})
+	tXtra := m.addTransition(v1, &nullPrinter{}, newClosureBuffers())
 	if tXtra != t1 {
 		t.Error("dupe trans missed")
 	}
@@ -81,7 +81,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "two",
 	}
-	t2 := m.addTransition(v2, &nullPrinter{})
+	t2 := m.addTransition(v2, &nullPrinter{}, newClosureBuffers())
 
 	t2x := m.transitionOn(&Field{Val: []byte("two")}, &nfaBuffers{})
 	if len(t2x) != 1 || t2x[0] != t2 {
@@ -95,7 +95,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "three",
 	}
-	t3 := m.addTransition(v3, &nullPrinter{})
+	t3 := m.addTransition(v3, &nullPrinter{}, newClosureBuffers())
 	t3x := m.transitionOn(&Field{Val: []byte("three")}, &nfaBuffers{})
 	if len(t3x) != 1 || t3x[0] != t3 {
 		t.Error("Match failed T3")
@@ -440,7 +440,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 		vType: wildcardType,
 		val:   "a*b",
 	}
-	_ = vm.addTransition(wildcardVal, sharedNullPrinter)
+	_ = vm.addTransition(wildcardVal, sharedNullPrinter, newClosureBuffers())
 
 	fields := vm.fields()
 	if !fields.isNondeterministic {
@@ -453,7 +453,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 		vType: stringType,
 		val:   "xyz",
 	}
-	_ = vm.addTransition(stringVal, sharedNullPrinter)
+	_ = vm.addTransition(stringVal, sharedNullPrinter, newClosureBuffers())
 
 	fields = vm.fields()
 	if !fields.isNondeterministic {
@@ -528,10 +528,10 @@ func TestEpsilonClosureRequired(t *testing.T) {
 	vm := newValueMatcher()
 
 	// Add a wildcard pattern first - creates NFA with epsilon transitions
-	_ = vm.addTransition(typedVal{vType: wildcardType, val: "a*z"}, sharedNullPrinter)
+	_ = vm.addTransition(typedVal{vType: wildcardType, val: "a*z"}, sharedNullPrinter, newClosureBuffers())
 
 	// Add a string pattern - this triggers merge and epsilonClosure call
-	_ = vm.addTransition(typedVal{vType: stringType, val: "az"}, sharedNullPrinter)
+	_ = vm.addTransition(typedVal{vType: stringType, val: "az"}, sharedNullPrinter, newClosureBuffers())
 
 	bufs := newNfaBuffers()
 

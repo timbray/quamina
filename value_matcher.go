@@ -91,7 +91,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	}
 }
 
-func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatcher {
+func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closureBuffers) *fieldMatcher {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
 	var err error
@@ -163,7 +163,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		// 	if (bytesAllocated() - mm.baseAlloc) > mm.headroom {
 
 		if fields.isNondeterministic {
-			epsilonClosure(fields.start)
+			epsilonClosureInto(fields.start, bufs)
 		}
 
 		m.update(fields)
@@ -182,7 +182,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 			return nil
 		}
 		if fields.isNondeterministic {
-			epsilonClosure(fields.start)
+			epsilonClosureInto(fields.start, bufs)
 		}
 		fields.singletonMatch = nil
 		fields.singletonTransition = nil
@@ -190,7 +190,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		// empty valueMatcher, no special cases, just jam in the new FA
 		fields.start = newFAState
 		if fields.isNondeterministic {
-			epsilonClosure(fields.start)
+			epsilonClosureInto(fields.start, bufs)
 		}
 	}
 	m.update(fields)

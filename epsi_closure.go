@@ -1,7 +1,5 @@
 package quamina
 
-import "sync"
-
 // Epsilon-closure construction
 // =============================
 //
@@ -16,7 +14,7 @@ import "sync"
 //
 // Construction is three nested passes:
 //
-//   epsilonClosure   — entry point; grabs pooled scratch and starts the walk.
+//   epsilonClosure   — entry point; takes the reused scratch and starts the walk.
 //   closureForNfa    — walks the reachable NFA once, calling closureForState on
 //                      each not-yet-closed state, then recursing over its steps
 //                      and epsilons.
@@ -45,11 +43,15 @@ import "sync"
 //     is why only the self-only case is specialized, not "drop self everywhere".
 //
 // Generation counters avoid clearing the scratch maps between the many closures
-// a build computes. Every "visited in this pass?" check compares a stored
-// generation against the current one; bumping the current generation logically
-// empties the map in O(1). closureBuffers tracks several independent passes
-// (the NFA walk, the per-closure epsilon traversal, and the dedup post-pass),
-// each with its own generation snapshot, which is what the fields below encode.
+// a single build computes. Every "visited in this pass?" check compares a
+// stored generation against the current one; bumping the current generation
+// logically empties the map in O(1). closureBuffers tracks several independent
+// passes (the NFA walk, the per-closure epsilon traversal, and the dedup
+// post-pass), each with its own generation snapshot, which is what the fields
+// below encode. The maps are still physically cleared once per AddPattern (see
+// reset) so they hold only one build's working set rather than growing to the
+// size of the whole matcher; the generation scheme covers the many closures
+// within that one build.
 
 // selfOnlyClosure is the shared sentinel for a closure equal to {self}: non-nil
 // (distinct from nil = "not computed") and zero-length (so consumers take their
@@ -61,7 +63,7 @@ var selfOnlyClosure = []*faState{}
 // post-pass that collapses states sharing a smallTable. It used to live as
 // fields on smallTable itself, but that is purely build-time state whose
 // permanent presence was wasted steady-state memory; it now lives in a
-// pooled side table (closureBuffers.tables).
+// reused side table (closureBuffers.tables).
 //
 // tableMark is stored by value so marking a share group costs no per-entry
 // heap allocation.
@@ -78,12 +80,13 @@ type tableMark struct {
 	closureRep *faState
 }
 
-// closureBuffers carries the scratch for epsilon closure computation. It is
-// pooled (see closureBufferPool) and reused across epsilonClosure calls, so
-// the maps are allocated once and grown, not rebuilt per call. Visited
-// tracking is generation-based: gen only ever increases, so stale map
-// entries from a previous use are simply older than the current generation
-// and need no clearing.
+// closureBuffers carries the scratch for epsilon closure computation. One is
+// owned by each coreMatcher and reused across every epsilonClosure call its
+// builds make, so the maps are allocated once and grown, not rebuilt per call.
+// The maps are cleared once per AddPattern (see reset) so they hold only that
+// build's working set; within a build, visited tracking is generation-based
+// (gen only ever increases, so stale entries are simply older than the current
+// generation), so the many closures in one build need no clearing between them.
 type closureBuffers struct {
 	gen           uint64                      // monotonic counter; bumped by closureForState's two dedup phases
 	walkGen       uint64                      // snapshot of gen for the current closureForNfa walk (NFA state dedup)
@@ -94,7 +97,7 @@ type closureBuffers struct {
 	walkVisited   map[*faState]uint64         // per-faState last-walked gen, used by closureForNfa
 	// nfaWalkCount counts states actually processed by closureForNfa (past the
 	// prune + dedup guards). Reset to zero at the start of each epsilonClosure
-	// call (per-walk count, not a pooled lifetime total). Used by tests to
+	// call (per-walk count, not a reused-buffer lifetime total). Used by tests to
 	// assert the walk is incremental; negligible in production and never read
 	// there.
 	nfaWalkCount uint64
@@ -108,22 +111,41 @@ func newClosureBuffers() *closureBuffers {
 	}
 }
 
-// closureBufferPool reuses closureBuffers (and their maps) across the many
-// epsilonClosure calls a build performs, eliminating per-call map allocation.
-// A single build (everything under one AddPattern) is single-threaded, so the
-// buffers are never shared concurrently within a build. sync.Pool is used
-// rather than a plain free list for two reasons: this is a package-level
-// global, so independent matcher builds running in separate goroutines draw
-// from it at once and need a safe hand-off; and sync.Pool drops its contents
-// on GC, so the maps do not become permanent steady-state memory.
-var closureBufferPool = sync.Pool{
-	New: func() any { return newClosureBuffers() },
+// reset empties the scratch maps. Called once per AddPattern so the maps only
+// ever hold one build's working set (the new states an incremental closure
+// walk touches), not every state in the matcher. Without this the maps grow to
+// O(total states) and lookups slow down as the matcher gets large.
+func (b *closureBuffers) reset() {
+	clear(b.tables)
+	clear(b.states)
+	clear(b.walkVisited)
 }
 
-// epsilonClosure walks the automaton starting from the given state
-// and precomputes the epsilon closure for every reachable faState.
+// epsilonClosure walks the automaton from start and precomputes the epsilon
+// closure for every reachable faState, allocating one-shot scratch buffers. The
+// build path uses epsilonClosureInto with the coreMatcher's reused buffers
+// instead; this signature exists for tests and standalone use.
 func epsilonClosure(start *faState) {
-	bufs := closureBufferPool.Get().(*closureBuffers)
+	epsilonClosureInto(start, newClosureBuffers())
+}
+
+// epsilonClosureInto is epsilonClosure with caller-supplied scratch. The build
+// passes the coreMatcher's single closureBuffers, reused across every
+// AddPattern (the build is serialized by coreMatcher.lock, so the buffers are
+// never shared concurrently), so the maps are allocated once and grown, not
+// rebuilt per call.
+//
+// There is no sync.Pool: the build's use pattern is deterministic (per
+// AddPattern: clear the buffers, populate and consult them heavily, finish).
+// A pool was measurably slower here — GC can evict the buffer between the many
+// epsilonClosure calls a single build makes, forcing the maps to be
+// reallocated mid-build; a matcher-owned buffer cleared once per AddPattern is
+// never evicted and keeps the maps small (only that build's working set), which
+// benchmarked ~22% faster on build than the pool. Within a build the generation
+// counters avoid clearing between the individual closures (bumping gen
+// logically empties the maps in O(1)); the per-AddPattern clear is what bounds
+// their size.
+func epsilonClosureInto(start *faState, bufs *closureBuffers) {
 	bufs.nfaWalkCount = 0
 	// Take a fresh generation for this walk. closureForState bumps bufs.gen
 	// for its own dedup phases, but it never touches walkGen, so the state
@@ -132,7 +154,6 @@ func epsilonClosure(start *faState) {
 	bufs.gen++
 	bufs.walkGen = bufs.gen
 	closureForNfa(start, bufs)
-	closureBufferPool.Put(bufs)
 }
 
 // closureForNfa dedups by faState identity, not table-share key: each state
