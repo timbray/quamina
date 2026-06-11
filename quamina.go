@@ -167,6 +167,31 @@ func (q *Quamina) GetMatcherStats() map[string]float64 {
 	}
 }
 
+// MatcherBuildMode enumerates the modes a Quamina instance can be in. The default is BuildForComfort.
+// When a Quamina instance is in BuildForComfort mode, adding Patterns which include wildcards and regexps
+// results in NFA-based matchers, which are more compact and faster to build, but result in MatchesForEvent
+// performance slowing down as a fairly linear function of the number of such patterns added.
+// When an instance is in BuildForSpeed mode, the NFAs which implemnet wildcard and regexp Patterns are converted
+// to DFAs. As a result, the performance of MatchesForEvent is only very weakly related to the number of
+// Patterns added and in practice is much faster.  However, certain combinations of such patterns can result
+// in explosive growth of the size of the Matcher and the AddPattern latency.  This can be as bad as O(2**N)
+// in the number of Patterns. The use of the GetMatcherStats API is advised to investigate the effects of the
+// combination of this setting with an app's typical usage of AddPattern in production.
+type MatcherBuildMode int
+
+const (
+	BuildForComfort MatcherBuildMode = iota
+	BuildForSpeed
+)
+
+// SetMatcherBuildMode puts a Quamina instance into the provided mode
+func (q *Quamina) SetMatcherBuildMode(mode MatcherBuildMode) {
+	// no-op for now
+}
+func (q *Quamina) GetMatcherBuildMode() MatcherBuildMode {
+	return BuildForComfort
+}
+
 // deprecated from here down
 
 // SetMemoryBudget used to set an approximate limit on the number of bytes allocated in building matchers for complex

@@ -201,12 +201,32 @@ yet implemented.***
 The `SetMemoryBudget()` and `GetMemoryBudget()` APIs are deprecated. As implemented
 they were too expensive and occasionally nondeterministic.
 
+### Comfort vs Speed
+
+```go
+func (q *Quamina) SetMatcherBuildMode(mode MatcherBuildMode)
+func (q *Quamina) GetMatcherBuildMode() MatcherBuildMode
+```
+There are two Master Build Modes, `BuildForComfort` and `BuildForSpeed`.  The mode controls the
+behavior of the `AddPattern()` API. When in the default `BuildForComfort` mode, adding Patterns
+which include wildcards and regexps will result in `MatchesForEvent()` performance that declines
+roughly linearly as a function of of the number of such Patterns added.
+
+When `AddPattern()` is in `BuildForSpeed` mode, adding such Patterns results in `MatchesForEvent()`
+performance that is only weakly related to the number of Patterns added and in practice is much 
+faster. However, certain combinations of such Patterns can result in explosive growth of the size of the Matcher
+and `AddPattern()` latency.  This can be as bad as O(2**N) in the number of Patterns. The use of the 
+`GetMatcherStats()` API is advised to investigate the effects of the combination of this setting with
+an app's typical usage of `AddPattern()` in production.
+
+Thanks to [Willie Dixon](https://www.youtube.com/watch?v=UfnctFIh9aE).
+
 ### Matcher Statistics
 
-Certain combinations of regular-expression and wildcard patterns can cause Quamina's memory
-structures to grow excessively large and slow down `AddPattern()` calls. The slowdown and 
-the size of the memory structures are related almost linearly; the performance slows down
-a little more quickly than the size grows, but the relationship is close enough to be useful.
+Certain combinations of regular-expression and wildcard Patterns, and the current Master 
+Build Mode, can cause Quamina's memory structures to grow excessively large and slow 
+down `AddPattern()` calls. The slowdown can be related to the size of the matcher data
+structures, in some cases linearly.
 
 ```go
 func (q *Quamina) GetMatcherStats() map[string]float64
