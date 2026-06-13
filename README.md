@@ -367,11 +367,11 @@ the `GetMatcherStats()` API.
 Go compiles with [default CPU capabilites](https://go.dev/wiki/MinimumRequirements)
 for each architecture. In particular, its [AMD64](https://go.dev/wiki/MinimumRequirements#amd64)
 defaults are quite conservative. Changing this default can yield up to 10% improvements
-with no code changes, if you know the target machines' capabilites. No signifcant
-improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64)
-defaults.
+with no code changes, if you know the target machines' capabilites.
 
-AMD65 test machine: AMD Threadripper 2920X machine with 64GB of RAM.
+AMD65 test machine: AMD Threadripper 2920X machine with 64GB of RAM. Tested level v1 vs v3. The performance improvements were benchmark-dependent, so it's best to check it on your own workload.
+
+No signifcant improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64) defaults.
 
 ARM64 test machines: various Apple Silicon chips, M1 Ultra to M5.
 
