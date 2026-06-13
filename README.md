@@ -371,8 +371,9 @@ with no code changes, if you know the target machines' capabilites. No signifcan
 improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64)
 defaults.
 
-AMD65 test machine; AMD Threadripper 2920X machine with 64GB of RAM.
-ARM64 test machiens: various Apple Silicon chips, M1 Ultra to M5.
+AMD65 test machine: AMD Threadripper 2920X machine with 64GB of RAM.
+
+ARM64 test machines: various Apple Silicon chips, M1 Ultra to M5.
 
 ### Further documentation
 
