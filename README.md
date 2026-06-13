@@ -369,7 +369,10 @@ for each architecture. In particular, its [AMD64](https://go.dev/wiki/MinimumReq
 defaults are quite conservative. Changing this default can yield up to 10% improvements
 with no code changes, if you know the target machines' capabilites. No signifcant
 improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64)
-defaults. Tested on an AMD Threadripper 2920X machine with 64GB of RAM.
+defaults.
+
+AMD65 test machine; AMD Threadripper 2920X machine with 64GB of RAM.
+ARM64 test machiens: various Apple Silicon chips, M1 Ultra to M5.
 
 ### Further documentation
 
