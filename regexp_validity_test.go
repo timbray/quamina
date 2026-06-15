@@ -39,7 +39,7 @@ func TestEmptyRegexp(t *testing.T) {
 	// matching on a field SHOULD match
 	pattern := `{"a": [{"regexp": ""}]}`
 	cm := newCoreMatcher()
-	err = cm.addPattern("a", pattern)
+	err = cm.addPattern("a", pattern, BuiltForComfort)
 	if err != nil {
 		t.Error("addPattern: " + err.Error())
 	}

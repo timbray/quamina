@@ -25,7 +25,7 @@ func updateTree(t *testing.T, m *coreMatcher, use37 bool, ch chan string) {
 		pattern = fmt.Sprintf(`{ "properties": { "STREET": [ {"shellstyle": %s } ] } }`, val)
 		*/
 	}
-	err := m.addPattern(val, pattern)
+	err := m.addPattern(val, pattern, BuiltForComfort)
 	if err != nil {
 		t.Error("Concurrent: " + err.Error())
 	}
@@ -68,7 +68,7 @@ func TestConcurrency(t *testing.T) {
 	var err error
 	m := newCoreMatcher()
 	for i := range names {
-		err = m.addPattern(names[i], patterns[i])
+		err = m.addPattern(names[i], patterns[i], BuiltForComfort)
 		if err != nil {
 			t.Error("addPattern: " + err.Error())
 		}

@@ -196,11 +196,11 @@ func (m *prunerMatcher) maybeRebuild(added bool) error {
 // addPattern calls the underlying quamina.coreMatcher.addPattern
 // method and then maybe rebuilds the index (if the addPattern
 // succeeded).
-func (m *prunerMatcher) addPattern(x X, pat string) error {
+func (m *prunerMatcher) addPattern(x X, pat string, buildMode MatcherBuildMode) error {
 	var err error
 
 	// Do we m.live.Add first or do we m.prunerMatcher.addPattern first?
-	if err = m.Matcher.addPattern(x, pat); err == nil {
+	if err = m.Matcher.addPattern(x, pat, buildMode); err == nil {
 		m.lock.Lock()
 		m.stats.Added++
 		m.stats.Live++
@@ -312,7 +312,7 @@ func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 
 	count := 0
 	err := m.live.Iterate(func(x X, p string) error {
-		err := m1.addPattern(x, p)
+		err := m1.addPattern(x, p, BuiltForComfort)
 		if err == nil {
 			count++
 		}

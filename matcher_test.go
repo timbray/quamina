@@ -8,7 +8,7 @@ func TestMatcherInterface(t *testing.T) {
 		t.Error("Can't cast")
 	}
 	var x X = "x"
-	err := m.addPattern(x, `{"x": [1, 2]}`)
+	err := m.addPattern(x, `{"x": [1, 2]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("addPattern? " + err.Error())
 	}

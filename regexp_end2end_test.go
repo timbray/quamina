@@ -44,7 +44,7 @@ func testRegexpMatches(t *testing.T, tests []regexpSample) {
 	for _, test := range tests {
 		cm := newCoreMatcher()
 		pattern := fmt.Sprintf(`{"a": [{"regexp": "%s"}]}`, test.regex)
-		err := cm.addPattern("a", pattern)
+		err := cm.addPattern("a", pattern, BuiltForComfort)
 		if err != nil {
 			t.Error("addP: " + err.Error())
 			continue
@@ -55,7 +55,7 @@ func testRegexpMatches(t *testing.T, tests []regexpSample) {
 		}
 		// pp := newPrettyPrinter(8899)
 		// fmt.Printf("FA for %s: %s\n", test.regex, pp.printNFA(fa))
-		err = allPatternsCM.addPattern(pattern, pattern)
+		err = allPatternsCM.addPattern(pattern, pattern, BuiltForComfort)
 		if err != nil {
 			t.Error("addPAll" + err.Error())
 			continue

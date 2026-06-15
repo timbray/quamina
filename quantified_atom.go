@@ -59,8 +59,6 @@ func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) smallTable {
 		table = makeNFAFromBranches(qa.getSubtree(), nextStep, false, pp)
 	case qa.runeRangeCache() != "":
 		table = makeAndCacheRuneRangeFA(qa.runes, nextStep, qa.runeRangeCache(), pp)
-	case qa.isNoOp():
-		table = newSmallTable()
 	default:
 		// if it's none of these other things, it has to boil down to a rune range
 		table = makeRuneRangeNFA(qa.runes, nextStep, pp)

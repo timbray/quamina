@@ -14,6 +14,7 @@ type Quamina struct {
 	matcher            matcher
 	mediaTypeSpecified bool
 	deletionSpecified  bool
+	buildMode          MatcherBuildMode
 }
 
 // Option is an interface type used in Quamina's New API to pass in options. By convention, Option names
@@ -107,6 +108,7 @@ func New(opts ...Option) (*Quamina, error) {
 		q.matcher = newCoreMatcher()
 	}
 	q.bufs = newNfaBuffers()
+	q.buildMode = BuiltForComfort
 	return &q, nil
 }
 
@@ -128,7 +130,7 @@ type X any
 // from multiple goroutines (in instances created using the Copy method) calls will block until any other
 // AddPattern call in progress succeeds.
 func (q *Quamina) AddPattern(x X, patternJSON string) error {
-	return q.matcher.addPattern(x, patternJSON)
+	return q.matcher.addPattern(x, patternJSON, q.buildMode)
 }
 
 // DeletePatterns removes patterns identified by the x argument from the Quamina instance; the effect
@@ -165,6 +167,36 @@ func (q *Quamina) GetMatcherStats() map[string]float64 {
 		"fanouts":   float64(stats.fanouts),
 		"maxFanout": float64(stats.maxFanout),
 	}
+}
+
+// MatcherBuildMode enumerates the modes a Quamina instance can be in. The default is BuiltForComfort.
+// When a Quamina instance is in BuiltForComfort mode, adding Patterns which include wildcards and regexps
+// results in NFA-based matchers, which are more compact and faster to build, but result in MatchesForEvent
+// performance slowing down as a fairly linear function of the number of such patterns added.
+// When an instance is in BuiltForSpeed mode, the NFAs which implemnet wildcard and regexp Patterns are converted
+// to DFAs. As a result, the performance of MatchesForEvent is only very weakly related to the number of
+// Patterns added and in practice is much faster.  However, certain combinations of such patterns can result
+// in explosive growth of the size of the Matcher and the AddPattern latency.  This can be as bad as O(2**N)
+// in the number of Patterns. The use of the GetMatcherStats API is advised to investigate the effects of the
+// combination of this setting with an app's typical usage of AddPattern in production.
+type MatcherBuildMode int
+
+const (
+	BuiltForComfort MatcherBuildMode = iota
+	BuiltForSpeed
+)
+
+// SetMatcherBuildMode puts a Quamina instance into the provided mode
+func (q *Quamina) SetMatcherBuildMode(mode MatcherBuildMode) error {
+	_, ok := q.matcher.(*coreMatcher)
+	if !ok {
+		return errors.New("this API not available if WithPatternDeletion enabled")
+	}
+	q.buildMode = mode
+	return nil
+}
+func (q *Quamina) GetMatcherBuildMode() MatcherBuildMode {
+	return q.buildMode
 }
 
 // deprecated from here down

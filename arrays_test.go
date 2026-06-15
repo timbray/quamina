@@ -76,14 +76,14 @@ func TestArrayCorrectness(t *testing.T) {
 	wataGuiterPattern := `{"bands": { "members": { "given": [ "Wata" ], "role": [ "guitar" ] } } }`
 
 	m := newCoreMatcher()
-	if err := m.addPattern("Mick strummer", mickStrummerPattern); err != nil {
+	if err := m.addPattern("Mick strummer", mickStrummerPattern, BuiltForComfort); err != nil {
 		t.Errorf("Failed adding pattern: %s: %s", mickStrummerPattern, err)
 	}
 
-	if err := m.addPattern("Wata drums", wataDrumsPattern); err != nil {
+	if err := m.addPattern("Wata drums", wataDrumsPattern, BuiltForComfort); err != nil {
 		t.Errorf("Failed adding pattern: %s: %s", wataDrumsPattern, err)
 	}
-	if err := m.addPattern("Wata guitar", wataGuiterPattern); err != nil {
+	if err := m.addPattern("Wata guitar", wataGuiterPattern, BuiltForComfort); err != nil {
 		t.Errorf("Failed adding pattern: %s: %s", wataGuiterPattern, err)
 	}
 

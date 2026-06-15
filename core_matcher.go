@@ -57,13 +57,13 @@ func (m *coreMatcher) fields() *coreFields {
 
 // addPattern - the patternBytes is a JSON text which must be an object. The X is what the matcher returns to indicate
 // that the provided pattern has been matched. In many applications it might be a string which is the pattern's name.
-func (m *coreMatcher) addPattern(x X, patternJSON string) error {
-	return m.addPatternWithPrinter(x, patternJSON, sharedNullPrinter)
+func (m *coreMatcher) addPattern(x X, patternJSON string, buildMode MatcherBuildMode) error {
+	return m.addPatternWithPrinter(x, patternJSON, sharedNullPrinter, buildMode)
 }
 
 // addPatternWithPrinter can be called from debugging and under-development code to allow viewing pretty-printed
 // NFAs
-func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer printer) error {
+func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer printer, buildMode MatcherBuildMode) error {
 	patternFields, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 			case existsFalseType:
 				ns = state.addExists(false, field)
 			default:
-				ns = state.addTransition(field, printer, m.closureBufs)
+				ns = state.addTransition(field, printer, m.closureBufs, buildMode)
 			}
 			nextStates = append(nextStates, ns...)
 		}

@@ -57,11 +57,11 @@ func TestCRANLEIGH(t *testing.T) {
 	pCranleigh := `{ "properties": { "STREET": [ "CRANLEIGH" ] } }`
 	p108492 := `{ "properties": { "MAPBLKLOT": ["0011008"], "BLKLOT": ["0011008"]},  "geometry": { "coordinates": [ 37.807807921694092 ] } } `
 
-	err := m.addPattern("CRANLEIGH", pCranleigh)
+	err := m.addPattern("CRANLEIGH", pCranleigh, BuiltForComfort)
 	if err != nil {
 		t.Error("!? " + err.Error())
 	}
-	err = m.addPattern("108492", p108492)
+	err = m.addPattern("108492", p108492, BuiltForComfort)
 	if err != nil {
 		t.Error("!? " + err.Error())
 	}
@@ -92,7 +92,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 	Bpat := `{"properties": {"STREET":[ {"shellstyle": "B*"} ] } }`
 	EEEpat := `{"properties": {"STREET":[ {"shellstyle": "*E*E*E*"} ] } }`
 
-	if m.addPattern("EEE", EEEpat) != nil {
+	if m.addPattern("EEE", EEEpat, BuiltForComfort) != nil {
 		t.Error("Huh add?")
 	}
 	matches, _ := m.matchesForJSONEvent([]byte(line))
@@ -101,8 +101,8 @@ func TestMySoftwareHatesMe(t *testing.T) {
 	}
 
 	m = newCoreMatcher()
-	_ = m.addPattern("B", Bpat)
-	_ = m.addPattern("EEE", EEEpat)
+	_ = m.addPattern("B", Bpat, BuiltForComfort)
+	_ = m.addPattern("EEE", EEEpat, BuiltForComfort)
 
 	matches, _ = m.matchesForJSONEvent([]byte(line))
 	if !containsX(matches, "B") {
@@ -133,14 +133,14 @@ func TestBigShellStyle(t *testing.T) {
 
 	for letter := range wanted {
 		pat := fmt.Sprintf(`{"properties": {"STREET":[ {"shellstyle": "%s*"} ] } }`, letter)
-		err := m.addPattern(letter, pat)
+		err := m.addPattern(letter, pat, BuiltForComfort)
 		if err != nil {
 			t.Errorf("err on %c: %s", letter, err.Error())
 		}
 	}
 
 	for funk := range funky {
-		err := m.addPattern(funk, funk.(string))
+		err := m.addPattern(funk, funk.(string), BuiltForComfort)
 		if err != nil {
 			t.Errorf("err on %s: %s", funk, err.Error())
 		}
@@ -209,7 +209,7 @@ func TestPatternAddition(t *testing.T) {
 			fieldCount += 200
 			pat = pat + `] } }`
 			pName := string(w.next()) + string(w.next())
-			err := m.addPattern(pName, pat)
+			err := m.addPattern(pName, pat, BuiltForComfort)
 			if err != nil {
 				t.Error("addPattern " + err.Error())
 			}
