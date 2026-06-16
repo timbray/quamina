@@ -49,12 +49,12 @@ func (qa *quantifiedAtom) isMinimumOnly() bool {
 	return qa.quantMax == regexpMinimumOnly
 }
 
-func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) *smallTable {
-	var table *smallTable
+func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) smallTable {
+	var table smallTable
 	switch {
 	case qa.isDot():
 		table = makeDotFA(nextStep)
-		pp.labelTable(table, "Dot")
+		pp.labelTable(&table, "Dot")
 	case qa.getSubtree() != nil:
 		table = makeNFAFromBranches(qa.getSubtree(), nextStep, false, pp)
 	case qa.runeRangeCache() != "":
@@ -64,7 +64,7 @@ func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) *smallTable {
 	default:
 		// if it's none of these other things, it has to boil down to a rune range
 		table = makeRuneRangeNFA(qa.runes, nextStep, pp)
-		pp.labelTable(table, fmt.Sprintf("RR %x/%x, %d-%d", qa.runes[0].Lo, qa.runes[0].Hi, qa.quantMin, qa.quantMax))
+		pp.labelTable(&table, fmt.Sprintf("RR %x/%x, %d-%d", qa.runes[0].Lo, qa.runes[0].Hi, qa.quantMin, qa.quantMax))
 	}
 	return table
 }

@@ -30,6 +30,8 @@ linters:
         text: ST1018
       - path: flatten_json\.go
         text: G602
+      - path: regex_nfa_dfa_bench_test.go
+        text: G115
       - path: flatten_json_test\.go
         text: G602
       - path: anything_but\.go

@@ -66,14 +66,14 @@ func applyAndRunRegexp(t *testing.T, regexp string, match string, pp printer) in
 	t.Helper()
 	qm := []byte(`"` + match + `"`)
 	fa := faFromRegexp(t, regexp, pp)
-	fmt.Println("N:\n" + pp.printNFA(fa))
+	fmt.Println("N:\n" + pp.printNFA(&fa.table))
 	var transitions []*fieldMatcher
 	bufs := newNfaBuffers()
 	matches := testTraverseNFA(fa, qm, transitions, bufs)
 	return len(matches)
 }
 
-func faFromRegexp(t *testing.T, r string, pp printer) *smallTable {
+func faFromRegexp(t *testing.T, r string, pp printer) *faState {
 	t.Helper()
 	parse, err := readRegexp(r)
 	if err != nil {
@@ -95,7 +95,7 @@ func TestRegexpPlus(t *testing.T) {
 		"[123]+|[abc]+",
 	}
 	pp := newPrettyPrinter(4623)
-	var fa *smallTable
+	var fa *faState
 	for _, re := range res {
 		fa = faFromRegexp(t, re, pp)
 		epsilonClosure(fa)
@@ -147,11 +147,11 @@ func TestExploreUTF8Form(t *testing.T) {
 
 	wantFM := &fieldMatcher{}
 	targetState := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
-	table := makeDotFA(targetState)
+	startState := &faState{table: makeDotFA(targetState)}
 	var matchers []*fieldMatcher
 	var got []*fieldMatcher
 	for i, bad := range bads {
-		got = traverseDFA(table, bad, matchers)
+		got = traverseDFA(startState, bad, matchers)
 		if len(got) != 0 {
 			t.Errorf("accepted index %d", i)
 		}
@@ -161,7 +161,7 @@ func TestExploreUTF8Form(t *testing.T) {
 func TestDotSemantics(t *testing.T) {
 	wantFM := &fieldMatcher{}
 	targetState := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
-	table := makeDotFA(targetState)
+	startState := &faState{table: makeDotFA(targetState)}
 	var matchers []*fieldMatcher
 	var got []*fieldMatcher
 	var r rune
@@ -170,7 +170,7 @@ func TestDotSemantics(t *testing.T) {
 		if r >= 0xD800 && r <= 0xDFFF {
 			continue
 		}
-		got = traverseDFA(table, []byte(string([]rune{r})), matchers)
+		got = traverseDFA(startState, []byte(string([]rune{r})), matchers)
 		if len(got) != 1 || got[0] != wantFM {
 			t.Errorf("failed on %x", r)
 		}
@@ -188,14 +188,14 @@ func TestDotSemantics(t *testing.T) {
 	}
 
 	for _, good := range goodUTF8 {
-		got = traverseDFA(table, good, matchers)
+		got = traverseDFA(startState, good, matchers)
 		if len(got) != 1 || got[0] != wantFM {
 			t.Errorf("failed on non-surrogate %04x", r)
 		}
 		matchers = matchers[:0]
 	}
 	for _, bad := range badUTF8 {
-		got = traverseDFA(table, bad, matchers)
+		got = traverseDFA(startState, bad, matchers)
 		if len(got) != 0 {
 			t.Errorf("accepted surrogate %04x", r)
 		}
@@ -341,17 +341,17 @@ func TestMultiLengthRR(t *testing.T) {
 		wantFM := &fieldMatcher{}
 
 		dest := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{wantFM}}
-		st := makeRuneRangeNFA(rr, dest, sharedNullPrinter)
+		startState := &faState{table: makeRuneRangeNFA(rr, dest, sharedNullPrinter)}
 
 		matchers := []*fieldMatcher{}
 		var got []*fieldMatcher
 		for _, rp := range multiLengthTest {
-			got = traverseDFA(st, []byte(string([]rune{rp.Lo})), matchers)
+			got = traverseDFA(startState, []byte(string([]rune{rp.Lo})), matchers)
 			if len(got) != 1 || got[0] != wantFM {
 				t.Errorf("failed on %x", rp.Lo)
 			}
 		}
-		nfaSize(t, st)
+		nfaSize(t, &startState.table)
 	}
 }
 
@@ -384,7 +384,7 @@ func nfaSizeStep(t *testing.T, st *smallTable, s *statsAccum, depth int) {
 	}
 	for _, step := range st.steps {
 		if step != nil {
-			nfaSizeStep(t, step.table, s, depth+1)
+			nfaSizeStep(t, &step.table, s, depth+1)
 		}
 	}
 }

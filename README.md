@@ -362,6 +362,19 @@ is very similar to the increase in the total memory used by the Pattern-matching
 data structures. The amount of total memory can be retrieved using
 the `GetMatcherStats()` API.
 
+### Compiling for specific architectures
+
+Go compiles with [default CPU capabilites](https://go.dev/wiki/MinimumRequirements)
+for each architecture. In particular, its [AMD64](https://go.dev/wiki/MinimumRequirements#amd64)
+defaults are quite conservative. Changing this default can yield up to 10% improvements
+with no code changes, if you know the target machines' capabilites.
+
+AMD65 test machine: AMD Threadripper 2920X machine with 64GB of RAM. Tested level v1 vs v3. The performance improvements were benchmark-dependent, so it's best to check it on your own workload.
+
+No signifcant improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64) defaults.
+
+ARM64 test machines: various Apple Silicon chips, M1 Ultra to M5.
+
 ### Further documentation
 
 There is a series of blog posts entitled

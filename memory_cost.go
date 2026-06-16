@@ -23,11 +23,11 @@ func cmFieldMatcherStats(fm *fieldMatcher, stats *matcherStats, pp printer) {
 		if singleton != nil {
 			stats.bytes += int64(cap(singleton))
 		}
-		table := vm.fields().startTable
-		if table == nil {
+		start := vm.fields().start
+		if start == nil {
 			continue
 		}
-		cmStateStats(&faState{table: table}, stats, pp)
+		cmStateStats(start, stats, pp)
 	}
 }
 
@@ -48,6 +48,10 @@ func cmStateStats(state *faState, stats *matcherStats, pp printer) {
 			cmStateStats(step, stats, pp)
 		}
 	}
+	// Unlike steps (whose entries may be nil for no-transition byte ranges),
+	// epsilons only ever holds explicit, non-nil links — traverseEpsilons in
+	// the build hot path dereferences them unguarded, so a nil here would be a
+	// corrupted structure, not a normal case.
 	for _, eps := range state.table.epsilons {
 		cmStateStats(eps, stats, pp)
 	}
@@ -66,9 +70,9 @@ func mcSmallTable(st *smallTable) int64 {
 
 func mcFaState(state *faState) int64 {
 	cost := mcFaStateBase
-	if state.table != nil {
-		cost += mcSmallTable(state.table)
-	}
+	cost += int64(cap(state.table.ceilings))
+	cost += mcPointer * int64(cap(state.table.steps))
+	cost += mcPointer * int64(cap(state.table.epsilons))
 	cost += mcPointer * int64(cap(state.fieldTransitions))
 	cost += mcPointer * int64(cap(state.epsilonClosure))
 	return cost

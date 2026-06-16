@@ -70,12 +70,12 @@ func readAnythingButSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typ
 // Making a succession of anything-but automata for each of "a" and "b" and then merging them turns out not
 // to work because what the caller means is really an AND - everything that matches neither "a" nor "b". So
 // in principle we could intersect automata.
-func makeMultiAnythingButFA(vals [][]byte) (*smallTable, *fieldMatcher) {
+func makeMultiAnythingButFA(vals [][]byte) (*faState, *fieldMatcher) {
 	nextField := newFieldMatcher()
 	success := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{nextField}}
 
-	ret, _ := makeOneMultiAnythingButStep(vals, 0, success), nextField
-	return ret, nextField
+	startTable := makeOneMultiAnythingButStep(vals, 0, success)
+	return &faState{table: startTable}, nextField
 }
 
 // makeOneMultiAnythingButStep - spookeh. The idea is that there will be N smallTables in this FA, where N is
@@ -84,7 +84,7 @@ func makeMultiAnythingButFA(vals [][]byte) (*smallTable, *fieldMatcher) {
 // yet been exhausted. We notice when we get to the end of each val and put in a valueTerminator transition
 // to a step with no nextField entry, i.e. failure because we've exactly matched one of the anything-but
 // strings.
-func makeOneMultiAnythingButStep(vals [][]byte, index int, success *faState) *smallTable {
+func makeOneMultiAnythingButStep(vals [][]byte, index int, success *faState) smallTable {
 	// this will be the default transition in all the anything-but tables.
 	var u unpackedTable
 	for i := range u {

@@ -45,8 +45,8 @@ type smallTable struct {
 
 // newSmallTable mostly exists to enforce the constraint that every smallTable has a byteCeiling entry at
 // the end, which smallTable.step totally depends on.
-func newSmallTable() *smallTable {
-	return &smallTable{
+func newSmallTable() smallTable {
+	return smallTable{
 		ceilings: []byte{byte(byteCeiling)},
 		steps:    []*faState{nil},
 	}
@@ -105,7 +105,7 @@ func (t *smallTable) dStep(utf8Byte byte) *faState {
 // value, and then a few other values with their indexes and values specified in the other two arguments. The
 // goal is to reduce memory churn
 // constraint: positions must be provided in order
-func makeSmallTable(defaultStep *faState, indices []byte, steps []*faState) *smallTable {
+func makeSmallTable(defaultStep *faState, indices []byte, steps []*faState) smallTable {
 	t := smallTable{
 		ceilings: make([]byte, 0, len(indices)+2),
 		steps:    make([]*faState, 0, len(indices)+2),
@@ -125,7 +125,7 @@ func makeSmallTable(defaultStep *faState, indices []byte, steps []*faState) *sma
 		t.ceilings = append(t.ceilings, byte(byteCeiling))
 		t.steps = append(t.steps, defaultStep)
 	}
-	return &t
+	return t
 }
 
 // For manipulating larger-scale machines, the performance starts to be dominated by

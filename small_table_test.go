@@ -81,7 +81,7 @@ func TestSmallTableIterator(t *testing.T) {
 	for i, byteval := range bytevals {
 		wanted[byteval] = steps[i]
 	}
-	iter := newSTIterator(st, nil)
+	iter := newSTIterator(&st, nil)
 	for iter.hasNext() {
 		utf8byte, step := iter.next()
 		if wanted[utf8byte] != step {
@@ -96,8 +96,8 @@ func TestSmallTableIterator(t *testing.T) {
 			t.Errorf("at u=%x wanted %p got %p", i, wanted[i], state)
 		}
 	}
-	unpacked := unpackTable(st)
-	iter = newSTIterator(st, &iter)
+	unpacked := unpackTable(&st)
+	iter = newSTIterator(&st, &iter)
 	for iter.hasNext() {
 		utf8byte, step := iter.next()
 		if unpacked[utf8byte] != step {
@@ -115,15 +115,15 @@ func TestSmallTableIterator(t *testing.T) {
 	for i, byteval := range bytevals {
 		wanted[byteval] = steps[i]
 	}
-	iter = newSTIterator(st, &iter)
+	iter = newSTIterator(&st, &iter)
 	for iter.hasNext() {
 		utf8byte, step := iter.next()
 		if wanted[utf8byte] != step {
 			t.Errorf("at u=%x wanted %p got %p", utf8byte, wanted[utf8byte], step)
 		}
 	}
-	unpacked = unpackTable(st)
-	iter = newSTIterator(st, &iter)
+	unpacked = unpackTable(&st)
+	iter = newSTIterator(&st, &iter)
 	for iter.hasNext() {
 		utf8byte, step := iter.next()
 		if unpacked[utf8byte] != step {
