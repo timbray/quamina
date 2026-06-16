@@ -29,7 +29,7 @@ const (
 	rxfPlus            regexpFeature = "'+' one-or-more matcher"
 	rxfQM              regexpFeature = "'?' optional matcher"
 	rxfRange           regexpFeature = "'{}' range matcher"
-	rxfParenGroup      regexpFeature = "() parenthetized group"
+	rxfParenGroup      regexpFeature = "() parenthesized group"
 	rxfProperty        regexpFeature = "~p-prefixed {}-enclosed Unicode property matcher"
 	rxfNegatedProperty regexpFeature = "~P-prefixed {}-enclosed negated property matcher"
 	rxfClass           regexpFeature = "[]-enclosed character-class matcher"

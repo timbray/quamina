@@ -16,7 +16,7 @@ package quamina
 //	"f", "\"x\""
 //
 // Let's call the first column, eg "d" and "e\ne1", the path. For each
-// step i the path, e.g. "d" and "e1", the Flattener should utilize SegmentsTreeTracker to
+// step in the path, e.g. "d" and "e1", the Flattener should utilize SegmentsTreeTracker to
 // traverse the hierarchy and select only the needed fields.
 type Flattener interface {
 	Flatten(event []byte, tracker SegmentsTreeTracker) ([]Field, error)

@@ -13,7 +13,7 @@ type segmentsTree struct {
 	root bool
 
 	// nodes stores a map from a segment to its children.
-	// in a hierarchial data format like JSON, a node can be Object or Array.
+	// in a hierarchical data format like JSON, a node can be Object or Array.
 	// for example, in this path "context\nuser\nid", both "context" and "user" will be nodes.
 	nodes map[string]*segmentsTree
 

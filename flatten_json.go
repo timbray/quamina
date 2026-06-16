@@ -149,7 +149,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 		return err
 	}
 
-	// how many leaf states (fieldsCount) and chidStructures (nodesCount) have been mentioned in patterns?
+	// how many leaf states (fieldsCount) and childStructures (nodesCount) have been mentioned in patterns?
 	fieldsCount := pathNode.FieldsCount()
 	nodesCount := pathNode.NodesCount()
 
@@ -178,7 +178,7 @@ func (fj *flattenJSON) readObject(pathNode SegmentsTreeTracker) error {
 	var segmentIsUsed bool
 	isLeaf := false
 	for {
-		// if we've read all the nodes and fields tha have been mentioned in Patterns, we can stop reading this object
+		// if we've read all the nodes and fields that have been mentioned in Patterns, we can stop reading this object
 		if nodesCount == 0 && fieldsCount == 0 {
 			if pathNode.IsRoot() {
 				return errEarlyStop
@@ -629,7 +629,7 @@ func (fj *flattenJSON) skipStringValue() error {
 // ideally, we'd like to construct the member name as just a slice of the event buffer,
 // but will have to find a new home for it if it has JSON \-escapes
 func (fj *flattenJSON) readStringValue() ([]byte, error) {
-	// value includes leading and trailng "
+	// value includes leading and trailing "
 	valStart := fj.eventIndex
 	fj.eventIndex++
 	if fj.eventIndex >= len(fj.event) {

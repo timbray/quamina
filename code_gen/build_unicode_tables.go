@@ -167,7 +167,7 @@ func buildCharPropsTable() {
 		sortedProps = append(sortedProps, property)
 	}
 
-	// arrange the maps in alphabetical order for aesthatic reasons
+	// arrange the maps in alphabetical order for aesthetic reasons
 	slices.Sort(sortedProps)
 
 	for _, prop := range sortedProps {

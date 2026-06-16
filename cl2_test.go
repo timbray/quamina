@@ -16,7 +16,7 @@ var (
 	cl2LineCount int
 )
 
-// test rules pulled out so that it's easy to write test funcs focusing in on one set of htem.
+// test rules pulled out so that it's easy to write test funcs focusing in on one set of them.
 var (
 	anythingButRules = []string{
 		"{\n" +
