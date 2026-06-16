@@ -91,10 +91,9 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	}
 }
 
-func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closureBuffers) *fieldMatcher {
+func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closureBuffers, buildMode MatcherBuildMode) *fieldMatcher {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
-	var err error
 
 	// special case - virgin state and this is a string match
 	if fields.start == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
@@ -153,9 +152,6 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 	// there's already a table, thus an out-degree > 1
 	if fields.start != nil {
 		fields.start = mergeStartStates(fields.start, newFAState, printer)
-		if err != nil {
-			return nil
-		}
 
 		// in the case where you have just a handful of addTransitions but the memoryBudget
 		// is tiny, the overrun won't be caught because monitor.sample only checks
@@ -164,6 +160,10 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 
 		if fields.isNondeterministic {
 			epsilonClosureInto(fields.start, bufs)
+			if buildMode == BuiltForSpeed {
+				fields.start = nfa2Dfa(fields.start)
+				fields.isNondeterministic = false
+			}
 		}
 
 		m.update(fields)
@@ -178,11 +178,12 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 
 		// now table is ready for use, nuke singleton to signal threads to use it
 		fields.start = mergeStartStates(&faState{table: singletonTable}, newFAState, sharedNullPrinter)
-		if err != nil {
-			return nil
-		}
 		if fields.isNondeterministic {
 			epsilonClosureInto(fields.start, bufs)
+			if buildMode == BuiltForSpeed {
+				fields.start = nfa2Dfa(fields.start)
+				fields.isNondeterministic = false
+			}
 		}
 		fields.singletonMatch = nil
 		fields.singletonTransition = nil
@@ -191,6 +192,10 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 		fields.start = newFAState
 		if fields.isNondeterministic {
 			epsilonClosureInto(fields.start, bufs)
+			if buildMode == BuiltForSpeed {
+				fields.start = nfa2Dfa(fields.start)
+				fields.isNondeterministic = false
+			}
 		}
 	}
 	m.update(fields)

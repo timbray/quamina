@@ -17,6 +17,17 @@ func TestCopy(t *testing.T) {
 	}
 }
 
+func TestSetBuildModeDisabled(t *testing.T) {
+	q, err := New(WithPatternDeletion(true))
+	if err != nil {
+		t.Error(err)
+	}
+	err = q.SetMatcherBuildMode(BuiltForSpeed)
+	if err == nil {
+		t.Error("SetMatcherBuildMode allowed with deletion enabled")
+	}
+}
+
 func TestNewQOptions(t *testing.T) {
 	var q *Quamina
 	var err error

@@ -8,17 +8,17 @@ import (
 func TestWildcardSyntax(t *testing.T) {
 	cm := newCoreMatcher()
 	busted1 := `{"x": [{"wildcard": . }]}`
-	err := cm.addPattern("x", busted1)
+	err := cm.addPattern("x", busted1, BuiltForComfort)
 	if err == nil {
 		t.Error("accepted " + busted1)
 	}
 	busted2 := `{"x": [{"wildcard": 3}]}`
-	err = cm.addPattern("x", busted2)
+	err = cm.addPattern("x", busted2, BuiltForComfort)
 	if err == nil {
 		t.Error("accepted " + busted2)
 	}
 	busted3 := `{"x": [{"wildcard": "x" ]}`
-	err = cm.addPattern("x", busted3)
+	err = cm.addPattern("x", busted3, BuiltForComfort)
 	if err == nil {
 		t.Error("accepted " + busted3)
 	}
@@ -115,14 +115,14 @@ func TestWildcardInvalidEscape(t *testing.T) {
 	}
 	for _, good := range goods {
 		pattern := fmt.Sprintf(`{"x": [{"wildcard": "%s"}]}`, good)
-		err := cm.addPattern("x", pattern)
+		err := cm.addPattern("x", pattern, BuiltForComfort)
 		if err != nil {
 			t.Error("rejected \\:", good)
 		}
 	}
 	for _, bad := range bads {
 		pattern := fmt.Sprintf(`{"x": [{"wildcard": "%s"}]}`, bad)
-		err := cm.addPattern("x", pattern)
+		err := cm.addPattern("x", pattern, BuiltForComfort)
 		if err == nil {
 			t.Error("Allowed bad \\:", bad)
 		}
@@ -138,7 +138,7 @@ func exerciseMultiPatterns(t *testing.T, nos []string, pws []pwanted) {
 	t.Helper()
 	cm := newCoreMatcher()
 	for _, pw := range pws {
-		err := cm.addPattern(pw.pattern, pw.pattern)
+		err := cm.addPattern(pw.pattern, pw.pattern, BuiltForComfort)
 		if err != nil {
 			t.Errorf("Addpattern %s: %s", pw.pattern, err.Error())
 		}
@@ -170,7 +170,7 @@ func exerciseMultiPatterns(t *testing.T, nos []string, pws []pwanted) {
 func exercisePattern(t *testing.T, pattern string, yes []string, no []string) {
 	t.Helper()
 	cm := newCoreMatcher()
-	err := cm.addPattern(pattern, fmt.Sprintf(`{"x": [ {"wildcard": "%s"}]}`, pattern))
+	err := cm.addPattern(pattern, fmt.Sprintf(`{"x": [ {"wildcard": "%s"}]}`, pattern), BuiltForComfort)
 	if err != nil {
 		t.Errorf("Addpattern %s: %s", pattern, err.Error())
 	}
