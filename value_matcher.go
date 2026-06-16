@@ -58,7 +58,7 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	switch {
 	case vmFields.singletonMatch != nil:
 		// if there's a singleton entry here, we either match the val or we're
-		// done Note: We have to check this first because addTransition might be
+		// done. Note: We have to check this first because addTransition might be
 		// busy constructing an automaton, but it's not ready for use yet.  When
 		// it's done it'll zero out the singletonMatch
 		if bytes.Equal(vmFields.singletonMatch, val) {

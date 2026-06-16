@@ -133,7 +133,7 @@ of building and submitting a PR, to type `make` at some
 point, which will rebuild and re-run `code_gen`; that program
 will display a message saying whether or not it rebuilt the
 case-folding mappings. If it did rebuild those mappings, please
-include the generated files in your commmit
+include the generated files in your commit
 and PR.
 
 ## Reporting Bugs and Creating Issues
@@ -167,7 +167,7 @@ A straightforward way to test a new feature is exemplified by `TestLongCase()` i
 3. Make test data and examine matching behavior by calling `matchesForJSONEvent()`
 
 We track test coverage carefully and while we don't have a target coverage number,
-the majority of Quamina’s source files hit 100%. Don’t scrimp on unit tsting.
+the majority of Quamina’s source files hit 100%. Don’t scrimp on unit testing.
 
 ### Prettyprinting NFAs
 

@@ -1,7 +1,7 @@
 package quamina
 
-// SegmentsTreeTracker is an interface used by Flattener to represents all the paths mentioned
-// Patterns added to a Quamina instance in AddPattern() calls. It allows a Flattener to determine
+// SegmentsTreeTracker is an interface used by Flattener to represent all the paths mentioned
+// in Patterns added to a Quamina instance in AddPattern() calls. It allows a Flattener to determine
 // which Event fields may safely be ignored, and also caches the runtime form of the Field.Path
 // value.
 //
@@ -16,13 +16,13 @@ package quamina
 //	 [ "a" ] -> as node
 //	   |-> with fields of: "b" and "c"
 //
-// This allow us to traverse the hierarchial data together with the segments tree,
+// This allows us to traverse the hierarchical data together with the segments tree,
 // fetch a node and answer:
-//   - Is the current segment is used? (JSON - is the current property needs to be selected)
-//   - Do we need to traverse into this Node as well? (JSON - do we need traverse this object?)
-//   - How much fields & nodes we have to traverse in the current hierarchy until we are finished?
+//   - Is the current segment used? (JSON - does the current property need to be selected)
+//   - Do we need to traverse into this Node as well? (JSON - do we need to traverse this object?)
+//   - How many fields & nodes we have to traverse in the current hierarchy until we are finished?
 //     for example: in the current level, in the tree node we have 1 node and 2 fields
-//     we finishded selecting them, can we finish traversing this node?
+//     we finished selecting them, can we finish traversing this node?
 type SegmentsTreeTracker interface {
 	// Get returns another level of the hierarchy, referred as "Node"
 	// If a node is returned we will need to traverse into (in JSON/CBOR/ProtoBuf/etc..)
@@ -39,7 +39,7 @@ type SegmentsTreeTracker interface {
 
 	// When a Flattener reaches the last (leaf) step of a path, this returns the full
 	// path-name for that Field.  This is an optimization; since these need to be calculated
-	// while executing `ddPattern, we might as wewll remember them for use during Flattening.
+	// while executing `AddPattern`, we might as well remember them for use during Flattening.
 	PathForSegment(name []byte) []byte
 
 	// Called by the Flattener to return the number of nodes (non-leaf children) and fields

@@ -20,11 +20,11 @@ type prunerStats struct {
 	// Deleted is the count of the patterns removed.
 	Deleted int
 
-	// Emitted is the count to total patterns found since the last
+	// Emitted is the count of total patterns found since the last
 	// rebuildWhileLocked.
 	Emitted int64
 
-	// Filtered is the count of pattners that have been removed
+	// Filtered is the count of patterns that have been removed
 	// from MatchFor results (since the last rebuildWhileLocked) because
 	// their patterns had been removed.
 	Filtered int64
@@ -155,7 +155,7 @@ func (m *prunerMatcher) disableRebuild() {
 type rebuildTrigger interface {
 	// rebuild should return true to trigger a rebuild.
 	//
-	// This method is called by AddPatter,deletePatterns, and
+	// This method is called by AddPattern, deletePatterns, and
 	// matchesForFields.  added is true when called by addPattern;
 	// false otherwise. These methods currently do not return
 	// until the rebuild is complete, so beware.

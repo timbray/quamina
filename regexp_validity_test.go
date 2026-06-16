@@ -152,7 +152,7 @@ func TestRegexpValidity(t *testing.T) {
 					bufs := newNfaBuffers()
 					fields := testTraverseNFA(table, []byte(`"`+shouldNot+`"`), transitions, bufs)
 					if len(fields) != 0 {
-						// similarly, it says quite a lot of empty strins should not match regexps that
+						// similarly, it says quite a lot of empty strings should not match regexps that
 						// have stars and *should* match them
 						if len(shouldNot) == 0 && !starSamplesMatchingEmpty[sample.regex] {
 							t.Errorf("<%s> matched /%s/", shouldNot, sample.regex)

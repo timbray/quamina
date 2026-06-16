@@ -13,7 +13,7 @@ Patterns exist to match **Fields** in incoming **Events**. At
 launch, Quamina supports only JSON syntax for Events. An
 Event **MUST** be equivalent to a JSON Object in the
 sense that it consists of an unordered set of members,
-each identified by a name which is string composed of
+each identified by a name which is a string composed of
 Unicode characters.
 
 As in JSON, the allowed member values may be strings,

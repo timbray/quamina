@@ -173,7 +173,7 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 		}
 	}
 
-	// the collection of states may have duplicates and, deduplicated, considered'
+	// the collection of states may have duplicates and, deduplicated, considered
 	// as a set, may be equal to a previous set of states, in which case the
 	// corresponding DFA will have already been constructed.
 	ingredients, dfaState, alreadyExists := sList.intern(nStates)
