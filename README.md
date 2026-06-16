@@ -173,7 +173,7 @@ q, err := quamina.New(quamina.WithMediaType("application/json"))
 ```
 The meanings of the `Option` functions are:
 
-`WithMediaType`: In the futue, Quamina will support
+`WithMediaType`: In the future, Quamina will support
 Events not just in JSON but in other formats such as
 Avro, Protobufs, and so on. This option will make sure
 to invoke the correct Flattener. At the moment, the only
@@ -192,7 +192,7 @@ Note that if you choose this option, the `SetMatcherBuildMode`
 API will be disabled. This is a bug and will be fixed.
 
 `WithPatternStorage`: If you provide an argument that
-supports the `LivePatternStorage` API, Quamina will
+supports the `LivePatternsState` API, Quamina will
 use it to maintain a list of which Patterns have currently
 been added but not deleted. This could be useful if you
 wanted to rebuild Quamina instances for sharded
@@ -208,7 +208,7 @@ func (q *Quamina) GetMatcherBuildMode() MatcherBuildMode
 There are two Matcher Build Modes, `BuiltForComfort` and `BuiltForSpeed`.  The mode controls the
 behavior of the `AddPattern()` API. When in the default `BuiltForComfort` mode, adding Patterns
 which include wildcards and regexps will result in `MatchesForEvent()` performance that declines
-roughly linearly as a function of of the number of such Patterns added.
+roughly linearly as a function of the number of such Patterns added.
 
 When `AddPattern()` is in `BuiltForSpeed` mode, adding such Patterns results in `MatchesForEvent()`
 performance that is only weakly related to the number of Patterns added and in practice is much 

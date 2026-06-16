@@ -113,7 +113,7 @@ func TestMySoftwareHatesMe(t *testing.T) {
 	}
 }
 
-// exercise shellstyle matching a little, is much faster than TestCityLots because it's only working wth one field
+// exercise shellstyle matching a little, is much faster than TestCityLots because it's only working with one field
 func TestBigShellStyle(t *testing.T) {
 	lines := getCityLotsLines(t)
 	bufs := newNfaBuffers()
@@ -185,7 +185,7 @@ func TestBigShellStyle(t *testing.T) {
 	}
 }
 
-// TestPatternAddition adds a whole lot of string-only rules as fast as possible  The profiler says that the
+// TestPatternAddition adds a whole lot of string-only rules as fast as possible. The profiler says that the
 // performance is totally dominated by the garbage-collector thrashing, in particular it has to allocate
 // ~220K smallTables.  Tried https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap/
 // but it doesn't seem to help.

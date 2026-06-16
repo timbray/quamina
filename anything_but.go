@@ -65,7 +65,7 @@ func readAnythingButSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typ
 // A finite automaton that matches anything but one byte sequence is like this:
 // For each byte in val with value Z, we produce a table that leads to a nextField match on all non-Z values,
 // and to another such table for Z. After all the bytes have matched, a match on valueTerminator leads to
-// an empty table with no field Transitions, all others to a nexField match
+// an empty table with no field Transitions, all others to a nextField match
 //
 // Making a succession of anything-but automata for each of "a" and "b" and then merging them turns out not
 // to work because what the caller means is really an AND - everything that matches neither "a" nor "b". So

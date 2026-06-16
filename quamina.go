@@ -171,9 +171,9 @@ func (q *Quamina) GetMatcherStats() map[string]float64 {
 
 // MatcherBuildMode enumerates the modes a Quamina instance can be in. The default is BuiltForComfort.
 // When a Quamina instance is in BuiltForComfort mode, adding Patterns which include wildcards and regexps
-// results in NFA-based matchers, which are more compact and faster to build, but result in MatchesForEvent
+// result in NFA-based matchers. These are more compact and faster to build, but result in MatchesForEvent
 // performance slowing down as a fairly linear function of the number of such patterns added.
-// When an instance is in BuiltForSpeed mode, the NFAs which implemnet wildcard and regexp Patterns are converted
+// When an instance is in BuiltForSpeed mode, the NFAs which implement wildcard and regexp Patterns are converted
 // to DFAs. As a result, the performance of MatchesForEvent is only very weakly related to the number of
 // Patterns added and in practice is much faster.  However, certain combinations of such patterns can result
 // in explosive growth of the size of the Matcher and the AddPattern latency.  This can be as bad as O(2**N)
@@ -208,7 +208,7 @@ func (q *Quamina) SetMemoryBudget(budget uint64) (uint64, error) {
 	return 0, errors.New("the MemoryBudget API is deprecated")
 }
 
-// GetMemoryBudget is depcrecated; see the comment on SetMemoryBudget
+// GetMemoryBudget is deprecated; see the comment on SetMemoryBudget
 func (q *Quamina) GetMemoryBudget() (uint64, uint64) {
 	return 0, 0
 }
