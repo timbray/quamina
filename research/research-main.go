@@ -5,9 +5,11 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
+	"runtime/pprof"
 	"time"
 
 	"quamina.net/go/quamina/v2"
@@ -16,6 +18,18 @@ import (
 const oneMeg = 1024 * 1024
 
 func main() {
+	cpuprofile := flag.String("cpuprofile", "", "write a CPU profile to this file")
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			die(err.Error())
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			die(err.Error())
+		}
+		defer pprof.StopCPUProfile()
+	}
 	writeNfaMetrics()
 }
 

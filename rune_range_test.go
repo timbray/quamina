@@ -12,15 +12,15 @@ func TestSkinnyRuneTree(t *testing.T) {
 	srt := &skinnyRuneTreeNode{}
 	pp := newPrettyPrinter(246758)
 	tt := newSmallTable()
-	pp.labelTable(tt, "Next")
+	pp.labelTable(&tt, "Next")
 	dest := &faState{table: tt, fieldTransitions: []*fieldMatcher{{}}}
 	addSkinnyRuneTreeEntry(srt, r, dest)
 	addSkinnyRuneTreeEntry(srt, r+1, dest)
 	addSkinnyRuneTreeEntry(srt, r+3, dest)
-	fa := nfaFromSkinnyRuneTree(srt, pp)
-	fmt.Println("FA:\n" + pp.printNFA(fa))
+	startState := &faState{table: nfaFromSkinnyRuneTree(srt, pp)}
+	fmt.Println("FA:\n" + pp.printNFA(&startState.table))
 	trans := []*fieldMatcher{}
-	matches := traverseDFA(fa, utf8, trans)
+	matches := traverseDFA(startState, utf8, trans)
 	if len(matches) != 1 {
 		t.Error("MISSED")
 	}

@@ -20,46 +20,48 @@ type regexpRoot []regexpBranch
 // makeRegexpNFA traverses the parsed regexp tree and generates a finite automaton
 // that matches it. The FA has states that match " at the beginning and end because
 // all Quamina field values are enclosed in quotes.
-func makeRegexpNFA(root regexpRoot, pp printer) (*smallTable, *fieldMatcher) {
+func makeRegexpNFA(root regexpRoot, pp printer) (*faState, *fieldMatcher) {
 	nextField := newFieldMatcher()
 	nextStep := makeNFATrailer(nextField)
-	pp.labelTable(nextStep.table, "Trailer")
+	pp.labelTable(&nextStep.table, "Trailer")
 	table := makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
-	pp.labelTable(table, "</Field>")
+	pp.labelTable(&table, "</Field>")
 	nextStep = &faState{table: table}
-	fa := makeNFAFromBranches(root, nextStep, true, pp)
-	return fa, nextField
+	startTable := makeNFAFromBranches(root, nextStep, true, pp)
+	return &faState{table: startTable}, nextField
 }
-func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition bool, pp printer) *smallTable {
+func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition bool, pp printer) smallTable {
 	// completely empty regexp
 	if len(root) == 0 {
 		return makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
 	}
-	var fa *smallTable
+	var fa smallTable
+	first := true
 	for _, branch := range root {
-		var nextBranch *smallTable
+		var nextBranch smallTable
 		if len(branch) == 0 {
 			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
-			pp.labelTable(nextBranch, "next on len 0")
+			pp.labelTable(&nextBranch, "next on len 0")
 		} else {
 			nextBranch = faFromBranch(branch, nextStep, addQuoteTransition, pp)
 		}
-		if fa != nil {
-			fa = mergeFAs(fa, nextBranch, pp)
+		if !first {
+			fa = mergeFAs(&fa, &nextBranch, pp)
 		} else {
 			fa = nextBranch
+			first = false
 		}
 	}
 	return fa
 }
 
-func faFromBranch(branch regexpBranch, nextStep *faState, addQuoteTransition bool, pp printer) *smallTable {
+func faFromBranch(branch regexpBranch, nextStep *faState, addQuoteTransition bool, pp printer) smallTable {
 	state := faFromQuantifiedAtom(branch, 0, nextStep, pp)
 	table := state.table
 	if addQuoteTransition {
 		firstState := &faState{table: table}
 		table = makeSmallTable(nil, []byte{'"'}, []*faState{firstState})
-		pp.labelTable(table, "<Field>")
+		pp.labelTable(&table, "<Field>")
 	}
 	return table
 }
@@ -79,7 +81,7 @@ func faFromQuantifiedAtom(branch regexpBranch, index int, finalStep *faState, pp
 	case atom.isPlus():
 		// the + construction requires a loopback state in front of the state table
 		plusLoopback := &faState{table: newSmallTable()}
-		pp.labelTable(plusLoopback.table, "PlusLoopback")
+		pp.labelTable(&plusLoopback.table, "PlusLoopback")
 		state = &faState{table: atom.makeFA(plusLoopback, pp)}
 
 		// for the + case, need to loop back to the newly created state
@@ -99,8 +101,8 @@ func faFromQuantifiedAtom(branch regexpBranch, index int, finalStep *faState, pp
 		nextMinMaxStep := nextState
 
 		for counter := atom.quantMax; counter > 0; counter-- {
-			stepTable := faFromShell(shellTable, PlaceholderState, nextMinMaxStep)
-			pp.labelTable(stepTable, fmt.Sprintf("minmax at %d", counter))
+			stepTable := faFromShell(&shellTable, PlaceholderState, nextMinMaxStep)
+			pp.labelTable(&stepTable, fmt.Sprintf("minmax at %d", counter))
 
 			// if it's between quantMin & max, we're in optional territory
 			// so it needs an epsilon to allow jumping out
@@ -127,8 +129,8 @@ func faFromQuantifiedAtom(branch regexpBranch, index int, finalStep *faState, pp
 
 		var lastState *faState
 		for counter := atom.quantMin; counter > 0; counter-- {
-			stepTable := faFromShell(shellTable, PlaceholderState, nextMinMaxStep)
-			pp.labelTable(stepTable, fmt.Sprintf("minmax at %d", counter))
+			stepTable := faFromShell(&shellTable, PlaceholderState, nextMinMaxStep)
+			pp.labelTable(&stepTable, fmt.Sprintf("minmax at %d", counter))
 			state = &faState{table: stepTable}
 
 			// there's a chain of the minimum-count steps, but the last one has to
@@ -160,57 +162,50 @@ func makeNFATrailer(nextField *fieldMatcher) *faState {
 	return &faState{table: table}
 }
 
-func makeByteDotFA(dest *faState, pp printer) *smallTable {
+func makeByteDotFA(dest *faState, pp printer) smallTable {
 	ceilings := []byte{0xC0, 0xC2, 0xF5, 0xF6}
 	steps := []*faState{dest, nil, dest, nil}
-	t := &smallTable{ceilings: ceilings, steps: steps}
-	pp.labelTable(t, " · ")
+	t := smallTable{ceilings: ceilings, steps: steps}
+	pp.labelTable(&t, " · ")
 	return t
 }
 
-func makeDotFA(dest *faState) *smallTable {
-	sLast := &smallTable{
+func makeDotFA(dest *faState) smallTable {
+	targetLast := &faState{table: smallTable{
 		ceilings: []byte{0x80, 0xc0, byte(byteCeiling)},
 		steps:    []*faState{nil, dest, nil},
-	}
-	targetLast := &faState{table: sLast}
-	sLastInter := &smallTable{
+	}}
+	targetLastInter := &faState{table: smallTable{
 		ceilings: []byte{0x80, 0xc0, byte(byteCeiling)},
 		steps:    []*faState{nil, targetLast, nil},
-	}
-	targetLastInter := &faState{table: sLastInter}
-	sFirstInter := &smallTable{
+	}}
+	targetFirstInter := &faState{table: smallTable{
 		ceilings: []byte{0x80, 0xc0, byte(byteCeiling)},
 		steps:    []*faState{nil, targetLastInter, nil},
-	}
-	targetFirstInter := &faState{table: sFirstInter}
+	}}
 
-	sE0 := &smallTable{
+	targetE0 := &faState{table: smallTable{
 		ceilings: []byte{0xa0, 0xc0, byte(byteCeiling)},
 		steps:    []*faState{nil, targetLast, nil},
-	}
-	targetE0 := &faState{table: sE0}
+	}}
 
-	sED := &smallTable{
+	targetED := &faState{table: smallTable{
 		ceilings: []byte{0x80, 0xA0, byte(byteCeiling)},
 		steps:    []*faState{nil, targetLast, nil},
-	}
-	targetED := &faState{table: sED}
+	}}
 
-	sF0 := &smallTable{
+	targetF0 := &faState{table: smallTable{
 		ceilings: []byte{0x90, 0xC0, byte(byteCeiling)},
 		steps:    []*faState{nil, targetLastInter, nil},
-	}
-	targetF0 := &faState{table: sF0}
+	}}
 
-	sF4 := &smallTable{
+	targetF4 := &faState{table: smallTable{
 		ceilings: []byte{0x80, 0x90, byte(byteCeiling)},
 		steps:    []*faState{nil, targetLastInter, nil},
-	}
-	targetF4 := &faState{table: sF4}
+	}}
 
 	// for reference, see https://www.tbray.org/ongoing/When/202x/2024/12/29/Matching-Dot-Redux
-	return &smallTable{
+	return smallTable{
 		ceilings: []byte{
 			0x80,              // 0
 			0xC2,              // 1

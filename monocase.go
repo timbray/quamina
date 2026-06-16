@@ -40,11 +40,11 @@ func readMonocaseSpecial(pb *patternBuild, valsIn []typedVal) (pathVals []typedV
 // multi-byte and in fact not even the same number of bytes. So in that case you need two paths forward that step
 // through the bytes of each form and then rejoin to arrive at a state. Also note
 // that in many cases the upper/lower case versions of a rune have leading bytes in common
-func makeMonocaseFA(val []byte, pp printer) (*smallTable, *fieldMatcher) {
+func makeMonocaseFA(val []byte, pp printer) (*faState, *fieldMatcher) {
 	fm := newFieldMatcher()
 	index := 0
-	table := newSmallTable() // start state
-	startTable := table
+	startState := &faState{table: newSmallTable()} // start state
+	currentTable := &startState.table
 	var nextStep *faState
 	for index < len(val) {
 		var orig, alt []byte
@@ -56,32 +56,32 @@ func makeMonocaseFA(val []byte, pp printer) (*smallTable, *fieldMatcher) {
 			utf8.EncodeRune(alt, altRune)
 		}
 		nextStep = &faState{table: newSmallTable()}
-		pp.labelTable(nextStep.table, fmt.Sprintf("On %d, alt=%v", val[index], alt))
+		pp.labelTable(&nextStep.table, fmt.Sprintf("On %d, alt=%v", val[index], alt))
 		if alt == nil {
 			// easy case, no casefolding issues.  We should maybe try to coalesce these
 			// no-casefolding sections and only call makeFAFragment once for all of them
 			origFA := makeFAFragment(orig, nextStep, pp)
-			table.addByteStep(orig[0], origFA)
+			currentTable.addByteStep(orig[0], origFA)
 		} else {
 			// two paths to next state
 			// but they might have a common prefix
 			var commonPrefix int
 			for commonPrefix = 0; orig[commonPrefix] == alt[commonPrefix]; commonPrefix++ {
 				prefixStep := &faState{table: newSmallTable()}
-				table.addByteStep(orig[commonPrefix], prefixStep)
-				table = prefixStep.table
-				pp.labelTable(table, fmt.Sprintf("common prologue on %x", orig[commonPrefix]))
+				currentTable.addByteStep(orig[commonPrefix], prefixStep)
+				currentTable = &prefixStep.table
+				pp.labelTable(currentTable, fmt.Sprintf("common prologue on %x", orig[commonPrefix]))
 			}
 			// now build automata for the orig and alt versions of the char
 			origFA := makeFAFragment(orig[commonPrefix:], nextStep, pp)
 			altFA := makeFAFragment(alt[commonPrefix:], nextStep, pp)
-			table.addByteStep(orig[commonPrefix], origFA)
-			table.addByteStep(alt[commonPrefix], altFA)
+			currentTable.addByteStep(orig[commonPrefix], origFA)
+			currentTable.addByteStep(alt[commonPrefix], altFA)
 		}
-		table = nextStep.table
+		currentTable = &nextStep.table
 		index += width
 	}
 	lastState := &faState{table: newSmallTable(), fieldTransitions: []*fieldMatcher{fm}}
 	nextStep.table.addByteStep(valueTerminator, lastState)
-	return startTable, fm
+	return startState, fm
 }

@@ -330,8 +330,8 @@ func TestSimpleaddPattern(t *testing.T) {
 // which means the finite automata are hidden deep inside the coreMatcher instance
 // and hard to get at.  This helper routine fetches the value-matcher automaton
 // corresponding to the "path" argument
-func fetchFAForPath(t *testing.T, cm *coreMatcher, path string) *smallTable {
+func fetchFAForPath(t *testing.T, cm *coreMatcher, path string) *faState {
 	t.Helper()
 	vm := cm.fields().state.fields().transitions[path]
-	return vm.fields().startTable
+	return vm.fields().start
 }
