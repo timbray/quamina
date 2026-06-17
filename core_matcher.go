@@ -25,6 +25,11 @@ import (
 type coreMatcher struct {
 	updateable atomic.Pointer[coreFields]
 	lock       sync.Mutex
+	// closureBufs is scratch for epsilon-closure computation, reused across
+	// every AddPattern. addPattern holds lock for the whole build, so it is
+	// never accessed concurrently. Lives here (not a sync.Pool) so the maps are
+	// never evicted mid-build; see epsilonClosureInto.
+	closureBufs *closureBuffers
 }
 
 // coreFields groups the updateable fields in coreMatcher.
@@ -38,7 +43,7 @@ type coreFields struct {
 }
 
 func newCoreMatcher() *coreMatcher {
-	m := coreMatcher{}
+	m := coreMatcher{closureBufs: newClosureBuffers()}
 	m.updateable.Store(&coreFields{
 		state:        newFieldMatcher(),
 		segmentsTree: newSegmentsIndex(),
@@ -52,13 +57,13 @@ func (m *coreMatcher) fields() *coreFields {
 
 // addPattern - the patternBytes is a JSON text which must be an object. The X is what the matcher returns to indicate
 // that the provided pattern has been matched. In many applications it might be a string which is the pattern's name.
-func (m *coreMatcher) addPattern(x X, patternJSON string) error {
-	return m.addPatternWithPrinter(x, patternJSON, sharedNullPrinter)
+func (m *coreMatcher) addPattern(x X, patternJSON string, buildMode MatcherBuildMode) error {
+	return m.addPatternWithPrinter(x, patternJSON, sharedNullPrinter, buildMode)
 }
 
 // addPatternWithPrinter can be called from debugging and under-development code to allow viewing pretty-printed
 // NFAs
-func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer printer) error {
+func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer printer, buildMode MatcherBuildMode) error {
 	patternFields, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
 		return err
@@ -70,6 +75,10 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 	// only one thread can be updating at a time
 	m.lock.Lock()
 	defer m.lock.Unlock()
+
+	// Reuse the closure scratch but empty it each build so its maps hold only
+	// this pattern's working set, not every state in the matcher.
+	m.closureBufs.reset()
 
 	// we build up the new coreMatcher state in freshStart so that we can atomically switch it in once complete
 
@@ -105,7 +114,7 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 			case existsFalseType:
 				ns = state.addExists(false, field)
 			default:
-				ns = state.addTransition(field, printer)
+				ns = state.addTransition(field, printer, m.closureBufs, buildMode)
 			}
 			nextStates = append(nextStates, ns...)
 		}

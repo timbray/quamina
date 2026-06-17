@@ -44,9 +44,9 @@ func addInvalid(t *testing.T, before []typedVal) {
 		val:   "one",
 	}
 	for _, addBefore := range before {
-		_ = m.addTransition(addBefore, &nullPrinter{})
+		_ = m.addTransition(addBefore, &nullPrinter{}, newClosureBuffers(), BuiltForComfort)
 	}
-	_ = m.addTransition(invalidField, &nullPrinter{})
+	_ = m.addTransition(invalidField, &nullPrinter{}, newClosureBuffers(), BuiltForComfort)
 }
 
 func TestNoOpTransition(t *testing.T) {
@@ -63,7 +63,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "one",
 	}
-	t1 := m.addTransition(v1, &nullPrinter{})
+	t1 := m.addTransition(v1, &nullPrinter{}, newClosureBuffers(), BuiltForComfort)
 	if t1 == nil {
 		t.Error("nil addTrans")
 	}
@@ -72,7 +72,7 @@ func TestAddTransition(t *testing.T) {
 		t.Error("Retrieve failed")
 	}
 
-	tXtra := m.addTransition(v1, &nullPrinter{})
+	tXtra := m.addTransition(v1, &nullPrinter{}, newClosureBuffers(), BuiltForComfort)
 	if tXtra != t1 {
 		t.Error("dupe trans missed")
 	}
@@ -81,7 +81,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "two",
 	}
-	t2 := m.addTransition(v2, &nullPrinter{})
+	t2 := m.addTransition(v2, &nullPrinter{}, newClosureBuffers(), BuiltForComfort)
 
 	t2x := m.transitionOn(&Field{Val: []byte("two")}, &nfaBuffers{})
 	if len(t2x) != 1 || t2x[0] != t2 {
@@ -95,7 +95,7 @@ func TestAddTransition(t *testing.T) {
 		vType: stringType,
 		val:   "three",
 	}
-	t3 := m.addTransition(v3, &nullPrinter{})
+	t3 := m.addTransition(v3, &nullPrinter{}, newClosureBuffers(), BuiltForComfort)
 	t3x := m.transitionOn(&Field{Val: []byte("three")}, &nfaBuffers{})
 	if len(t3x) != 1 || t3x[0] != t3 {
 		t.Error("Match failed T3")
@@ -115,10 +115,10 @@ func TestMultiTransitions(t *testing.T) {
 	patY := `{"foo": [ { "shellstyle": "*y*b" } ]}`
 
 	m := newCoreMatcher()
-	if m.addPattern("X", patX) != nil {
+	if m.addPattern("X", patX, BuiltForComfort) != nil {
 		t.Error("add patX")
 	}
-	if m.addPattern("Y", patY) != nil {
+	if m.addPattern("Y", patY, BuiltForComfort) != nil {
 		t.Error("add patY")
 	}
 	e := `{"foo": "axyb"}`
@@ -134,7 +134,7 @@ func TestMultiTransitions(t *testing.T) {
 func TestAY(t *testing.T) {
 	m := newCoreMatcher()
 	pat := `{"x": [ { "shellstyle": "*ay*"} ] }`
-	err := m.addPattern("AY", pat)
+	err := m.addPattern("AY", pat, BuiltForComfort)
 	if err != nil {
 		t.Error("AY: " + err.Error())
 	}
@@ -159,17 +159,17 @@ func TestOverlappingValues(t *testing.T) {
 	p3 := `{"a": ["footballer"]}`
 	var err error
 	var wantP1 X = "p1"
-	err = m.addPattern(wantP1, p1)
+	err = m.addPattern(wantP1, p1, BuiltForComfort)
 	if err != nil {
 		t.Error("Ouch p1")
 	}
 	var wantP2 X = "p2"
-	err = m.addPattern(wantP2, p2)
+	err = m.addPattern(wantP2, p2, BuiltForComfort)
 	if err != nil {
 		t.Error("Ouch p2")
 	}
 	var wantP3 X = "p3"
-	err = m.addPattern(wantP3, p3)
+	err = m.addPattern(wantP3, p3, BuiltForComfort)
 	if err != nil {
 		t.Error("Ouch p3")
 	}
@@ -228,7 +228,7 @@ func TestFuzzValueMatcher(t *testing.T) {
 	// add a pattern for each string
 	pBase := `{"a": [ "999" ]}`
 	for _, pName := range pNames {
-		err := m.addPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
+		err := m.addPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)), BuiltForComfort)
 		if err != nil {
 			t.Errorf("addPattern %s: %s", pName, err.Error())
 		}
@@ -294,7 +294,7 @@ func TestFuzzWithNumbers(t *testing.T) {
 	// add a pattern for each number
 	pBase := `{"a": [ 999 ]}`
 	for _, pName := range pNames {
-		err := m.addPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)))
+		err := m.addPattern(pName, strings.ReplaceAll(pBase, "999", pName.(string)), BuiltForComfort)
 		if err != nil {
 			t.Errorf("addPattern %s: %s", pName, err.Error())
 		}
@@ -357,11 +357,11 @@ func TestMakeFAFragment(t *testing.T) {
 }
 func TestExerciseSingletonReplacement(t *testing.T) {
 	cm := newCoreMatcher()
-	err := cm.addPattern("x", `{"x": [ "a"]}`)
+	err := cm.addPattern("x", `{"x": [ "a"]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("AP: " + err.Error())
 	}
-	err = cm.addPattern("x", `{"x": [1]}`)
+	err = cm.addPattern("x", `{"x": [1]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("AP: " + err.Error())
 	}
@@ -386,11 +386,11 @@ func TestExerciseSingletonReplacement(t *testing.T) {
 		}
 	}
 	cm = newCoreMatcher()
-	err = cm.addPattern("x", `{"x": ["x"]}`)
+	err = cm.addPattern("x", `{"x": ["x"]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("AP: " + err.Error())
 	}
-	err = cm.addPattern("x", `{"x": [ {"wildcard": "x*y"}]}`)
+	err = cm.addPattern("x", `{"x": [ {"wildcard": "x*y"}]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("AP: " + err.Error())
 	}
@@ -408,11 +408,11 @@ func TestExerciseSingletonReplacement(t *testing.T) {
 
 func TestMergeNfaAndNumeric(t *testing.T) {
 	cm := newCoreMatcher()
-	err := cm.addPattern("x", `{"x": [{"wildcard":"x*y"}]}`)
+	err := cm.addPattern("x", `{"x": [{"wildcard":"x*y"}]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("AP: " + err.Error())
 	}
-	err = cm.addPattern("x", `{"x": [3]}`)
+	err = cm.addPattern("x", `{"x": [3]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("AP: " + err.Error())
 	}
@@ -440,7 +440,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 		vType: wildcardType,
 		val:   "a*b",
 	}
-	_ = vm.addTransition(wildcardVal, sharedNullPrinter)
+	_ = vm.addTransition(wildcardVal, sharedNullPrinter, newClosureBuffers(), BuiltForComfort)
 
 	fields := vm.fields()
 	if !fields.isNondeterministic {
@@ -453,7 +453,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 		vType: stringType,
 		val:   "xyz",
 	}
-	_ = vm.addTransition(stringVal, sharedNullPrinter)
+	_ = vm.addTransition(stringVal, sharedNullPrinter, newClosureBuffers(), BuiltForComfort)
 
 	fields = vm.fields()
 	if !fields.isNondeterministic {
@@ -462,7 +462,7 @@ func TestEpsilonClosureAfterMerge(t *testing.T) {
 
 	// Walk the automaton and verify all states have epsilon closures computed
 	visited := make(map[*faState]bool)
-	missingClosures := checkEpsilonClosures(fields.startState, visited)
+	missingClosures := checkEpsilonClosures(fields.start, visited)
 	if len(missingClosures) > 0 {
 		t.Errorf("found %d states with missing epsilon closures", len(missingClosures))
 	}
@@ -513,36 +513,46 @@ func checkEpsilonClosures(start *faState, visited map[*faState]bool) []*faState 
 }
 
 // TestEpsilonClosureRequired demonstrates that epsilonClosure must be called
-// after merging into an NFA. Merging the two wildcard patterns "*z" and "*y"
-// creates splice/epsilon structure; matching "z" requires traversing a
-// multi-member epsilon closure to reach the accepting state (processing the
-// current state by itself is not enough). Clearing the closures — simulating a
-// skipped epsilonClosure call — therefore makes the match disappear.
+// after merging into an NFA. The wildcard "a*z" has its start matching 'a', so
+// the '*' spinner is an interior state, not the start. Merging it with the
+// string "az" (which the wildcard also matches, with '*' matching the empty
+// string) creates a splice whose accepting states are reachable only through a
+// multi-member epsilon closure. Clearing the closures — simulating a skipped
+// epsilonClosure call — therefore makes the "az" match disappear.
+//
+// Note: on this branch a self-only closure is the zero-length sentinel, so
+// clearing a closure to nil reads as "self-only" (process self) rather than
+// "no closure". The match must therefore be lost at a splice state that has no
+// useful self-transition, which is what the "az" path through the merge gives.
 func TestEpsilonClosureRequired(t *testing.T) {
 	vm := newValueMatcher()
-	_ = vm.addTransition(typedVal{vType: wildcardType, val: "*z"}, sharedNullPrinter)
-	// second add triggers the merge and the epsilonClosure call
-	_ = vm.addTransition(typedVal{vType: wildcardType, val: "*y"}, sharedNullPrinter)
+
+	// Add a wildcard pattern first - creates NFA with epsilon transitions
+	_ = vm.addTransition(typedVal{vType: wildcardType, val: "a*z"}, sharedNullPrinter, newClosureBuffers(), BuiltForComfort)
+
+	// Add a string pattern - this triggers merge and epsilonClosure call
+	_ = vm.addTransition(typedVal{vType: stringType, val: "az"}, sharedNullPrinter, newClosureBuffers(), BuiltForComfort)
 
 	bufs := newNfaBuffers()
 
-	// With closures computed, "z" matches "*z".
-	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 1 {
-		t.Fatalf("with closures: expected 1 transition for \"z\", got %d", got)
+	// "az" matches both patterns ('*' matching the empty string for "a*z"),
+	// which requires traversing the merged splice's epsilon closure.
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 2 {
+		t.Fatalf("with closures: expected 2 transitions for \"az\", got %d", got)
 	}
 
 	// Clear all closures to simulate a skipped epsilonClosure call. The match
-	// now disappears: reaching the accepting state required the multi-member
-	// closure, which self-processing of the intermediate state cannot replace.
-	clearEpsilonClosures(vm.fields().startState, make(map[*faState]bool))
-	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 0 {
-		t.Fatalf("without closures: expected 0 transitions for \"z\" (closure required), got %d", got)
+	// disappears: reaching the accepting states required the multi-member
+	// closure, which self-processing of the splice state cannot replace.
+	clearEpsilonClosures(vm.fields().start, make(map[*faState]bool))
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 0 {
+		t.Fatalf("without closures: expected 0 transitions for \"az\" (closure required), got %d", got)
 	}
 
 	// Restore closures; matching works again.
-	epsilonClosure(vm.fields().startState)
-	if got := len(testTransitionOn(vm, []byte("z"), bufs)); got != 1 {
-		t.Errorf("after restore: expected 1 transition for \"z\", got %d", got)
+	epsilonClosure(vm.fields().start)
+	if got := len(testTransitionOn(vm, []byte("az"), bufs)); got != 2 {
+		t.Errorf("after restore: expected 2 transitions for \"az\", got %d", got)
 	}
 }
 

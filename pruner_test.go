@@ -29,12 +29,12 @@ func TestBasic(t *testing.T) {
 		m = newPrunerMatcher(nil)
 	)
 
-	if err := m.addPattern(id, pat); err != nil {
+	if err := m.addPattern(id, pat, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 
 	// It's okay to update a pattern.
-	if err := m.addPattern(id, pat); err != nil {
+	if err := m.addPattern(id, pat, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 
@@ -93,7 +93,7 @@ func TestRebuildSome(t *testing.T) {
 	populate := func() {
 		for i := 0; i < n; i++ {
 			p := fmt.Sprintf(`{"like":["tacos","queso"],"want":[%d]}`, i)
-			if err := m.addPattern(i, p); err != nil {
+			if err := m.addPattern(i, p, BuiltForComfort); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -182,7 +182,7 @@ func TestTriggerTooManyFilteredDenom(t *testing.T) {
 	trigger := m.rebuildTrigger.(*tooMuchFiltering)
 	trigger.MinAction = 0
 
-	if err := m.addPattern(1, `{"likes":["tacos"]}`); err != nil {
+	if err := m.addPattern(1, `{"likes":["tacos"]}`, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.deletePatterns(1); err != nil {
@@ -218,7 +218,7 @@ func TestTriggerRebuild(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		pat := fmt.Sprintf(`{"n":[%d]}`, i)
-		if err := m.addPattern(i, pat); err != nil {
+		if err := m.addPattern(i, pat, BuiltForComfort); err != nil {
 			t.Fatal(err)
 		}
 
@@ -298,7 +298,7 @@ func TestBadState(t *testing.T) {
 	}
 	m := newPrunerMatcher(bad)
 
-	if err := m.addPattern(1, `{"likes":["queso"]}`); err == nil {
+	if err := m.addPattern(1, `{"likes":["queso"]}`, BuiltForComfort); err == nil {
 		t.Fatal("expected error")
 	}
 	if err := m.deletePatterns(1); err == nil {
@@ -309,7 +309,7 @@ func TestBadState(t *testing.T) {
 	}
 
 	bad.err = nil
-	if err := m.addPattern(1, `{"likes":["queso"]}`); err != nil {
+	if err := m.addPattern(1, `{"likes":["queso"]}`, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 	bad.err = errBadState
@@ -322,7 +322,7 @@ func TestBadState(t *testing.T) {
 func TestBadPattern(t *testing.T) {
 	m := newPrunerMatcher(&badState{})
 
-	if err := m.addPattern(1, `Dream baby dream`); err == nil {
+	if err := m.addPattern(1, `Dream baby dream`, BuiltForComfort); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -350,7 +350,7 @@ func TestFlattener(t *testing.T) {
 		f = newJSONFlattener() // Variation for test coverage.
 	)
 
-	if err := m.addPattern(1, `{"wants":["queso"]}`); err != nil {
+	if err := m.addPattern(1, `{"wants":["queso"]}`, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 
@@ -376,11 +376,11 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 		id interface{} = 1
 	)
 
-	if err := m.addPattern(id, `{"enjoys":["queso"]}`); err != nil {
+	if err := m.addPattern(id, `{"enjoys":["queso"]}`, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := m.addPattern(id, `{"needs":["chips"]}`); err != nil {
+	if err := m.addPattern(id, `{"needs":["chips"]}`, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 

@@ -265,7 +265,7 @@ func TestAddRegexpTransition(t *testing.T) {
 	cm := newCoreMatcher()
 	for _, good := range goods {
 		pat := strings.Replace(template, "FOO", good, 10)
-		err := cm.addPattern("foo", pat)
+		err := cm.addPattern("foo", pat, BuiltForComfort)
 		if err != nil {
 			t.Errorf("thinks it found unimplemented feature in /%s/", good)
 		}
@@ -275,7 +275,7 @@ func TestAddRegexpTransition(t *testing.T) {
 func TestRegexpReader(t *testing.T) {
 	pat := `{"a":[{"regexp": "a.b"}]}`
 	cm := newCoreMatcher()
-	err := cm.addPattern("x", pat)
+	err := cm.addPattern("x", pat, BuiltForComfort)
 	if err != nil {
 		t.Error("ap: " + err.Error())
 	}

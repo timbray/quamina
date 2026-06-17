@@ -83,6 +83,32 @@ func TestFocusedMerge(t *testing.T) {
 	}
 }
 
+func TestBuildModeCalls(t *testing.T) {
+	pattern := `{"x": [ {"regexp": "a.*z.j*"}]}`
+	q, _ := New()
+	err := q.AddPattern("x", pattern)
+	if err != nil {
+		t.Error(err)
+	}
+	cSize := q.GetMatcherStats()["bytes"]
+
+	q, _ = New()
+	_ = q.SetMatcherBuildMode(BuiltForSpeed)
+	if q.GetMatcherBuildMode() != BuiltForSpeed {
+		t.Error("Not built for speed?!")
+	}
+
+	err = q.AddPattern("x", pattern)
+	if err != nil {
+		t.Error(err)
+	}
+	sSize := q.GetMatcherStats()["bytes"]
+	fmt.Printf("Comfort %d, Speed %d\n", int(cSize), int(sSize))
+	if cSize == sSize {
+		t.Error("speed == comfort")
+	}
+}
+
 func TestNfa2Dfa(t *testing.T) {
 	type n2dtest struct {
 		pattern string
@@ -614,7 +640,7 @@ func TestTablePointerDedup(t *testing.T) {
 			m := q.matcher.(*coreMatcher)
 
 			vm := m.fields().state.fields().transitions["val"]
-			nfaStart := vm.fields().startState
+			nfaStart := vm.fields().start
 			stateCount, totalEntries, maxClosure, tableSharing := collectClosureStats(nfaStart)
 
 			if stateCount != wl.stateCount {

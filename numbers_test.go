@@ -28,7 +28,7 @@ func BenchmarkNumberMatching(b *testing.B) {
 	pattern += `]}`
 	cm := newCoreMatcher()
 	flattener := newJSONFlattener()
-	err := cm.addPattern("P", pattern)
+	err := cm.addPattern("P", pattern, BuiltForComfort)
 	if err != nil {
 		b.Error("addP")
 	}
@@ -192,7 +192,7 @@ func TestMatcherNumerics(t *testing.T) {
 
 	template := `{"x": NUM}`
 	m := newCoreMatcher()
-	err := m.addPattern("35", p)
+	err := m.addPattern("35", p, BuiltForComfort)
 	if err != nil {
 		t.Error("Oops " + err.Error())
 	}

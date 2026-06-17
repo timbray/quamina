@@ -93,7 +93,7 @@ func (m *fieldMatcher) addExists(exists bool, field *patternField) []*fieldMatch
 	return []*fieldMatcher{trans}
 }
 
-func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fieldMatcher {
+func (m *fieldMatcher) addTransition(field *patternField, printer printer, bufs *closureBuffers, buildMode MatcherBuildMode) []*fieldMatcher {
 	// we build the new updateable state in freshStart so that we can blast it in atomically once computed
 	current := m.fields()
 	freshStart := &fmFields{
@@ -119,7 +119,7 @@ func (m *fieldMatcher) addTransition(field *patternField, printer printer) []*fi
 	//  cases where this doesn't happen and reduce the number of fieldMatchStates
 	var nextFieldMatchers []*fieldMatcher
 	for _, val := range field.vals {
-		nextFieldMatcher := vm.addTransition(val, printer)
+		nextFieldMatcher := vm.addTransition(val, printer, bufs, buildMode)
 		nextFieldMatchers = append(nextFieldMatchers, nextFieldMatcher)
 	}
 	m.update(freshStart)

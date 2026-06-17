@@ -30,13 +30,7 @@ func main() {
 		}
 		defer pprof.StopCPUProfile()
 	}
-	writeNfaMetrics()
-}
-
-func writeNfaMetrics() {
-	words := readWWords(10000)
-
-	fmt.Printf("WC %d\n", len(words))
+	words := readWWords(0)
 	starWords := make([]string, 0, len(words))
 	patterns := make([]string, 0, len(words))
 	source := rand.NewSource(293591)
@@ -51,6 +45,14 @@ func writeNfaMetrics() {
 	}
 
 	q, _ := quamina.New()
+	writeNfaMetrics(q, words[:10001], starWords, patterns, 100, "comfort")
+	fmt.Println("done comfort")
+	q, _ = quamina.New()
+	_ = q.SetMatcherBuildMode(quamina.BuiltForSpeed)
+	writeNfaMetrics(q, words[:301], starWords, patterns, 10, "speed")
+}
+
+func writeNfaMetrics(q *quamina.Quamina, words [][]byte, starWords []string, patterns []string, interval int, mode string) {
 	before := time.Now()
 	b10 := before
 	var diffs []float64
@@ -66,7 +68,7 @@ func writeNfaMetrics() {
 			die("AddP: " + err.Error())
 		}
 
-		if i%100 == 0 {
+		if i%interval == 0 {
 			bDiff := float64(time.Since(b10).Milliseconds())
 			stats := q.GetMatcherStats()
 			states := stats["states"]
@@ -85,10 +87,10 @@ func writeNfaMetrics() {
 			// compute and save average MatchesForEvent time
 			beforeMatches := time.Now()
 			var perSecond float64
-			if i < 100 {
+			if i < interval {
 				perSecond = 0.0
 			} else {
-				for j := i - 100; j < i; j++ {
+				for j := i - interval; j < i; j++ {
 					record := fmt.Sprintf(`{"x": "%s"}`, words[j])
 					matches, err := q.MatchesForEvent([]byte(record))
 					if err != nil {
@@ -98,24 +100,27 @@ func writeNfaMetrics() {
 						die(fmt.Sprintf("0 matches for %s", record))
 					}
 				}
-				perSecond = 100.0 / time.Since(beforeMatches).Seconds()
+				perSecond = float64(interval) / time.Since(beforeMatches).Seconds()
 			}
+			fmt.Printf("i=%d\n", i)
 			matchesPerSecond = append(matchesPerSecond, perSecond)
 			b10 = time.Now()
 		}
 	}
 
 	now := time.Now()
-	fn := fmt.Sprintf("research/%d-%02d-%02d.csv", now.Year(), now.Month(), now.Day())
+	fn := fmt.Sprintf("research/%d-%02d-%02d-%s.csv", now.Year(), now.Month(), now.Day(), mode)
 	csv, err := os.Create(fn)
 	if err != nil {
 		die(err.Error())
 	}
-	_, _ = fmt.Fprintln(csv, "ms/100 AddP calls,state count,byte count,average fanout,max fanout,matches/sec")
+	_, _ = fmt.Fprintf(csv, "Patterns,ms/%d AddP calls,State Count,Byte Count,Average Fanout,Max Fanout,Matches/sec\n", interval)
 	for i := range diffs {
-		_, _ = fmt.Fprintf(csv,
-			"%d,%d,%d,%.1f,%d,%.1f\n",
-			int(diffs[i]), int(stateses[i]), int(byteses[i]), fanoutsAvg[i], int(maxFanouts[i]), matchesPerSecond[i])
+		if i > 0 {
+			_, _ = fmt.Fprintf(csv,
+				"%d,%d,%d,%d,%.1f,%d,%.1f\n",
+				i*interval, int(diffs[i]), int(stateses[i]), int(byteses[i]), fanoutsAvg[i], int(maxFanouts[i]), matchesPerSecond[i])
+		}
 	}
 	_ = csv.Close()
 

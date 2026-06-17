@@ -154,9 +154,12 @@ func (nb *nfaBuffers) getFieldSet() map[*fieldMatcher]bool {
 
 // nfa2Dfa does what the name says, but as of 2026/01 is not used.
 func nfa2Dfa(nfaStart *faState) *faState {
-	// The start state always has a trivial epsilon closure (just itself) because
-	// all Quamina automata begin by matching the opening quote (0x22). The start
-	// table therefore has a single transition on `"` and never has epsilons.
+	// The start state always has a trivial epsilon closure (just itself), so we
+	// can assign the self-only sentinel directly. Epsilon transitions (spinner
+	// loopbacks, splices, regexp branching) are only ever introduced in states
+	// reached after the first input byte; the entry state itself carries only
+	// byte transitions and never epsilons. (That first byte is usually the
+	// opening quote 0x22, but not always — see traverseNFA.)
 	nfaStart.epsilonClosure = selfOnlyClosure
 	startNfa := []*faState{nfaStart}
 	return n2dNode(startNfa, newStateLists())
@@ -269,9 +272,15 @@ func traverseDFA(start *faState, val []byte, transitions []*fieldMatcher) []*fie
 // and should grow with use and minimize the need for memory allocation.
 func traverseNFA(start *faState, val []byte, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	currentStates := bufs.getBuf1()
-	// The start state always has a trivial epsilon closure (just itself) because
-	// all Quamina automata begin by matching the opening quote (0x22). The start
-	// table therefore has a single transition on `"` and never has epsilons.
+	// The start state always has a trivial epsilon closure (just itself), so we
+	// can seed currentStates with it directly. Epsilon transitions (spinner
+	// loopbacks, splices, regexp branching) are only ever introduced in states
+	// reached after the first input byte is consumed; the entry state itself
+	// carries only byte transitions and never epsilons. (The leading byte is
+	// usually the opening quote 0x22, since nondeterminism arises from
+	// string-valued patterns — shellstyle/wildcard/regexp — but not always:
+	// this path is also taken with an unquoted Q-number value when the matcher
+	// has both numeric and nondeterministic string patterns.)
 	currentStates = append(currentStates, start)
 	nextStates := bufs.getBuf2()
 
@@ -402,6 +411,16 @@ func mergeFAs(table1, table2 *smallTable, pp printer) smallTable {
 	state2 := &faState{table: *table2}
 	s := mergeFAStates(state1, state2, make(map[faStepKey]*faState), pp)
 	return s.table
+}
+
+// mergeStartStates merges two FA start states into a combined start state. It is
+// the faState-typed entry point for callers that already hold faStates (the
+// value-matcher start merges), avoiding the faState->smallTable->faState
+// round-trip the *smallTable mergeFAs wrapper would force. mergeFAs remains for
+// callers composing raw smallTables. Both just allocate the per-merge memo map
+// and delegate to mergeFAStates.
+func mergeStartStates(state1, state2 *faState, pp printer) *faState {
+	return mergeFAStates(state1, state2, make(map[faStepKey]*faState), pp)
 }
 
 func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp printer) *faState {

@@ -48,11 +48,11 @@ func permuteCase(t *testing.T, orig []byte, alts []byte, sofar []byte, index int
 func TestSingletonMonocaseMerge(t *testing.T) {
 	cm := newCoreMatcher()
 	var err error
-	err = cm.addPattern("singleton", `{"x": ["singleton"] }`)
+	err = cm.addPattern("singleton", `{"x": ["singleton"] }`, BuiltForComfort)
 	if err != nil {
 		t.Error("add singleton: " + err.Error())
 	}
-	err = cm.addPattern("mono", `{"x": [ {"equals-ignore-case": "foo"}]}`)
+	err = cm.addPattern("mono", `{"x": [ {"equals-ignore-case": "foo"}]}`, BuiltForComfort)
 	if err != nil {
 		t.Error("add mono")
 	}
@@ -73,15 +73,15 @@ func TestEqualsIgnoreCaseMatching(t *testing.T) {
 
 	var err error
 	cm := newCoreMatcher()
-	err = cm.addPattern("r1", rule1)
+	err = cm.addPattern("r1", rule1, BuiltForComfort)
 	if err != nil {
 		t.Error("AddPattern: " + err.Error())
 	}
-	err = cm.addPattern("r2", rule2)
+	err = cm.addPattern("r2", rule2, BuiltForComfort)
 	if err != nil {
 		t.Error("AddPattern: " + err.Error())
 	}
-	err = cm.addPattern("r3", rule3)
+	err = cm.addPattern("r3", rule3, BuiltForComfort)
 	if err != nil {
 		t.Error("AddPattern: " + err.Error())
 	}

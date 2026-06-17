@@ -188,6 +188,9 @@ not free; it can incur extra costs in memory and
 occasional stop-the-world Quamina rebuilds. (We plan
 to improve this.)
 
+Note that if you choose this option, the `SetMatcherBuildMode`
+API will be disabled. This is a bug and will be fixed.
+
 `WithPatternStorage`: If you provide an argument that
 supports the `LivePatternStorage` API, Quamina will
 use it to maintain a list of which Patterns have currently
@@ -196,17 +199,32 @@ wanted to rebuild Quamina instances for sharded
 processing or after a system failure. ***Note: Not
 yet implemented.***
 
-### Memory Budgets
+### Comfort vs Speed
 
-The `SetMemoryBudget()` and `GetMemoryBudget()` APIs are deprecated. As implemented
-they were too expensive and occasionally nondeterministic.
+```go
+func (q *Quamina) SetMatcherBuildMode(mode MatcherBuildMode)
+func (q *Quamina) GetMatcherBuildMode() MatcherBuildMode
+```
+There are two Matcher Build Modes, `BuiltForComfort` and `BuiltForSpeed`.  The mode controls the
+behavior of the `AddPattern()` API. When in the default `BuiltForComfort` mode, adding Patterns
+which include wildcards and regexps will result in `MatchesForEvent()` performance that declines
+roughly linearly as a function of of the number of such Patterns added.
+
+When `AddPattern()` is in `BuiltForSpeed` mode, adding such Patterns results in `MatchesForEvent()`
+performance that is only weakly related to the number of Patterns added and in practice is much 
+faster. However, certain combinations of such Patterns can result in explosive growth of the size of the Matcher
+and `AddPattern()` latency.  This can be as bad as O(2**N) in the number of Patterns. The use of the 
+`GetMatcherStats()` API is advised to investigate the effects of the combination of this setting with
+an app's typical usage of `AddPattern()` in production.
+
+Thanks to [Willie Dixon](https://www.youtube.com/watch?v=UfnctFIh9aE).
 
 ### Matcher Statistics
 
-Certain combinations of regular-expression and wildcard patterns can cause Quamina's memory
-structures to grow excessively large and slow down `AddPattern()` calls. The slowdown and 
-the size of the memory structures are related almost linearly; the performance slows down
-a little more quickly than the size grows, but the relationship is close enough to be useful.
+Certain combinations of regular-expression and wildcard Patterns, and the current Matcher 
+Build Mode, can cause Quamina's memory structures to grow excessively large and slow 
+down `AddPattern()` calls. The slowdown can be related to the size of the matcher data
+structures, in some cases linearly.
 
 ```go
 func (q *Quamina) GetMatcherStats() map[string]float64
@@ -362,12 +380,35 @@ is very similar to the increase in the total memory used by the Pattern-matching
 data structures. The amount of total memory can be retrieved using
 the `GetMatcherStats()` API.
 
+The performance of `MatchesForEvent()` in this situation can be improved
+dramatically by putting Quamina in `BuiltForSpeed` build mode.  The cost of doing
+this is paid in worse `AddPattern()` performance and is not really an issue
+until you get into hundreds of such patterns.
+
+### Compiling for specific architectures
+
+Go compiles with [default CPU capabilites](https://go.dev/wiki/MinimumRequirements)
+for each architecture. In particular, its [AMD64](https://go.dev/wiki/MinimumRequirements#amd64)
+defaults are quite conservative. Changing this default can yield up to 10% improvements
+with no code changes, if you know the target machines' capabilites.
+
+AMD65 test machine: AMD Threadripper 2920X machine with 64GB of RAM. Tested level v1 vs v3. The performance improvements were benchmark-dependent, so it's best to check it on your own workload.
+
+No signifcant improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64) defaults.
+
+ARM64 test machines: various Apple Silicon chips, M1 Ultra to M5.
+
 ### Further documentation
 
 There is a series of blog posts entitled
 [Quamina Diary](https://www.tbray.org/ongoing/What/Technology/Quamina%20Diary/)
 that provides a detailed discussion of the design decisions
 at a length unsuitable for in-code comments.
+
+### Memory Budgets
+
+The `SetMemoryBudget()` and `GetMemoryBudget()` APIs are deprecated. As implemented
+they were too expensive and occasionally nondeterministic.
 
 ### Name
 

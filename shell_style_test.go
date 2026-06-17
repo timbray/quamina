@@ -11,7 +11,7 @@ import (
 func TestLongCase(t *testing.T) {
 	m := newCoreMatcher()
 	pat := `{"x": [ {"shellstyle": "*abab"} ] }`
-	err := m.addPattern("x", pat)
+	err := m.addPattern("x", pat, BuiltForComfort)
 	if err != nil {
 		t.Error("addPat? " + err.Error())
 	}
@@ -62,7 +62,7 @@ func TestMakeShellStyleFA(t *testing.T) {
 		a, wanted := makeShellStyleFA([]byte(pattern), sharedNullPrinter)
 		epsilonClosure(a)
 		vm := newValueMatcher()
-		vmf := vmFields{startState: a}
+		vmf := vmFields{start: a}
 		vm.update(&vmf)
 		bufs := newNfaBuffers()
 		for _, should := range shouldsForPatterns[i] {
@@ -91,12 +91,12 @@ func TestWildCardRuler(t *testing.T) {
 	rule6 := "{ \"d\" : [ { \"shellstyle\": \"12*4*\" } ] }"
 
 	cm := newCoreMatcher()
-	_ = cm.addPattern("r1", rule1)
-	_ = cm.addPattern("r2", rule2)
-	_ = cm.addPattern("r3", rule3)
-	_ = cm.addPattern("r4", rule4)
-	_ = cm.addPattern("r5", rule5)
-	_ = cm.addPattern("r6", rule6)
+	_ = cm.addPattern("r1", rule1, BuiltForComfort)
+	_ = cm.addPattern("r2", rule2, BuiltForComfort)
+	_ = cm.addPattern("r3", rule3, BuiltForComfort)
+	_ = cm.addPattern("r4", rule4, BuiltForComfort)
+	_ = cm.addPattern("r5", rule5, BuiltForComfort)
+	_ = cm.addPattern("r6", rule6, BuiltForComfort)
 
 	var matches []X
 	matches, _ = cm.matchesForJSONEvent([]byte("{\"a\" : \"bc\"}"))
@@ -250,7 +250,7 @@ func TestMixedPatterns(t *testing.T) {
 			pat = strings.ReplaceAll(stringTemplate, "XX", name)
 		}
 
-		err := m.addPattern(name, pat)
+		err := m.addPattern(name, pat, BuiltForComfort)
 		if err != nil {
 			t.Error("addPattern: " + name + ", prob=" + err.Error())
 		}

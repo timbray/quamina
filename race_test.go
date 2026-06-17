@@ -27,7 +27,7 @@ func testConcurrency(t *testing.T, m matcher) {
 	populate := func() {
 		for i := 0; i < n; i++ {
 			p := fmt.Sprintf(`{"like":["tacos","queso"],"want":[%d]}`, i)
-			if err := m.addPattern(i, p); err != nil {
+			if err := m.addPattern(i, p, BuiltForComfort); err != nil {
 				t.Fatal(err)
 			}
 		}

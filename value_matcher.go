@@ -23,7 +23,7 @@ type valueMatcher struct {
 	updateable atomic.Pointer[vmFields]
 }
 type vmFields struct {
-	startState          *faState
+	start               *faState
 	singletonMatch      []byte
 	singletonTransition *fieldMatcher
 	hasNumbers          bool
@@ -66,23 +66,23 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 		}
 		return transitions
 
-	case vmFields.startState != nil:
+	case vmFields.start != nil:
 		// if there is a potential for a numeric match, try making a Q number from the event
 		if vmFields.hasNumbers && eventField.IsNumber {
 			qNum, err := qNumFromBytesBuf(val, &bufs.qNumBuf)
 			if err == nil {
 				if vmFields.isNondeterministic {
-					return traverseNFA(vmFields.startState, qNum, transitions, bufs)
+					return traverseNFA(vmFields.start, qNum, transitions, bufs)
 				}
-				return traverseDFA(vmFields.startState, qNum, transitions)
+				return traverseDFA(vmFields.start, qNum, transitions)
 			}
 		}
 
 		// if it doesn't work as a Q number for some reason, go ahead and compare the string values
 		if vmFields.isNondeterministic {
-			return traverseNFA(vmFields.startState, val, transitions, bufs)
+			return traverseNFA(vmFields.start, val, transitions, bufs)
 		}
-		return traverseDFA(vmFields.startState, val, transitions)
+		return traverseDFA(vmFields.start, val, transitions)
 
 	default:
 		// no FA, no singleton, nothing to do, this probably can't happen because a flattener
@@ -91,13 +91,12 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	}
 }
 
-func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatcher {
+func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closureBuffers, buildMode MatcherBuildMode) *fieldMatcher {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
-	var err error
 
 	// special case - virgin state and this is a string match
-	if fields.startState == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
+	if fields.start == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
 		fields.singletonMatch = valBytes
 		fields.singletonTransition = newFieldMatcher()
 		m.update(fields)
@@ -151,12 +150,8 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 	}
 
 	// there's already a table, thus an out-degree > 1
-	if fields.startState != nil {
-		mergedTable := mergeFAs(&fields.startState.table, &newFAState.table, printer)
-		fields.startState = &faState{table: mergedTable}
-		if err != nil {
-			return nil
-		}
+	if fields.start != nil {
+		fields.start = mergeStartStates(fields.start, newFAState, printer)
 
 		// in the case where you have just a handful of addTransitions but the memoryBudget
 		// is tiny, the overrun won't be caught because monitor.sample only checks
@@ -164,7 +159,11 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		// 	if (bytesAllocated() - mm.baseAlloc) > mm.headroom {
 
 		if fields.isNondeterministic {
-			epsilonClosure(fields.startState)
+			epsilonClosureInto(fields.start, bufs)
+			if buildMode == BuiltForSpeed {
+				fields.start = nfa2Dfa(fields.start)
+				fields.isNondeterministic = false
+			}
 		}
 
 		m.update(fields)
@@ -178,21 +177,25 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer) *fieldMatche
 		singletonTable, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
 
 		// now table is ready for use, nuke singleton to signal threads to use it
-		mergedTable := mergeFAs(&singletonTable, &newFAState.table, sharedNullPrinter)
-		fields.startState = &faState{table: mergedTable}
-		if err != nil {
-			return nil
-		}
+		fields.start = mergeStartStates(&faState{table: singletonTable}, newFAState, sharedNullPrinter)
 		if fields.isNondeterministic {
-			epsilonClosure(fields.startState)
+			epsilonClosureInto(fields.start, bufs)
+			if buildMode == BuiltForSpeed {
+				fields.start = nfa2Dfa(fields.start)
+				fields.isNondeterministic = false
+			}
 		}
 		fields.singletonMatch = nil
 		fields.singletonTransition = nil
 	} else {
 		// empty valueMatcher, no special cases, just jam in the new FA
-		fields.startState = newFAState
+		fields.start = newFAState
 		if fields.isNondeterministic {
-			epsilonClosure(fields.startState)
+			epsilonClosureInto(fields.start, bufs)
+			if buildMode == BuiltForSpeed {
+				fields.start = nfa2Dfa(fields.start)
+				fields.isNondeterministic = false
+			}
 		}
 	}
 	m.update(fields)
