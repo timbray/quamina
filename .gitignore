@@ -4,3 +4,5 @@ coverage.txt
 # codecov CLI and sig files
 codecov
 codecov.SHA256SUM*
+# research benchmark output CSVs (regenerable via research-main.go)
+research/*.csv

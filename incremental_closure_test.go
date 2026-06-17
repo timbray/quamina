@@ -58,8 +58,7 @@ func TestClosureWalkPrunesClosedSubtree(t *testing.T) {
 	epsilonClosure(nfa) // fully close every reachable state
 
 	bufs := newClosureBuffers()
-	bufs.gen++
-	bufs.walkGen = bufs.gen
+	bufs.walkGen = nextClosureGen()
 	closureForNfa(nfa, bufs)
 
 	if bufs.nfaWalkCount != 0 {

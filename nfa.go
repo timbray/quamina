@@ -21,6 +21,14 @@ type faState struct {
 	// len 1 is never stored: a {self} result collapses to the sentinel.
 	epsilonClosure []*faState
 	isSpinner      bool
+
+	// Build-only generation stamps for epsilon-closure visited tracking. These
+	// replace the per-closureBuffers map[*faState]uint64 visited sets, whose
+	// pointer-keyed lookups grew to O(N) entries and dominated build cost via
+	// cache misses. Compared against a globally monotonic counter (closureGenCounter)
+	// so values are never reused across pooled buffers. Untouched during matching.
+	walkVisitedGen    uint64 // last closureForNfa walk that visited this state
+	closureVisitedGen uint64 // last closureForState traversal that visited this state
 }
 
 /*

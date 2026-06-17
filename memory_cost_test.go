@@ -33,7 +33,7 @@ func TestQuaminaMemoryCost(t *testing.T) {
 		t.Error(err)
 	}
 	bytes := q.GetMatcherStats()["bytes"]
-	if bytes != 1257 {
+	if bytes != 1337 {
 		t.Error("WRONG NUMBERS")
 	}
 	err = q.AddPattern("x", `{"y":[{"wildcard": "*y"}]}}`)
@@ -41,7 +41,7 @@ func TestQuaminaMemoryCost(t *testing.T) {
 		t.Error(err)
 	}
 	bytes = q.GetMatcherStats()["bytes"]
-	if bytes != 2*1257 {
+	if bytes != 2*1337 {
 		t.Error("WRONG NUMBERS")
 	}
 }
@@ -74,7 +74,7 @@ func TestMcNfaSizes(t *testing.T) {
 		seenStates: make(map[*faState]bool),
 	}
 	cmStateStats(fa1, stats, pp)
-	wantedBytes := int64(1257) // recalibrated after self-only closure sentinel (no backing array)
+	wantedBytes := int64(1337) // +16 bytes/faState for build-only walk/closure visited-gen stamps
 	wantedFanout := int64(2)
 	wantedMaxFanout := int64(2)
 	if stats.bytes != wantedBytes {
