@@ -117,47 +117,41 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 	// value to be wrapped in an faState; makeRegexpNFA and a few NFA builders
 	// return *faState directly. After this switch, newFAState is the start
 	// faState for the new automaton.
-	var newFAState *faState
+	var newFA *faState
 	switch val.vType {
 	case stringType, literalType:
 		t, fm := makeStringFA(valBytes, nil, false)
-		newFAState, nextField = &faState{table: t}, fm
+		newFA, nextField = &faState{table: t}, fm
 	case numberType:
 		t, fm := makeStringFA(valBytes, nil, true)
-		newFAState, nextField = &faState{table: t}, fm
+		newFA, nextField = &faState{table: t}, fm
 		fields.hasNumbers = true
 	case anythingButType:
-		newFAState, nextField = makeMultiAnythingButFA(val.list)
+		newFA, nextField = makeMultiAnythingButFA(val.list)
 	case shellStyleType:
-		newFAState, nextField = makeShellStyleFA(valBytes, printer)
+		newFA, nextField = makeShellStyleFA(valBytes, printer)
 		fields.isNondeterministic = true
 	case wildcardType:
-		newFAState, nextField = makeWildCardFA(valBytes, printer)
+		newFA, nextField = makeWildCardFA(valBytes, printer)
 		fields.isNondeterministic = true
 	case prefixType:
 		t, fm := makePrefixFA(valBytes)
-		newFAState, nextField = &faState{table: t}, fm
+		newFA, nextField = &faState{table: t}, fm
 	case monocaseType:
-		newFAState, nextField = makeMonocaseFA(valBytes, printer)
+		newFA, nextField = makeMonocaseFA(valBytes, printer)
 	case regexpType:
-		newFAState, nextField = makeRegexpNFA(val.parsedRegexp, sharedNullPrinter)
-		if newFAState.table.isNondeterministic() {
+		newFA, nextField = makeRegexpNFA(val.parsedRegexp, sharedNullPrinter)
+		if newFA.table.isNondeterministic() {
 			fields.isNondeterministic = true
 		}
-		printer.labelTable(&newFAState.table, "RX start")
+		printer.labelTable(&newFA.table, "RX start")
 	default:
 		panic("unknown value type")
 	}
 
 	// there's already a table, thus an out-degree > 1
 	if fields.start != nil {
-		fields.start = mergeStartStates(fields.start, newFAState, printer)
-
-		// in the case where you have just a handful of addTransitions but the memoryBudget
-		// is tiny, the overrun won't be caught because monitor.sample only checks
-		// every N calls. So this is to catch that probably-never-happens condition.
-		// 	if (bytesAllocated() - mm.baseAlloc) > mm.headroom {
-
+		fields.start = mergeStartStates(fields.start, newFA, printer)
 		if fields.isNondeterministic {
 			epsilonClosureInto(fields.start, bufs)
 			if buildMode == BuiltForSpeed {
@@ -174,10 +168,10 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 	if fields.singletonMatch != nil {
 		// singleton is here, we don't match, so our outdegree becomes 2, so we have
 		// to build an automaton with two values in it.
-		singletonTable, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
+		singletonAutomaton, _ := makeStringFA(fields.singletonMatch, fields.singletonTransition, false)
 
 		// now table is ready for use, nuke singleton to signal threads to use it
-		fields.start = mergeStartStates(&faState{table: singletonTable}, newFAState, sharedNullPrinter)
+		fields.start = mergeStartStates(&faState{table: singletonAutomaton}, newFA, sharedNullPrinter)
 		if fields.isNondeterministic {
 			epsilonClosureInto(fields.start, bufs)
 			if buildMode == BuiltForSpeed {
@@ -189,7 +183,7 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 		fields.singletonTransition = nil
 	} else {
 		// empty valueMatcher, no special cases, just jam in the new FA
-		fields.start = newFAState
+		fields.start = newFA
 		if fields.isNondeterministic {
 			epsilonClosureInto(fields.start, bufs)
 			if buildMode == BuiltForSpeed {
