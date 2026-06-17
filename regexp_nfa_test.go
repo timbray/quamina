@@ -227,7 +227,7 @@ func TestMakeByteDotFA(t *testing.T) {
 	st := makeByteDotFA(dest, sharedNullPrinter)
 	for i := 0; i < 256; i++ {
 		b := byte(i)
-		got := st.dStep(b)
+		got := st.step(b)
 		if isForbiddenUTF8(b) {
 			if got != nil {
 				t.Errorf("accepted %x", b)

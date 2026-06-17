@@ -230,7 +230,7 @@ structures, in some cases linearly.
 func (q *Quamina) GetMatcherStats() map[string]float64
 ```
 The return value is a map with string keys to allow for the addition of metrics in
-the future, should they be found useful.  At the moment, the only metric known to be valuable  
+the future, should they be found useful. At the moment, the only metric known to be valuable 
 is the total amount of memory, in bytes, used in the Event-matching data structure; the 
 map key is “bytes”.
 
