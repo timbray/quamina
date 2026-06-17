@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-// TestArrayBehavior is here prove that (a) you can index a map with an array and
+// TestArrayBehavior is here to prove that (a) you can index a map with an array and
 // the indexing actually relies on the values in the array. This has nothing to do with
 // Quamina, but I'm leaving it here because I had to write this stupid test after failing
 // to find a straightforward question of whether this works as expected anywhere in the

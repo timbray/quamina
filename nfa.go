@@ -152,7 +152,7 @@ func (nb *nfaBuffers) getFieldSet() map[*fieldMatcher]bool {
 	return nb.fieldSet
 }
 
-// nfa2Dfa does what the name says, but as of 2026/01 is not used.
+// nfa2Dfa does what the name says. It relies upon epsilonClosure having been run on the start state
 func nfa2Dfa(nfaStart *faState) *faState {
 	// The start state always has a trivial epsilon closure (just itself), so we
 	// can assign the self-only sentinel directly. Epsilon transitions (spinner
@@ -181,7 +181,7 @@ func n2dNode(rawNStates []*faState, sList *stateLists) *faState {
 		}
 	}
 
-	// the collection of states may have duplicates and, deduplicated, considered'
+	// the collection of states may have duplicates and, deduplicated, considered
 	// as a set, may be equal to a previous set of states, in which case the
 	// corresponding DFA will have already been constructed.
 	ingredients, dfaState, alreadyExists := sList.intern(nStates)
@@ -254,7 +254,7 @@ func traverseDFA(start *faState, val []byte, transitions []*fieldMatcher) []*fie
 		} else {
 			utf8Byte = valueTerminator
 		}
-		next := table.dStep(utf8Byte)
+		next := table.step(utf8Byte)
 		if next == nil {
 			break
 		}

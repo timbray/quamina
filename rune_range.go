@@ -11,7 +11,7 @@ import (
 // RuneRange FAs, we compute and cache shells. A shell is an FA computed with the "next" value
 // being PlaceholderState.  When you need a rune range FA, you take the shell and build a copy,
 // replacing transitions to PlaceholderState by whatever the "next" value is.
-// Note that FAs are only built during AddPattern calls and this is single-threaded, se we
+// Note that FAs are only built during AddPattern calls and this is single-threaded, so we
 // can safely build and update the cachedRRFaShells
 
 var PlaceholderState *faState = &faState{table: newSmallTable()}

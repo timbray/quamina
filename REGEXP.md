@@ -37,7 +37,7 @@ The following list identifies the features of Quamina regular expressions.
 
 **`[^]` : complementary character-class matcher**
 
-**`()` : parenthetized sub-regexp**
+**`()` : parenthesized sub-regexp**
 
 **`?` : optional matcher**
 
@@ -53,7 +53,7 @@ The following list identifies the features of Quamina regular expressions.
 
 ## What to watch out for
 
-The `-p{}` and `~P{}` patterns can require building state machines that match tens of thousands
+The `~p{}` and `~P{}` patterns can require building state machines that match tens of thousands
 of characters scattered across the entire Unicode codespace. The cost in computation and memory, when
 adding such patterns, can be very high. However, the runtime performance in matching such patterns,
 once built, remains good.

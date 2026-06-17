@@ -173,7 +173,7 @@ q, err := quamina.New(quamina.WithMediaType("application/json"))
 ```
 The meanings of the `Option` functions are:
 
-`WithMediaType`: In the futue, Quamina will support
+`WithMediaType`: In the future, Quamina will support
 Events not just in JSON but in other formats such as
 Avro, Protobufs, and so on. This option will make sure
 to invoke the correct Flattener. At the moment, the only
@@ -192,7 +192,7 @@ Note that if you choose this option, the `SetMatcherBuildMode`
 API will be disabled. This is a bug and will be fixed.
 
 `WithPatternStorage`: If you provide an argument that
-supports the `LivePatternStorage` API, Quamina will
+supports the `LivePatternsState` API, Quamina will
 use it to maintain a list of which Patterns have currently
 been added but not deleted. This could be useful if you
 wanted to rebuild Quamina instances for sharded
@@ -208,7 +208,7 @@ func (q *Quamina) GetMatcherBuildMode() MatcherBuildMode
 There are two Matcher Build Modes, `BuiltForComfort` and `BuiltForSpeed`.  The mode controls the
 behavior of the `AddPattern()` API. When in the default `BuiltForComfort` mode, adding Patterns
 which include wildcards and regexps will result in `MatchesForEvent()` performance that declines
-roughly linearly as a function of of the number of such Patterns added.
+roughly linearly as a function of the number of such Patterns added.
 
 When `AddPattern()` is in `BuiltForSpeed` mode, adding such Patterns results in `MatchesForEvent()`
 performance that is only weakly related to the number of Patterns added and in practice is much 
@@ -230,7 +230,7 @@ structures, in some cases linearly.
 func (q *Quamina) GetMatcherStats() map[string]float64
 ```
 The return value is a map with string keys to allow for the addition of metrics in
-the future, should they be found useful.  At the moment, the only metric known to be valuable  
+the future, should they be found useful. At the moment, the only metric known to be valuable 
 is the total amount of memory, in bytes, used in the Event-matching data structure; the 
 map key is “bytes”.
 
@@ -387,14 +387,14 @@ until you get into hundreds of such patterns.
 
 ### Compiling for specific architectures
 
-Go compiles with [default CPU capabilites](https://go.dev/wiki/MinimumRequirements)
+Go compiles with [default CPU capabilities](https://go.dev/wiki/MinimumRequirements)
 for each architecture. In particular, its [AMD64](https://go.dev/wiki/MinimumRequirements#amd64)
 defaults are quite conservative. Changing this default can yield up to 10% improvements
-with no code changes, if you know the target machines' capabilites.
+with no code changes, if you know the target machines' capabilities.
 
-AMD65 test machine: AMD Threadripper 2920X machine with 64GB of RAM. Tested level v1 vs v3. The performance improvements were benchmark-dependent, so it's best to check it on your own workload.
+AMD64 test machine: AMD Threadripper 2920X machine with 64GB of RAM. Tested level v1 vs v3. The performance improvements were benchmark-dependent, so it's best to check it on your own workload.
 
-No signifcant improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64) defaults.
+No significant improvements have been measured by adjusting the [ARM64](https://go.dev/wiki/MinimumRequirements#arm64) defaults.
 
 ARM64 test machines: various Apple Silicon chips, M1 Ultra to M5.
 
@@ -432,4 +432,3 @@ colonies before slavery was abolished.
 @arnehormann: Compact high-precision number representation.
 
 @sayrer: Generation and curation of AI-based optimizations.
-
