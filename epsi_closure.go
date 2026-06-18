@@ -204,12 +204,18 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		return
 	}
 
+	// selfWasCollected reports whether `state` itself was added to closureList
+	// below. Only non-epsilon-only states are collected, so when self is
+	// epsilon-only a closureList of length 1 holds some *other* state, not self
+	// — the self-only checks must not fire on it.
+	selfWasCollected := !state.table.isEpsilonOnly()
+
 	// Generation-based visited tracking: bufs.states records which gen last
 	// visited each state, so we never clear the map between traversals.
 	bufs.gen++
 	bufs.closureSetGen = bufs.gen
 	bufs.closureList = bufs.closureList[:0]
-	if !state.table.isEpsilonOnly() {
+	if selfWasCollected {
 		bufs.states[state] = bufs.closureSetGen
 		bufs.closureList = append(bufs.closureList, state)
 	}
@@ -217,21 +223,35 @@ func closureForState(state *faState, bufs *closureBuffers) {
 
 	// Self-only closure (no other reachable non-epsilon-only state): use the
 	// shared sentinel instead of allocating a 1-element slice. closureList has
-	// length 1 exactly when only `self` was collected — but only when self is
-	// non-epsilon-only (so it was added to closureList). Epsilon-only states
-	// are not added to closureList, so length 1 there means a single other
-	// state was found (not self), and we must not conflate that with self-only.
-	if !state.table.isEpsilonOnly() && len(bufs.closureList) == 1 {
+	// length 1 exactly when only `self` was collected.
+	if selfWasCollected && len(bufs.closureList) == 1 {
 		state.epsilonClosure = selfOnlyClosure
 		return
 	}
 
-	// Table-pointer dedup: when multiple states in the closure share the
-	// same smallTable (steps backing array), their byte transitions are
-	// identical, so only one representative is needed. Done as a post-pass
-	// over the closure list to keep traverseEpsilons zero-overhead. The
-	// zero key (no byte transitions) is never deduped, and states with
-	// different fieldTransitions are preserved.
+	closure := dedupByTableShare(bufs)
+
+	// Pure optimization (not a correctness guard) preserving the no-length-1
+	// invariant; deliberately uncovered, as dedup collapsing a >=2-member
+	// closure entirely onto self appears structurally unreachable.
+	if selfWasCollected && len(closure) == 1 {
+		// dedup collapsed everything into self (self was the sole surviving
+		// representative); use the sentinel. Guard: epsilon-only states are
+		// not self-added to closureList, so a singleton closure there means
+		// one other state survived, not self.
+		state.epsilonClosure = selfOnlyClosure
+		return
+	}
+	state.epsilonClosure = closure
+}
+
+// dedupByTableShare collapses states in bufs.closureList that share a smallTable
+// (steps backing array) down to one representative: such states have identical
+// byte transitions, so only one is needed. Run as a post-pass over the
+// collected list (rather than inside traverseEpsilons) to keep that traversal
+// zero-overhead. The zero key (no byte transitions) is never deduped, and
+// states with differing fieldTransitions are all preserved.
+func dedupByTableShare(bufs *closureBuffers) []*faState {
 	bufs.gen++
 	dedupGen := bufs.gen
 	closure := make([]*faState, 0, len(bufs.closureList))
@@ -253,18 +273,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 		}
 		closure = append(closure, s)
 	}
-	// Pure optimization (not a correctness guard) preserving the no-length-1
-	// invariant; deliberately uncovered, as dedup collapsing a >=2-member
-	// closure entirely onto self appears structurally unreachable.
-	if !state.table.isEpsilonOnly() && len(closure) == 1 {
-		// dedup collapsed everything into self (self was the sole surviving
-		// representative); use the sentinel. Guard: epsilon-only states are
-		// not self-added to closureList, so a singleton closure there means
-		// one other state survived, not self.
-		state.epsilonClosure = selfOnlyClosure
-		return
-	}
-	state.epsilonClosure = closure
+	return closure
 }
 
 // traverseEpsilons recursively collects non-epsilon-only states reachable
