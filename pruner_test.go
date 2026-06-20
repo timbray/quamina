@@ -274,6 +274,9 @@ type badState struct {
 	err error
 }
 
+func (s *badState) SetMatcherBuildMode(mode MatcherBuildMode) {
+}
+
 var errBadState = fmt.Errorf("BadState can't do anything right")
 
 func (s *badState) Add(x X, pattern string) error {
@@ -288,7 +291,7 @@ func (s *badState) Delete(x X) (int, error) {
 	return 0, s.err
 }
 
-func (s *badState) Iterate(f func(x X, pattern string) error) error {
+func (s *badState) Iterate(f func(x X, pattern string, buildMode MatcherBuildMode) error) error {
 	return s.err
 }
 

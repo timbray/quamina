@@ -311,8 +311,8 @@ func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 	}
 
 	count := 0
-	err := m.live.Iterate(func(x X, p string) error {
-		err := m1.addPattern(x, p, BuiltForComfort)
+	err := m.live.Iterate(func(x X, p string, buildMode MatcherBuildMode) error {
+		err := m1.addPattern(x, p, buildMode)
 		if err == nil {
 			count++
 		}

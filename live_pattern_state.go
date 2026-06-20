@@ -17,76 +17,77 @@ type LivePatternsState interface {
 	Delete(x X) (int, error)
 
 	// Iterate calls the given function for every stored pattern.
-	Iterate(func(x X, pattern string) error) error
+	Iterate(func(x X, pattern string, buildMode MatcherBuildMode) error) error
 
 	// Contains returns true if x is in the live set; false otherwise.
 	Contains(x X) (bool, error)
+
+	// SetMatcherBuildMode - See the method of the same name in quamina.go
+	SetMatcherBuildMode(mode MatcherBuildMode)
 }
 
-type (
-	stringSet map[string]nothing
-	nothing   struct{}
-)
-
-var na = nothing{}
-
-// memState is a LivePatternsState that is just a map (with a RWMutex).
+// memState is a LivePatternsState that is just a slice of buildMode/pattern pairs
 //
 // Since the LivePatternsState implementation can be provided to the
 // application, we're keeping things simple here initially.
+type memStateEntry struct {
+	x           X
+	pattern     string
+	builderMode MatcherBuildMode
+}
 type memState struct {
-	lock sync.RWMutex
-	m    map[X]stringSet
+	lock        sync.RWMutex
+	builderMode MatcherBuildMode
+	entries     []memStateEntry
 }
 
 func newMemState() *memState {
-	// Accept initial size as a parameter?
-	return &memState{
-		m: make(map[X]stringSet),
-	}
+	return &memState{builderMode: BuiltForComfort}
 }
-
+func (s *memState) SetMatcherBuildMode(mode MatcherBuildMode) {
+	s.builderMode = mode
+}
 func (s *memState) Add(x X, pattern string) error {
 	s.lock.Lock()
-	ps, have := s.m[x]
-	if !have {
-		ps = make(stringSet)
-		s.m[x] = ps
-	}
-	ps[pattern] = na
-	s.lock.Unlock()
+	defer s.lock.Unlock()
+	s.entries = append(s.entries, memStateEntry{x, pattern, s.builderMode})
 	return nil
+}
+func (s *memState) Delete(x X) (int, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	howMany := 0
+	var newEntries []memStateEntry
+	for _, entry := range s.entries {
+		if entry.x == x {
+			howMany++
+		} else {
+			newEntries = append(newEntries, entry)
+		}
+	}
+	s.entries = newEntries
+	return howMany, nil
 }
 
 func (s *memState) Contains(x X) (bool, error) {
-	s.lock.RLock()
-	_, have := s.m[x]
-	s.lock.RUnlock()
-	return have, nil
-}
-
-func (s *memState) Delete(x X) (int, error) {
 	s.lock.Lock()
-	cardinality := 0
-	if xs, have := s.m[x]; have {
-		cardinality = len(xs)
-		delete(s.m, x)
-	}
-	s.lock.Unlock()
-
-	return cardinality, nil
-}
-
-func (s *memState) Iterate(f func(x X, pattern string) error) error {
-	s.lock.RLock()
-	var err error
-	for x, ps := range s.m {
-		for p := range ps {
-			if err = f(x, p); err != nil {
-				break
-			}
+	defer s.lock.Unlock()
+	for _, entry := range s.entries {
+		if entry.x == x {
+			return true, nil
 		}
 	}
-	s.lock.RUnlock()
+	return false, nil
+}
+func (s *memState) Iterate(f func(x X, pattern string, buildMode MatcherBuildMode) error) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	var err error
+	for _, entry := range s.entries {
+		err = f(entry.x, entry.pattern, s.builderMode)
+		if err != nil {
+			break
+		}
+	}
 	return err
 }

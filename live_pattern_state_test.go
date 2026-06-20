@@ -7,7 +7,7 @@ import (
 
 func TestMemIterateFerr(t *testing.T) {
 	s := newMemState()
-	f := func(x X, pattern string) error {
+	f := func(x X, pattern string, buildMode MatcherBuildMode) error {
 		return fmt.Errorf("broken")
 	}
 	if err := s.Add(1, "{}"); err != nil {
