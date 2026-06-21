@@ -206,7 +206,7 @@ func (m *prunerMatcher) addPattern(x X, pat string, buildMode MatcherBuildMode) 
 		m.stats.Live++
 		_ = m.maybeRebuild(true)
 		m.lock.Unlock()
-		err = m.live.Add(x, pat)
+		err = m.live.Add(x, pat, buildMode)
 		// ToDo: Contemplate what do to about an error here
 		// (or if we got an error from addPattern after we did
 		// live.Add.
@@ -311,8 +311,8 @@ func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 	}
 
 	count := 0
-	err := m.live.Iterate(func(x X, p string) error {
-		err := m1.addPattern(x, p, BuiltForComfort)
+	err := m.live.Iterate(func(x X, p string, buildMode MatcherBuildMode) error {
+		err := m1.addPattern(x, p, buildMode)
 		if err == nil {
 			count++
 		}

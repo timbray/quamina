@@ -188,9 +188,6 @@ not free; it can incur extra costs in memory and
 occasional stop-the-world Quamina rebuilds. (We plan
 to improve this.)
 
-Note that if you choose this option, the `SetMatcherBuildMode`
-API will be disabled. This is a bug and will be fixed.
-
 `WithPatternStorage`: If you provide an argument that
 supports the `LivePatternsState` API, Quamina will
 use it to maintain a list of which Patterns have currently

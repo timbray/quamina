@@ -20,6 +20,43 @@ func (m *prunerMatcher) printStats() {
 	logf("%#v", m.getPrunerStats())
 }
 
+func TestPrunerBuildMode(t *testing.T) {
+	entries := []memStateEntry{
+		{1, `{"x": [{"wildcard": "t*ortilla"}]}`, BuiltForComfort},
+		{2, `{"x": [{"wildcard": "tortilla*"}]}`, BuiltForSpeed},
+		{3, `{"x": [{"wildcard": "*tortilla"}]}`, BuiltForComfort},
+		{4, `{"x": [{"wildcard": "tortil*la"}]}`, BuiltForSpeed},
+	}
+	q, err := New(WithPatternDeletion(true))
+	if err != nil {
+		t.Error(err)
+	}
+	for _, entry := range entries {
+		err = q.SetMatcherBuildMode(entry.builderMode)
+		if err != nil {
+			t.Error(err)
+		}
+		err = q.AddPattern(entry.x, entry.pattern)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	bytes1 := int(q.GetMatcherStats()["bytes"])
+	pr, ok := q.matcher.(*prunerMatcher)
+	if !ok {
+		t.Error("Not pruner")
+	}
+	// trigger := pr.rebuildTrigger
+	err = pr.rebuildWhileLocked(true)
+	if err != nil {
+		t.Error(err)
+	}
+	bytes2 := int(q.GetMatcherStats()["bytes"])
+	if bytes1 != bytes2 {
+		t.Errorf("b1 %d, b2 %d", bytes1, bytes2)
+	}
+}
+
 func TestBasic(t *testing.T) {
 	var (
 		pat   = `{"likes":["tacos"]}`
@@ -274,9 +311,12 @@ type badState struct {
 	err error
 }
 
+func (s *badState) SetMatcherBuildMode(mode MatcherBuildMode) {
+}
+
 var errBadState = fmt.Errorf("BadState can't do anything right")
 
-func (s *badState) Add(x X, pattern string) error {
+func (s *badState) Add(x X, pattern string, buildMode MatcherBuildMode) error {
 	return s.err
 }
 
@@ -288,7 +328,7 @@ func (s *badState) Delete(x X) (int, error) {
 	return 0, s.err
 }
 
-func (s *badState) Iterate(f func(x X, pattern string) error) error {
+func (s *badState) Iterate(f func(x X, pattern string, buildMode MatcherBuildMode) error) error {
 	return s.err
 }
 
