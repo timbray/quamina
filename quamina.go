@@ -188,10 +188,6 @@ const (
 
 // SetMatcherBuildMode puts a Quamina instance into the provided mode
 func (q *Quamina) SetMatcherBuildMode(mode MatcherBuildMode) error {
-	_, ok := q.matcher.(*coreMatcher)
-	if !ok {
-		return errors.New("this API not available if WithPatternDeletion enabled")
-	}
 	q.buildMode = mode
 	return nil
 }

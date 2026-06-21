@@ -10,7 +10,7 @@ type LivePatternsState interface {
 	// Add adds a new pattern or updates an old pattern.
 	//
 	// Note that multiple patterns can be associated with the same X.
-	Add(x X, pattern string) error
+	Add(x X, pattern string, buildMode MatcherBuildMode) error
 
 	// Delete removes all patterns associated with the given X and returns the
 	// number of removed patterns.
@@ -21,9 +21,6 @@ type LivePatternsState interface {
 
 	// Contains returns true if x is in the live set; false otherwise.
 	Contains(x X) (bool, error)
-
-	// SetMatcherBuildMode - See the method of the same name in quamina.go
-	SetMatcherBuildMode(mode MatcherBuildMode)
 }
 
 // memState is a LivePatternsState that is just a slice of buildMode/pattern pairs
@@ -36,21 +33,17 @@ type memStateEntry struct {
 	builderMode MatcherBuildMode
 }
 type memState struct {
-	lock        sync.RWMutex
-	builderMode MatcherBuildMode
-	entries     []memStateEntry
+	lock    sync.RWMutex
+	entries []memStateEntry
 }
 
 func newMemState() *memState {
-	return &memState{builderMode: BuiltForComfort}
+	return &memState{}
 }
-func (s *memState) SetMatcherBuildMode(mode MatcherBuildMode) {
-	s.builderMode = mode
-}
-func (s *memState) Add(x X, pattern string) error {
+func (s *memState) Add(x X, pattern string, buildMode MatcherBuildMode) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.entries = append(s.entries, memStateEntry{x, pattern, s.builderMode})
+	s.entries = append(s.entries, memStateEntry{x, pattern, buildMode})
 	return nil
 }
 func (s *memState) Delete(x X) (int, error) {
@@ -84,7 +77,7 @@ func (s *memState) Iterate(f func(x X, pattern string, buildMode MatcherBuildMod
 	defer s.lock.Unlock()
 	var err error
 	for _, entry := range s.entries {
-		err = f(entry.x, entry.pattern, s.builderMode)
+		err = f(entry.x, entry.pattern, entry.builderMode)
 		if err != nil {
 			break
 		}

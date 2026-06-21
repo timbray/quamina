@@ -10,7 +10,7 @@ func TestMemIterateFerr(t *testing.T) {
 	f := func(x X, pattern string, buildMode MatcherBuildMode) error {
 		return fmt.Errorf("broken")
 	}
-	if err := s.Add(1, "{}"); err != nil {
+	if err := s.Add(1, "{}", BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Iterate(f); err == nil {
@@ -21,11 +21,11 @@ func TestMemIterateFerr(t *testing.T) {
 func TestStateDelete(t *testing.T) {
 	s := newMemState()
 
-	if err := s.Add(1, `{"likes":"queso"}`); err != nil {
+	if err := s.Add(1, `{"likes":"queso"}`, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.Add(1, `{"likes":"tacos"}`); err != nil {
+	if err := s.Add(1, `{"likes":"tacos"}`, BuiltForComfort); err != nil {
 		t.Fatal(err)
 	}
 
