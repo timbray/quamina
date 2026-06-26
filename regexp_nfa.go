@@ -124,6 +124,14 @@ func faFromQuantifiedAtom(branch regexpBranch, index int, finalStep *faState, pp
 		state.table.epsilons = []*faState{nextState}
 
 	case atom.isMinimumOnly():
+		// {0,} has no mandatory steps, so it means the same thing as *
+		if atom.quantMin == 0 {
+			state = &faState{}
+			state.table = atom.makeFA(state, pp)
+			state.table.epsilons = append(state.table.epsilons, nextState)
+			break
+		}
+
 		shellTable := atom.makeFA(PlaceholderState, pp)
 		nextMinMaxStep := nextState
 

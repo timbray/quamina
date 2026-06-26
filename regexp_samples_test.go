@@ -5447,4 +5447,11 @@ var regexpSamples = []regexpSample{
 		regex: "[~i]",
 		valid: false,
 	},
+	// {0,} has no mandatory steps so it means the same as *; used to panic, see #558
+	{
+		regex:     "x{0,}y",
+		matches:   []string{"y", "xy", "xxxy"},
+		nomatches: []string{"x", "z", "xx"},
+		valid:     true,
+	},
 }
