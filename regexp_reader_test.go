@@ -94,11 +94,11 @@ func TestRegexpCharacterClassMatchesSupplementaryCharacter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	pattern := "{\"value\": [{\"regexp\": \"[\U0001D7CE\U0001D7CF]\"}]}"
+	pattern := `{"value": [{"regexp": "[\uD835\uDFCE\uD835\uDFCF]"}]}`
 	if err := q.AddPattern("supplementary", pattern); err != nil {
 		t.Fatalf("AddPattern: %v", err)
 	}
-	matches, err := q.MatchesForEvent([]byte("{\"value\": \"\U0001D7CE\"}"))
+	matches, err := q.MatchesForEvent([]byte(`{"value": "\uD835\uDFCE"}`))
 	if err != nil {
 		t.Fatalf("MatchesForEvent: %v", err)
 	}
