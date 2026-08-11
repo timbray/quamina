@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // NormalChar = ( %x00-27 / "," / "-" / %x2F-3E ; '/'-'>'
@@ -85,6 +86,31 @@ func TestReadCCE1(t *testing.T) {
 		if err == nil {
 			t.Errorf("Missed bad %s", bad)
 		}
+	}
+}
+
+func TestIsCCcharBoundaries(t *testing.T) {
+	tests := []struct {
+		name string
+		r    rune
+		want bool
+	}{
+		{name: "before surrogates", r: 0xd7ff, want: true},
+		{name: "first surrogate", r: 0xd800, want: false},
+		{name: "last surrogate", r: 0xdfff, want: false},
+		{name: "after surrogates", r: 0xe000, want: true},
+		{name: "previous typo boundary", r: 0x10fff, want: true},
+		{name: "after previous typo boundary", r: 0x11000, want: true},
+		{name: "maximum Unicode code point", r: unicode.MaxRune, want: true},
+		{name: "above maximum Unicode code point", r: unicode.MaxRune + 1, want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := isCCchar(test.r); got != test.want {
+				t.Errorf("isCCchar(U+%04X) = %t, want %t", test.r, got, test.want)
+			}
+		})
 	}
 }
 
