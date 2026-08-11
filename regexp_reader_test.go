@@ -89,6 +89,13 @@ func TestReadCCE1(t *testing.T) {
 	}
 }
 
+func TestReadCCESupplementaryCharacters(t *testing.T) {
+	_, err := readRegexp("[\U0001D7CE\U0001D7CF]")
+	if err != nil {
+		t.Fatalf("supplementary Unicode characters in character class: %v", err)
+	}
+}
+
 func TestIsCCcharBoundaries(t *testing.T) {
 	tests := []struct {
 		name string
