@@ -89,10 +89,21 @@ func TestReadCCE1(t *testing.T) {
 	}
 }
 
-func TestReadCCESupplementaryCharacters(t *testing.T) {
-	_, err := readRegexp("[\U0001D7CE\U0001D7CF]")
+func TestRegexpCharacterClassMatchesSupplementaryCharacter(t *testing.T) {
+	q, err := New()
 	if err != nil {
-		t.Fatalf("supplementary Unicode characters in character class: %v", err)
+		t.Fatalf("New: %v", err)
+	}
+	pattern := "{\"value\": [{\"regexp\": \"[\U0001D7CE\U0001D7CF]\"}]}"
+	if err := q.AddPattern("supplementary", pattern); err != nil {
+		t.Fatalf("AddPattern: %v", err)
+	}
+	matches, err := q.MatchesForEvent([]byte("{\"value\": \"\U0001D7CE\"}"))
+	if err != nil {
+		t.Fatalf("MatchesForEvent: %v", err)
+	}
+	if len(matches) != 1 || matches[0] != "supplementary" {
+		t.Fatalf("MatchesForEvent = %v, want [supplementary]", matches)
 	}
 }
 
