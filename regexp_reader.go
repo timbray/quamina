@@ -439,7 +439,7 @@ func isCCchar(r rune) bool {
 	if r >= 0x5e && r <= 0xd7ff {
 		return true
 	}
-	if r >= 0xe000 && r <= 0x10fff {
+	if r >= 0xe000 && r <= 0x10ffff {
 		return true
 	}
 	if r == '\\' {
