@@ -2,42 +2,24 @@ package quamina
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// prunerStats reports basic counts to aid in deciding when to rebuildWhileLocked.
-type prunerStats struct {
-	// Some of these values are ints instead of uints because Go
-	// likes to print uints in hex, and I'd like to see some
-	// temporary logging output in decimal.  ToDo: back to uints?
+type prunerFields struct {
+	// Matcher is the underlying matcher that does the hard work.
+	Matcher *coreMatcher
 
-	// Live the count of total live patterns.
-	Live int
+	// Maybe prunerMatcher should maybe not be embedded or public.
 
-	// Added is the count of total patterns added.
-	Added int
+	// live is the live set of patterns.
+	live LivePatternsState
 
-	// Deleted is the count of the patterns removed.
-	Deleted int
-
-	// Emitted is the count of total patterns found since the last
-	// rebuildWhileLocked.
-	Emitted int64
-
-	// Filtered is the count of patterns that have been removed
-	// from MatchFor results (since the last rebuildWhileLocked) because
-	// their patterns had been removed.
-	Filtered int64
-
-	// LastRebuilt is the time the last rebuildWhileLocked started.
-	LastRebuilt time.Time
-
-	// RebuildDuration is the duration of the last rebuildWhileLocked.
-	RebuildDuration time.Duration
-
-	// RebuildPurged is the count of patterns removed during
-	// rebuildWhileLocked.
-	RebuildPurged int
+	// rebuildTrigger, if not nil, determines when a mutation
+	// triggers a rebuildWhileLocked.
+	//
+	// If nil, no automatic rebuild is ever triggered.
+	rebuildTrigger rebuildTrigger
 }
 
 // prunerMatcher provides DeletePattern on top of quamina.matcher.
@@ -56,27 +38,23 @@ type prunerStats struct {
 // Eventually automatically-invoked rebuildWhileLocked policies might be
 // pluggable.
 type prunerMatcher struct {
-	// Matcher is the underlying matcher that does the hard work.
-	Matcher *coreMatcher
+	updateable atomic.Pointer[prunerFields]
+	stats      *asyncPrunerStats
 
-	// Maybe prunerMatcher should maybe not be embedded or public.
-
-	// live is the live set of patterns.
-	live LivePatternsState
-
-	stats prunerStats
-
-	// rebuildTrigger, if not nil, determines when a mutation
-	// triggers a rebuildWhileLocked.
-	//
-	// If nil, no automatic rebuild is ever triggered.
-	rebuildTrigger rebuildTrigger
-
-	// lock protects the pointer the underlying Matcher as well as stats.
-	//
-	// The Matcher pointer is updated after a successful rebuild.
-	// Stats are updated by Add, Delete, and rebuild.
 	lock sync.RWMutex
+}
+
+func (pm *prunerMatcher) loadFieldsForUpdate() *prunerFields {
+	currentFields := pm.updateable.Load()
+	newFields := *currentFields
+	return &newFields
+}
+func (pm *prunerMatcher) loadFields() *prunerFields {
+	currentFields := pm.updateable.Load()
+	return currentFields
+}
+func (pm *prunerMatcher) storeFields(fields *prunerFields) {
+	pm.updateable.Store(fields)
 }
 
 var defaultRebuildTrigger = newTooMuchFiltering(0.2, 1000)
@@ -106,7 +84,7 @@ func newTooMuchFiltering(ratio float64, minimum int64) *tooMuchFiltering {
 }
 
 // TODO: Figure out how to expose this through the Quamina type
-func (t *tooMuchFiltering) rebuild(added bool, s *prunerStats) bool {
+func (t *tooMuchFiltering) rebuild(added bool, s *asyncPrunerStats) bool {
 	if added {
 		// No need to think when we're adding a pattern since
 		// that operation cannot result in an increase of
@@ -116,7 +94,8 @@ func (t *tooMuchFiltering) rebuild(added bool, s *prunerStats) bool {
 
 	// If we haven't seen enough patterns emitted by the core
 	// prunerMatcher, don't rebuildWhileLocked.
-	if s.Emitted+s.Filtered < t.MinAction {
+
+	if s.Emitted.get()+s.Filtered.get() < t.MinAction {
 		return false
 	}
 
@@ -125,24 +104,25 @@ func (t *tooMuchFiltering) rebuild(added bool, s *prunerStats) bool {
 	// In isolation, this heuristic is arguable, but for this
 	// policy we need it. Otherwise, we'll divide by zero, and
 	// nobody wants that.
-	if s.Emitted == 0 {
+	if s.Emitted.get() == 0 {
 		return false
 	}
 
 	var (
-		numerator   = float64(s.Filtered)
-		denominator = float64(s.Emitted)
+		numerator   = float64(s.Filtered.get())
+		denominator = float64(s.Emitted.get())
 		ratio       = numerator / denominator
 	)
-
 	return t.FilteredToEmitted < ratio
 }
 
 // disableRebuild will prevent any automatic rebuilds.
-func (m *prunerMatcher) disableRebuild() {
-	m.lock.Lock()
-	m.rebuildTrigger = nil
-	m.lock.Unlock()
+func (pm *prunerMatcher) disableRebuild() {
+	pm.lock.Lock()
+	defer pm.lock.Unlock()
+	freshStart := *pm.loadFieldsForUpdate()
+	freshStart.rebuildTrigger = nil
+	pm.storeFields(&freshStart)
 }
 
 // rebuildTrigger provides a way to control when rebuilds are
@@ -159,7 +139,7 @@ type rebuildTrigger interface {
 	// matchesForFields.  added is true when called by addPattern;
 	// false otherwise. These methods currently do not return
 	// until the rebuild is complete, so beware.
-	rebuild(added bool, s *prunerStats) bool
+	rebuild(added bool, s *asyncPrunerStats) bool
 }
 
 // newPrunerMatcher does what you'd expect.
@@ -170,11 +150,14 @@ func newPrunerMatcher(s LivePatternsState) *prunerMatcher {
 		s = newMemState()
 	}
 	trigger := *defaultRebuildTrigger // Copy
-	return &prunerMatcher{
+	matcher := &prunerMatcher{stats: newAsyncPrunerStats()}
+	fields := &prunerFields{
 		Matcher:        newCoreMatcher(),
 		live:           s,
 		rebuildTrigger: &trigger,
 	}
+	matcher.storeFields(fields)
+	return matcher
 }
 
 // maybeRebuild calls rebuildTrigger and calls rebuildWhileLocked() if that
@@ -182,31 +165,32 @@ func newPrunerMatcher(s LivePatternsState) *prunerMatcher {
 // executed.
 //
 // This method assumes the caller has a write lock.
-func (m *prunerMatcher) maybeRebuild(added bool) error {
-	if m.rebuildTrigger == nil {
+func (pm *prunerMatcher) maybeRebuild(added bool) error {
+	pmFields := pm.loadFields()
+	if pmFields.rebuildTrigger == nil {
 		return nil
 	}
-	if m.rebuildTrigger.rebuild(added, &m.stats) {
-		return m.rebuildWhileLocked(added)
+	if pmFields.rebuildTrigger.rebuild(added, pm.stats) {
+		return pm.rebuildWhileLocked(added)
 	}
-
 	return nil
 }
 
 // addPattern calls the underlying quamina.coreMatcher.addPattern
 // method and then maybe rebuilds the index (if the addPattern
 // succeeded).
-func (m *prunerMatcher) addPattern(x X, pat string, buildMode MatcherBuildMode) error {
+func (pm *prunerMatcher) addPattern(x X, pat string, buildMode MatcherBuildMode) error {
 	var err error
 
 	// Do we m.live.Add first or do we m.prunerMatcher.addPattern first?
-	if err = m.Matcher.addPattern(x, pat, buildMode); err == nil {
-		m.lock.Lock()
-		m.stats.Added++
-		m.stats.Live++
-		_ = m.maybeRebuild(true)
-		m.lock.Unlock()
-		err = m.live.Add(x, pat, buildMode)
+	pm.lock.Lock()
+	defer pm.lock.Unlock()
+	pmFields := pm.loadFields()
+	if err = pmFields.Matcher.addPattern(x, pat, buildMode); err == nil {
+		pm.stats.Added.bump(1)
+		pm.stats.Live.bump(1)
+		_ = pm.maybeRebuild(true)
+		err = pmFields.live.Add(x, pat, buildMode)
 		// ToDo: Contemplate what do to about an error here
 		// (or if we got an error from addPattern after we did
 		// live.Add.
@@ -216,23 +200,26 @@ func (m *prunerMatcher) addPattern(x X, pat string, buildMode MatcherBuildMode) 
 }
 
 // MatchesForJSONEvent calls MatchesForFields with a new Flattener.
-func (m *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
-	fs, err := newJSONFlattener().Flatten(event, m.Matcher.fields().segmentsTree)
+func (pm *prunerMatcher) MatchesForJSONEvent(event []byte) ([]X, error) {
+	pmFields := pm.loadFields()
+	fs, err := newJSONFlattener().Flatten(event, pmFields.Matcher.fields().segmentsTree)
 	if err != nil {
 		return nil, err
 	}
-	return m.matchesForFields(fs, newNfaBuffers())
+	return pm.matchesForFields(fs, newNfaBuffers())
 }
 
-func (m *prunerMatcher) getStats() *matcherStats {
-	return m.Matcher.getStats()
+func (pm *prunerMatcher) getStats() *matcherStats {
+	pmFields := pm.loadFields()
+	return pmFields.Matcher.getStats()
 }
 
 // MatchesForFields calls the underlying
 // quamina.coreMatcher.matchesForFields and then maybe rebuilds the
 // index.
-func (m *prunerMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, error) {
-	xs, err := m.Matcher.matchesForFields(fields, bufs)
+func (pm *prunerMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, error) {
+	pmFields := pm.loadFields()
+	xs, err := pmFields.Matcher.matchesForFields(fields, bufs)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +230,7 @@ func (m *prunerMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X,
 
 	var emitted, filtered int64
 	for _, x := range xs {
-		have, err := m.live.Contains(x)
+		have, err := pmFields.live.Contains(x)
 		if err != nil {
 			return nil, err
 		}
@@ -255,29 +242,28 @@ func (m *prunerMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X,
 		emitted++
 	}
 
-	m.lock.Lock()
-	m.stats.Filtered += filtered
-	m.stats.Emitted += emitted
-	_ = m.maybeRebuild(false)
-	m.lock.Unlock()
+	pm.stats.Filtered.bump(filtered)
+	pm.stats.Emitted.bump(emitted)
+	_ = pm.maybeRebuild(false)
 
 	return acc, nil
 }
 
 // DeletePattern removes the pattern from the index and maybe rebuilds
 // the index.
-func (m *prunerMatcher) deletePatterns(x X) error {
-	n, err := m.live.Delete(x)
+func (pm *prunerMatcher) deletePatterns(x X) error {
+	pm.lock.Lock()
+	defer pm.lock.Unlock()
+	pmFields := pm.loadFieldsForUpdate()
+	n, err := pmFields.live.Delete(x)
 	if err == nil {
 		if 0 < n {
-			m.lock.Lock()
-			m.stats.Deleted += n
-			m.stats.Live -= n
-			_ = m.maybeRebuild(false)
-			m.lock.Unlock()
+			pm.stats.Deleted.bump(int64(n))
+			pm.stats.Live.bump(int64(-n))
+			_ = pm.maybeRebuild(false)
+			pm.storeFields(pmFields)
 		}
 	}
-
 	return err
 }
 
@@ -287,15 +273,15 @@ func (m *prunerMatcher) deletePatterns(x X) error {
 // building the new one.
 //
 // This method resets the prunerStats.
-func (m *prunerMatcher) rebuild(fearlessly bool) error {
-	m.lock.Lock()
-	err := m.rebuildWhileLocked(fearlessly)
-	m.lock.Unlock()
+func (pm *prunerMatcher) rebuild(fearlessly bool) error {
+	pm.lock.Lock()
+	err := pm.rebuildWhileLocked(fearlessly)
+	pm.lock.Unlock()
 	return err
 }
 
 // rebuildWhileLocked is rebuild but assumes having the lock.
-func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
+func (pm *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 	// We assume we have the lock.
 
 	// Nothing fancy here now.
@@ -305,13 +291,14 @@ func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 		m1   = newCoreMatcher()
 	)
 
+	pmFields := pm.loadFieldsForUpdate()
 	if fearlessly {
 		// Let the GC reduce heap requirements?
-		m.Matcher = nil
+		pmFields.Matcher = nil
 	}
 
 	count := 0
-	err := m.live.Iterate(func(x X, p string, buildMode MatcherBuildMode) error {
+	err := pmFields.live.Iterate(func(x X, p string, buildMode MatcherBuildMode) error {
 		err := m1.addPattern(x, p, buildMode)
 		if err == nil {
 			count++
@@ -320,28 +307,27 @@ func (m *prunerMatcher) rebuildWhileLocked(fearlessly bool) error {
 	})
 
 	if err == nil {
-		m.Matcher = m1
-		m.stats.RebuildPurged = m.stats.Deleted
-		m.stats.Live = count
-		m.stats.Added = 0
-		m.stats.Deleted = 0
-		m.stats.Filtered = 0
-		m.stats.LastRebuilt = then
-		m.stats.RebuildDuration = time.Since(then)
+		pmFields.Matcher = m1
+		pm.stats.RebuildPurged.set(pm.stats.Deleted.get())
+		pm.stats.Live.set(int64(count))
+		pm.stats.Added.set(0)
+		pm.stats.Deleted.set(0)
+		pm.stats.Filtered.set(0)
+		pm.stats.LastRebuilt.set(then)
+		pm.stats.RebuildDuration.set(time.Since(then))
 	}
+	pm.storeFields(pmFields)
 
 	return err
 }
 
 // prunerStats returns some statistics that might be helpful to rebuildWhileLocked
 // policies.
-func (m *prunerMatcher) getPrunerStats() prunerStats {
-	m.lock.RLock()
-	s := m.stats // Copies
-	m.lock.RUnlock()
-	return s
+func (pm *prunerMatcher) getPrunerStats() *asyncPrunerStats {
+	return pm.stats
 }
 
-func (m *prunerMatcher) getSegmentsTreeTracker() SegmentsTreeTracker {
-	return m.Matcher.getSegmentsTreeTracker()
+func (pm *prunerMatcher) getSegmentsTreeTracker() SegmentsTreeTracker {
+	pmFields := pm.loadFields()
+	return pmFields.Matcher.getSegmentsTreeTracker()
 }

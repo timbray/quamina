@@ -22,18 +22,18 @@ func newLiveRatioTrigger(ratio float64, minimum int) *liveRatioTrigger {
 	}
 }
 
-func (t *liveRatioTrigger) rebuild(added bool, s *prunerStats) bool {
+func (t *liveRatioTrigger) rebuild(added bool, s *asyncPrunerStats) bool {
 	if added {
 		return false
 	}
-	live := s.Live - s.Deleted
+	live := s.Live.get() - s.Deleted.get()
 	if live == 0 {
 		return false
 	}
-	if live < t.MinLive {
+	if int(live) < t.MinLive {
 		return false
 	}
-	return t.Ratio <= float64(s.Deleted)/float64(live)
+	return t.Ratio <= float64(s.Deleted.get())/float64(live)
 }
 
 // neverTrigger is a rebuildTrigger that will never trigger a rebuild.
@@ -48,6 +48,6 @@ func newNeverTrigger() *neverTrigger {
 	return &neverTrigger{}
 }
 
-func (t *neverTrigger) rebuild(added bool, s *prunerStats) bool {
+func (t *neverTrigger) rebuild(added bool, s *asyncPrunerStats) bool {
 	return false
 }
