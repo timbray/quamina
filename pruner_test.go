@@ -16,8 +16,8 @@ func logf(format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
-func (m *prunerMatcher) printStats() {
-	logf("%#v", m.getPrunerStats())
+func (pm *prunerMatcher) printStats() {
+	logf("%s", pm.stats.String())
 }
 
 func TestPrunerBuildMode(t *testing.T) {
@@ -183,8 +183,8 @@ func TestRebuildSome(t *testing.T) {
 		depopulate()
 		query(false)
 		m.printStats()
-		if s := m.getPrunerStats(); s.RebuildDuration == 0 {
-			t.Fatal(s)
+		if s := m.getPrunerStats(); s.RebuildDuration.get().Nanoseconds() == 0 {
+			t.Fatal(s.String())
 		}
 	})
 
@@ -196,8 +196,8 @@ func TestRebuildSome(t *testing.T) {
 		query(true)
 		depopulate()
 		query(false)
-		if s := m.getPrunerStats(); s.RebuildDuration != 0 {
-			t.Fatal(s)
+		if s := m.getPrunerStats(); s.RebuildDuration.get().Nanoseconds() != 0 {
+			t.Fatal(s.String())
 		}
 	})
 
@@ -207,8 +207,8 @@ func TestRebuildSome(t *testing.T) {
 		queryFast(false)
 		depopulate()
 		queryFast(false)
-		if s := m.getPrunerStats(); s.RebuildDuration == 0 {
-			t.Fatal(s)
+		if s := m.getPrunerStats(); s.RebuildDuration.get().Nanoseconds() == 0 {
+			t.Fatal(s.String())
 		}
 	})
 }
@@ -216,7 +216,8 @@ func TestRebuildSome(t *testing.T) {
 func TestTriggerTooManyFilteredDenom(t *testing.T) {
 	// Verify that a zero denominator doesn't cause problems.
 	m := newPrunerMatcher(nil)
-	trigger := m.rebuildTrigger.(*tooMuchFiltering)
+	pmFields := m.loadFields()
+	trigger := pmFields.rebuildTrigger.(*tooMuchFiltering)
 	trigger.MinAction = 0
 
 	if err := m.addPattern(1, `{"likes":["tacos"]}`, BuiltForComfort); err != nil {
@@ -235,11 +236,12 @@ func TestTriggerRebuild(t *testing.T) {
 	// This test just checks that a rebuildWhileLocked was actually triggered.
 
 	var (
-		then    = time.Now()
-		m       = newPrunerMatcher(nil)
-		trigger = m.rebuildTrigger.(*tooMuchFiltering)
-		n       = 10
-		doomed  = func(id int) bool {
+		then     = time.Now()
+		m        = newPrunerMatcher(nil)
+		pmFields = m.loadFields()
+		trigger  = pmFields.rebuildTrigger.(*tooMuchFiltering)
+		n        = int64(10)
+		doomed   = func(id int) bool {
 			return id%2 == 0
 		}
 		// printState = func() {
@@ -253,7 +255,7 @@ func TestTriggerRebuild(t *testing.T) {
 	trigger.MinAction = 5
 	trigger.FilteredToEmitted = 0.5
 
-	for i := 0; i < n; i++ {
+	for i := 0; i < int(n); i++ {
 		pat := fmt.Sprintf(`{"n":[%d]}`, i)
 		if err := m.addPattern(i, pat, BuiltForComfort); err != nil {
 			t.Fatal(err)
@@ -269,7 +271,7 @@ func TestTriggerRebuild(t *testing.T) {
 	// printState()
 	m.printStats()
 
-	for i := 0; i < n; i++ {
+	for i := 0; i < int(n); i++ {
 		event := fmt.Sprintf(`{"n":%d}`, i)
 		got, err := m.MatchesForJSONEvent([]byte(event))
 		if err != nil {
@@ -290,20 +292,20 @@ func TestTriggerRebuild(t *testing.T) {
 	m.printStats()
 
 	s := m.getPrunerStats()
-	if n <= s.Live {
-		t.Fatal(s.Live)
+	if n <= s.Live.get() {
+		t.Fatal(s.Live.get())
 	}
 
-	if !s.LastRebuilt.After(then) {
-		t.Fatal(s.LastRebuilt)
+	if !s.LastRebuilt.get().After(then) {
+		t.Fatal(s.LastRebuilt.get())
 	}
 
-	if s.RebuildPurged == 0 {
-		t.Fatal(s.RebuildPurged)
+	if s.RebuildPurged.get() == 0 {
+		t.Fatal(s.RebuildPurged.get())
 	}
 
-	if s.RebuildDuration == 0 {
-		t.Fatal(s.RebuildDuration)
+	if s.RebuildDuration.get() == 0 {
+		t.Fatal(s.RebuildDuration.get())
 	}
 }
 
@@ -324,8 +326,8 @@ func (s *badState) Contains(x X) (bool, error) {
 	return false, s.err
 }
 
-func (s *badState) Delete(x X) (int, error) {
-	return 0, s.err
+func (s *badState) Delete(x X) (int32, error) {
+	return int32(0), s.err
 }
 
 func (s *badState) Iterate(f func(x X, pattern string, buildMode MatcherBuildMode) error) error {
@@ -378,7 +380,9 @@ func TestBadEvent(t *testing.T) {
 
 func TestUnsetRebuildTrigger(t *testing.T) {
 	m := newPrunerMatcher(&badState{})
-	m.rebuildTrigger = nil
+	pmFields := m.loadFields()
+	pmFields.rebuildTrigger = nil
+	m.storeFields(pmFields)
 	if err := m.maybeRebuild(false); err != nil {
 		t.Fatal(err)
 	}
@@ -455,8 +459,8 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 
 	s := m.getPrunerStats()
 
-	if s.Live != 2 {
-		t.Fatal(s.Live)
+	if s.Live.get() != 2 {
+		t.Fatal(s.Live.get())
 	}
 
 	if err := m.deletePatterns(id); err != nil {
@@ -465,12 +469,12 @@ func TestMultiplePatternsWithSameId(t *testing.T) {
 
 	s = m.getPrunerStats()
 
-	if s.Live != 0 {
-		t.Fatal(s.Live)
+	if s.Live.get() != 0 {
+		t.Fatal(s.Live.get())
 	}
 
-	if s.Deleted != 2 {
-		t.Fatal(s.Deleted)
+	if s.Deleted.get() != 2 {
+		t.Fatal(s.Deleted.get())
 	}
 }
 

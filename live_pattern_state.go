@@ -14,7 +14,7 @@ type LivePatternsState interface {
 
 	// Delete removes all patterns associated with the given X and returns the
 	// number of removed patterns.
-	Delete(x X) (int, error)
+	Delete(x X) (int32, error)
 
 	// Iterate calls the given function for every stored pattern.
 	Iterate(func(x X, pattern string, buildMode MatcherBuildMode) error) error
@@ -46,10 +46,10 @@ func (s *memState) Add(x X, pattern string, buildMode MatcherBuildMode) error {
 	s.entries = append(s.entries, memStateEntry{x, pattern, buildMode})
 	return nil
 }
-func (s *memState) Delete(x X) (int, error) {
+func (s *memState) Delete(x X) (int32, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	howMany := 0
+	var howMany int32 = 0
 	var newEntries []memStateEntry
 	for _, entry := range s.entries {
 		if entry.x == x {
