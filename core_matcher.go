@@ -63,7 +63,13 @@ func (m *coreMatcher) addPattern(x X, patternJSON string, buildMode MatcherBuild
 
 // addPatternWithPrinter can be called from debugging and under-development code to allow viewing pretty-printed
 // NFAs
-func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer printer, buildMode MatcherBuildMode) error {
+func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer printer, buildMode MatcherBuildMode) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("call to AddPattern caused a crash, probably because the Pattern is too large or too deeply nested")
+		}
+	}()
+
 	patternFields, err := patternFromJSON([]byte(patternJSON))
 	if err != nil {
 		return err
@@ -127,7 +133,6 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 		endState.addMatch(x)
 	}
 	m.updateable.Store(freshStart)
-
 	return nil
 }
 
@@ -183,16 +188,23 @@ func emptyFields() []Field {
 
 // matchesForFields takes a list of Field structures, sorts them by pathname, and launches the field-matching
 // process. The fields in a pattern to match are similarly sorted; thus running an automaton over them works.
-// No error can be returned but the matcher interface requires one, and it is used by the pruner implementation
-func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, error) {
+func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) (matches []X, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("call to MatchesForEvent caused a crash, probably because the Event is too large or too deeply nested")
+		}
+	}()
+
 	if len(fields) == 0 {
 		fields = emptyFields()
 	} else {
 		slices.SortFunc(fields, func(a, b Field) int { return bytes.Compare(a.Path, b.Path) })
 	}
+
 	// Reuse the matchSet from buffers to reduce allocations
-	matches := bufs.getMatches()
-	matches.reset()
+	matchSet := bufs.getMatches()
+	matchSet.reset()
+
 	// Reset transmap depth for this match operation
 	if tm := bufs.transmap; tm != nil {
 		tm.resetDepth()
@@ -203,9 +215,10 @@ func (m *coreMatcher) matchesForFields(fields []Field, bufs *nfaBuffers) ([]X, e
 	// routine will, in the case that there's a match, call itself to see if subsequent fields after the
 	// first matched will transition through the machine and eventually achieve a match
 	for i := 0; i < len(fields); i++ {
-		tryToMatch(fields, i, cmFields.state, matches, bufs)
+		tryToMatch(fields, i, cmFields.state, matchSet, bufs)
 	}
-	return matches.matchesInto(bufs.resultBuf[:0]), nil
+	matches = matchSet.matchesInto(bufs.resultBuf[:0])
+	return
 }
 
 // tryToMatch tries to match the field at fields[index] to the provided state. If it does match and generate
