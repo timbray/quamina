@@ -200,7 +200,7 @@ func (q *Quamina) GetMatcherBuildMode() MatcherBuildMode {
 // SetMemoryBudget used to set an approximate limit on the number of bytes allocated in building matchers for complex
 // patterns. However, it proved difficult to find an implementation that was both deterministic and had
 // acceptable cost. Thus, this method is deprecated.
-func (q *Quamina) SetMemoryBudget(budget uint64) (uint64, error) {
+func (q *Quamina) SetMemoryBudget(_ uint64) (uint64, error) {
 	return 0, errors.New("the MemoryBudget API is deprecated")
 }
 

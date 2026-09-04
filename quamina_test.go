@@ -189,3 +189,13 @@ func TestCityLots(t *testing.T) {
 		}
 	}
 }
+
+/* For this test to work, you need to force a panic in either AddPattern() for MatchesForEvent()
+func TestRecovery(t *testing.T) {
+	q, _ := New()
+	err := q.AddPattern("x", `{"x":[1]}`)
+	if err == nil {
+		t.Error("Should fail")
+	}
+}
+*/

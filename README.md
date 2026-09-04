@@ -247,8 +247,8 @@ must be a JSON object as exemplified above in this document.
 The `error` return is used to signal either invalid Pattern
 structure, which could be bad UTF-8 or malformed JSON
 or leaf values which are not provided as arrays, or that
-adding this Pattern would exceed the specified memory budget
-(see above).
+this Pattern was sufficiently large or deeply nested that 
+building the matcher structures caused a memory exception.
 
 As many Patterns as desired can be added to a Quamina
 instance. More than one Pattern can be added with the
@@ -269,7 +269,9 @@ internal failure of Quamina’s storage system.
 func (q *Quamina) MatchesForEvent(event []byte) ([]X, error)
 ```
 The `error` return value is nil unless there was an
-error in the encoding of the Event.
+error in the encoding of the Event, or it
+was sufficiently large or deeply nested that
+processing it caused a memory exception
 
 The `[]X` return slice may be empty if none of the Patterns
 match the provided Event.
