@@ -20,6 +20,25 @@ func TestDebugRegexp(t *testing.T) {
 	oneRegexp(t, "[~]", false)
 }
 
+func TestNegativeZero(t *testing.T) {
+	q, _ := New()
+	err := q.AddPattern("xp0", `{"x":[-0]}`)
+	if err != nil {
+		t.Error(err)
+	}
+	matches, _ := q.MatchesForEvent([]byte(`{"x": 0}`))
+	if len(matches) == 0 {
+		t.Error("-0 pattern broken")
+	}
+
+	q, _ = New()
+	_ = q.AddPattern("xe0", `{"x":[0]}`)
+	matches, _ = q.MatchesForEvent([]byte(`{"x": -0}`))
+	if len(matches) == 0 {
+		t.Error("-0 event broken")
+	}
+}
+
 func TestEmptyRegexp(t *testing.T) {
 	parse := newRxParseState([]byte{})
 	parse, err := readRegexpWithParse(parse)

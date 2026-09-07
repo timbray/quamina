@@ -20,6 +20,10 @@ type numbits uint64
 
 // numbitsFromFloat64 converts a float64 value to its numbits representation.
 func numbitsFromFloat64(f float64) numbits {
+	// some encoding formats e.g. JSON do support -0 but Quamina matching doesn't, zero is zero.
+	if f == -0 {
+		f = 0
+	}
 	u := math.Float64bits(f)
 	//nolint:gosec // disable G115
 	// transform without branching:
