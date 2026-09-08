@@ -57,10 +57,7 @@ var implementedRegexpFeatures = map[regexpFeature]bool{
 	rxfRange:           true,
 }
 
-// distinguished values to mark idioms like * and {}
-const regexpQuantifierMax = 100 // TODO: make this into an option
-const regexpMinimumOnly = 200
-
+const regexpQuantifierMax = utf8.MaxRune // TODO: make this into an option
 const Escape rune = '~'
 
 func runeToUTF8(r rune) ([]byte, error) {
@@ -698,7 +695,8 @@ func readRangeQuantifier(parse *regexpParse, qa *quantifiedAtom) error {
 	}
 	var hi int64
 	if len(hiDigits) == 0 {
-		hi = regexpMinimumOnly
+		qa.hasMinimumOnly = true
+		hi = regexpQuantifierMax
 	} else {
 		hi, err = strconv.ParseInt(string(hiDigits), 10, 32)
 		if err != nil {
