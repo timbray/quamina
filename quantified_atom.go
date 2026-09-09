@@ -8,6 +8,7 @@ type quantifiedAtom struct {
 	runes           RuneRange
 	dotRunes        bool       // true if atom is "."
 	bigRuneRangeKey string     // for the huge character_properties RuneRanges
+	hasMinimumOnly  bool       // like a{3,}
 	quantMin        int        // 0 means ? or *
 	quantMax        int        // the value regexpQuantifierMax means + or *, no max
 	subtree         regexpRoot // if non-nil, ()-enclosed subtree here
@@ -38,7 +39,7 @@ func (qa *quantifiedAtom) isStar() bool {
 }
 
 func (qa *quantifiedAtom) hasMinMax() bool {
-	return qa.quantMax != regexpQuantifierMax && qa.quantMax != regexpMinimumOnly && qa.quantMax > 1
+	return qa.quantMax != regexpQuantifierMax && (!qa.hasMinimumOnly) && qa.quantMax > 1
 }
 
 func (qa *quantifiedAtom) isNoOp() bool {
@@ -46,7 +47,7 @@ func (qa *quantifiedAtom) isNoOp() bool {
 }
 
 func (qa *quantifiedAtom) isMinimumOnly() bool {
-	return qa.quantMax == regexpMinimumOnly
+	return qa.hasMinimumOnly
 }
 
 func (qa *quantifiedAtom) makeFA(nextStep *faState, pp printer) smallTable {

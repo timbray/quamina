@@ -20,6 +20,30 @@ func TestDebugRegexp(t *testing.T) {
 	oneRegexp(t, "[~]", false)
 }
 
+func TestSentinelCollisions(t *testing.T) {
+	q, _ := New()
+	err := q.AddPattern("x", `{"x": [{"regexp": "a{100}"}]}"`)
+	if err != nil {
+		t.Error(err)
+	}
+	a100 := ""
+	for i := 0; i < 100; i++ {
+		a100 += "a"
+	}
+	err = q.AddPattern("x", `{"x": [{"regexp": "a{100}"}]}"`)
+	if err != nil {
+		t.Error(err)
+	}
+	e := fmt.Sprintf(`{"x": "%s"}`, a100)
+	matches, err := q.MatchesForEvent([]byte(e))
+	if err != nil {
+		t.Error(err)
+	}
+	if len(matches) == 0 {
+		t.Error("Sentinel failure 100")
+	}
+}
+
 func TestNegativeZero(t *testing.T) {
 	q, _ := New()
 	err := q.AddPattern("xp0", `{"x":[-0]}`)
