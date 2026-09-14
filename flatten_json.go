@@ -527,6 +527,14 @@ func (fj *flattenJSON) readLiteral(literal []byte) ([]byte, error) {
 			return nil, fj.error("truncated literal value")
 		}
 	}
+
+	// we've shown that the target literal is a prefix of the bytes at fj.eventIndex
+	// at the start of this call. Now we have to show that the literal ends and is an
+	// exact match not, i.e. the next byte has to be a syntax char
+	next := fj.ch()
+	if next != ' ' && next != ',' && next != ']' && next != '}' && next != '\n' && next != '\t' {
+		return nil, fj.error("unknown literal")
+	}
 	fj.eventIndex--
 	return literal, nil
 }
