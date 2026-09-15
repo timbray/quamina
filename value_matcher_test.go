@@ -57,6 +57,18 @@ func TestNoOpTransition(t *testing.T) {
 	}
 }
 
+func TestLiteralPrefix(t *testing.T) {
+	q, _ := New()
+	err := q.AddPattern("x", `{"x": [true]}`)
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = q.MatchesForEvent([]byte(`{"x":trueish}`))
+	if err == nil {
+		t.Error("accepted invalid event")
+	}
+}
+
 func TestAddTransition(t *testing.T) {
 	m := newValueMatcher()
 	v1 := typedVal{
