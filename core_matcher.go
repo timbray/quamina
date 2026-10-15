@@ -30,6 +30,10 @@ type coreMatcher struct {
 	// never accessed concurrently. Lives here (not a sync.Pool) so the maps are
 	// never evicted mid-build; see epsilonClosureInto.
 	closureBufs *closureBuffers
+	// compact is non-nil once Patterns have been added with addPatterns. The automaton then shares structure
+	// and must not be updated in place, so every subsequent addition goes through the compactBuilder.
+	// Guarded by lock.
+	compact *compactBuilder
 }
 
 // coreFields groups the updateable fields in coreMatcher.
@@ -70,18 +74,77 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 		}
 	}()
 
-	patternFields, err := patternFromJSON([]byte(patternJSON))
+	patternFields, err := parseSortedPattern(patternJSON)
 	if err != nil {
 		return err
 	}
-
-	// sort the pattern fields lexically
-	slices.SortFunc(patternFields, func(a, b *patternField) int { return cmp.Compare(a.path, b.path) })
 
 	// only one thread can be updating at a time
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
+	if m.compact != nil {
+		m.compact.build(m, []parsedPattern{{x: x, fields: patternFields}}, buildMode)
+		return nil
+	}
+	m.addFieldsLocked(x, patternFields, printer, buildMode)
+	return nil
+}
+
+func parseSortedPattern(patternJSON string) ([]*patternField, error) {
+	patternFields, err := patternFromJSON([]byte(patternJSON))
+	if err != nil {
+		return nil, err
+	}
+
+	// sort the pattern fields lexically
+	slices.SortFunc(patternFields, func(a, b *patternField) int { return cmp.Compare(a.path, b.path) })
+	return patternFields, nil
+}
+
+// addPatterns adds a batch of Patterns. If the matcher is empty, or was itself built by addPatterns, the
+// batch is compiled with the compactBuilder; otherwise the Patterns are added one at a time.
+func (m *coreMatcher) addPatterns(patterns []Pattern, buildMode MatcherBuildMode) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("call to AddPatterns caused a crash, probably because a Pattern is too large or too deeply nested")
+		}
+	}()
+
+	parsed := make([]parsedPattern, 0, len(patterns))
+	for _, p := range patterns {
+		patternFields, err := parseSortedPattern(p.JSON)
+		if err != nil {
+			return err
+		}
+		parsed = append(parsed, parsedPattern{x: p.X, fields: patternFields})
+	}
+
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	if m.compact == nil {
+		if !m.isEmpty() {
+			for _, p := range parsed {
+				m.addFieldsLocked(p.x, p.fields, sharedNullPrinter, buildMode)
+			}
+			return nil
+		}
+		m.compact = newCompactBuilder()
+	}
+	m.compact.build(m, parsed, buildMode)
+	return nil
+}
+
+func (m *coreMatcher) isEmpty() bool {
+	start := m.fields().state.fields()
+	return len(start.transitions) == 0 && len(start.matches) == 0 &&
+		len(start.existsTrue) == 0 && len(start.existsFalse) == 0
+}
+
+// addFieldsLocked adds a parsed Pattern, whose fields must be sorted, to the automaton in place. The caller
+// must hold m.lock.
+func (m *coreMatcher) addFieldsLocked(x X, patternFields []*patternField, printer printer, buildMode MatcherBuildMode) {
 	// Reuse the closure scratch but empty it each build so its maps hold only
 	// this pattern's working set, not every state in the matcher.
 	m.closureBufs.reset()
@@ -133,7 +196,6 @@ func (m *coreMatcher) addPatternWithPrinter(x X, patternJSON string, printer pri
 		endState.addMatch(x)
 	}
 	m.updateable.Store(freshStart)
-	return nil
 }
 
 // deletePattern not implemented by coreMatcher

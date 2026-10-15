@@ -133,6 +133,35 @@ func (q *Quamina) AddPattern(x X, patternJSON string) error {
 	return q.matcher.addPattern(x, patternJSON, q.buildMode)
 }
 
+// Pattern pairs a Pattern's identifier with its JSON text, for use with AddPatterns.
+type Pattern struct {
+	X    X
+	JSON string
+}
+
+// AddPatterns adds a batch of Patterns, with the same matching results as calling AddPattern on each of them.
+// When the Quamina instance has no Patterns yet, the whole batch is compiled together: Patterns that share
+// field values share automaton states, identical sub-automata are built once, and a Pattern's size grows with
+// the total number of values in it rather than the product of the number of values in each field. This is
+// much faster and smaller for large sets of Patterns, especially ones with many values per field.
+// Because the resulting automaton shares structure, an instance built this way compiles every later
+// AddPattern or AddPatterns call the same way, rebuilding only the parts of the automaton those Patterns
+// touch; adding Patterns in large batches is much cheaper than adding them one at a time.
+// When compiled as a batch, if any Pattern is invalid, an error is returned and none of the batch is added.
+// Instances that already hold Patterns added with AddPattern, and instances created with
+// WithPatternDeletion, add the batch one Pattern at a time.
+func (q *Quamina) AddPatterns(patterns []Pattern) error {
+	if cm, ok := q.matcher.(*coreMatcher); ok {
+		return cm.addPatterns(patterns, q.buildMode)
+	}
+	for _, p := range patterns {
+		if err := q.matcher.addPattern(p.X, p.JSON, q.buildMode); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // DeletePatterns removes patterns identified by the x argument from the Quamina instance; the effect
 // is that return values from future calls to MatchesForEvent will not include this x value.
 func (q *Quamina) DeletePatterns(x X) error {
