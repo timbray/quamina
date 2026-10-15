@@ -236,6 +236,7 @@ func tryToMatch(fields []Field, index int, state *fieldMatcher, matches *matchSe
 				tryToMatch(fields, nextIndex, existsTrans, matches, bufs)
 			}
 		}
+		checkExistsFalse(existsTrans.fields(), fields, index, matches, bufs)
 	}
 
 	// an exists:false transition is possible if there is no matching field in the event

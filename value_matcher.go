@@ -52,8 +52,22 @@ func newValueMatcher() *valueMatcher {
 
 func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fieldMatcher {
 	vmFields := m.fields()
-	transitions := bufs.transitionsBuf[:0]
 
+	// The caller iterates over the result while recursing into transitionOn for later fields, so when
+	// called from tryToMatch the result goes in the transmap level for this depth, not a shared buffer.
+	tm := bufs.getTransmap()
+	transitions := bufs.transitionsBuf[:0]
+	if tm.depth >= 0 {
+		transitions = tm.levels[tm.depth][:0]
+	}
+	transitions = m.valueTransitions(vmFields, eventField, transitions, bufs)
+	if tm.depth >= 0 && transitions != nil {
+		tm.levels[tm.depth] = transitions
+	}
+	return transitions
+}
+
+func (m *valueMatcher) valueTransitions(vmFields *vmFields, eventField *Field, transitions []*fieldMatcher, bufs *nfaBuffers) []*fieldMatcher {
 	val := eventField.Val
 	switch {
 	case vmFields.singletonMatch != nil:

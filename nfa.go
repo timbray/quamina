@@ -2,6 +2,7 @@ package quamina
 
 import (
 	"fmt"
+	"slices"
 	"unsafe"
 )
 
@@ -21,6 +22,13 @@ type faState struct {
 	// len 1 is never stored: a {self} result collapses to the sentinel.
 	epsilonClosure []*faState
 	isSpinner      bool
+}
+
+// isPassThrough reports whether a state exists only to route epsilon transitions, so it can be omitted
+// from closures and splices. A state with no byte transitions but with fieldTransitions is not
+// pass-through; dropping it would lose its matches.
+func (s *faState) isPassThrough() bool {
+	return s.table.isEpsilonOnly() && len(s.fieldTransitions) == 0
 }
 
 /*
@@ -381,7 +389,7 @@ func simplifyCollect(s *faState, visited map[*faState]bool, targets []*faState) 
 	}
 	visited[s] = true
 
-	if s.table.isEpsilonOnly() {
+	if s.isPassThrough() {
 		for _, eps := range s.table.epsilons {
 			targets = simplifyCollect(eps, visited, targets)
 		}
@@ -458,7 +466,7 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 		return combined
 	}
 
-	combined.fieldTransitions = append(state1.fieldTransitions, state2.fieldTransitions...)
+	combined.fieldTransitions = slices.Concat(state1.fieldTransitions, state2.fieldTransitions)
 
 	pp.labelTable(&combined.table, fmt.Sprintf("%d∎%d",
 		pp.tableSerial(&state1.table), pp.tableSerial(&state2.table)))
@@ -508,7 +516,7 @@ func mergeFAStates(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp p
 func asymmetricSpinnerMerge(spinner, nonSpinner *faState, keyMemo map[faStepKey]*faState, pp printer) *faState {
 	mKey := makeFaStepKey(spinner, nonSpinner)
 	combined := &faState{table: newSmallTable()}
-	combined.fieldTransitions = append(spinner.fieldTransitions, nonSpinner.fieldTransitions...)
+	combined.fieldTransitions = slices.Concat(spinner.fieldTransitions, nonSpinner.fieldTransitions)
 
 	pp.labelTable(&combined.table, fmt.Sprintf("%d∎%d",
 		pp.tableSerial(&spinner.table), pp.tableSerial(&nonSpinner.table)))
@@ -527,8 +535,8 @@ func asymmetricSpinnerMerge(spinner, nonSpinner *faState, keyMemo map[faStepKey]
 
 		switch {
 		case spinnerNext == nil:
-			// illegal UTF-8
-			mergedState = nil
+			// not valid UTF-8 for the spinner, but the nonspinner may use it, e.g. for valueTerminator
+			mergedState = nonSpinnernext
 
 		case nonSpinnernext == nil:
 			mergedState = spinnerNext
@@ -540,15 +548,15 @@ func asymmetricSpinnerMerge(spinner, nonSpinner *faState, keyMemo map[faStepKey]
 			mergedTable := smallTable{
 				steps:    nonSpinnernext.table.steps,
 				ceilings: nonSpinnernext.table.ceilings,
-				epsilons: append(nonSpinnernext.table.epsilons, spinner),
+				epsilons: slices.Concat(nonSpinnernext.table.epsilons, []*faState{spinner}),
 			}
-			mergedState = &faState{table: mergedTable, fieldTransitions: spinner.fieldTransitions}
+			mergedState = &faState{table: mergedTable, fieldTransitions: nonSpinnernext.fieldTransitions}
 
 		default:
 			// if spinner's branch isn't a loopback, we need to merge its target with the nonspinner
 			// while preserving the epsilon to the spinner
 			mergedState = mergeFAStates(spinnerNext, nonSpinnernext, keyMemo, pp)
-			mergedState.table.epsilons = append(mergedState.table.epsilons, spinner)
+			mergedState.table.epsilons = slices.Concat(mergedState.table.epsilons, []*faState{spinner})
 		}
 		uComb[utf8byte] = mergedState
 	}
@@ -575,7 +583,7 @@ func asymmetricSpinnerMerge(spinner, nonSpinner *faState, keyMemo map[faStepKey]
 
 func symmetricSpinnerMerge(state1, state2 *faState, keyMemo map[faStepKey]*faState, pp printer) *faState {
 	combined := &faState{table: newSmallTable()}
-	combined.fieldTransitions = append(state1.fieldTransitions, state2.fieldTransitions...)
+	combined.fieldTransitions = slices.Concat(state1.fieldTransitions, state2.fieldTransitions)
 
 	pp.labelTable(&combined.table, fmt.Sprintf("%d∎%d",
 		pp.tableSerial(&state1.table), pp.tableSerial(&state2.table)))
@@ -605,7 +613,7 @@ func symmetricSpinnerMerge(state1, state2 *faState, keyMemo map[faStepKey]*faSta
 			table := smallTable{
 				ceilings: next2.table.ceilings,
 				steps:    next2.table.steps,
-				epsilons: append(state2.table.epsilons, combined),
+				epsilons: slices.Concat(state2.table.epsilons, []*faState{combined}),
 			}
 			mergedState = &faState{
 				table:            table,
@@ -616,7 +624,7 @@ func symmetricSpinnerMerge(state1, state2 *faState, keyMemo map[faStepKey]*faSta
 			table := smallTable{
 				ceilings: next1.table.ceilings,
 				steps:    next1.table.steps,
-				epsilons: append(state1.table.epsilons, combined),
+				epsilons: slices.Concat(state1.table.epsilons, []*faState{combined}),
 			}
 			mergedState = &faState{
 				table:            table,
@@ -625,7 +633,7 @@ func symmetricSpinnerMerge(state1, state2 *faState, keyMemo map[faStepKey]*faSta
 		default:
 			// neither is a spin link
 			mergedState = mergeFAStates(next1, next2, keyMemo, pp)
-			mergedState.table.epsilons = append(mergedState.table.epsilons, combined)
+			mergedState.table.epsilons = slices.Concat(mergedState.table.epsilons, []*faState{combined})
 		}
 		uComb[i] = mergedState
 	}

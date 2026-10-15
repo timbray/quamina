@@ -208,7 +208,7 @@ func closureForState(state *faState, bufs *closureBuffers) {
 	// below. Only non-epsilon-only states are collected, so when self is
 	// epsilon-only a closureList of length 1 holds some *other* state, not self
 	// — the self-only checks must not fire on it.
-	selfWasCollected := !state.table.isEpsilonOnly()
+	selfWasCollected := !state.isPassThrough()
 
 	// Generation-based visited tracking: bufs.states records which gen last
 	// visited each state, so we never clear the map between traversals.
@@ -284,7 +284,7 @@ func traverseEpsilons(start *faState, epsilons []*faState, bufs *closureBuffers)
 			continue
 		}
 		bufs.states[eps] = bufs.closureSetGen
-		if !eps.table.isEpsilonOnly() {
+		if !eps.isPassThrough() {
 			bufs.closureList = append(bufs.closureList, eps)
 		}
 		traverseEpsilons(start, eps.table.epsilons, bufs)
