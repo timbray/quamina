@@ -187,6 +187,10 @@ func readBranches(parse *regexpParse) error {
 		b, _ = parse.nextRune() // we already know we're not at EOF
 		if b == '|' {
 			parse.features.recordFeature(rxfOrBar)
+			if parse.isEmpty() {
+				// a trailing | is followed by an empty branch
+				parse.tree = append(parse.tree, regexpBranch{})
+			}
 			continue
 		} else if b == ')' {
 			parse.backup1(b)

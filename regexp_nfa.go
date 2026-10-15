@@ -33,14 +33,14 @@ func makeRegexpNFA(root regexpRoot, pp printer) (*faState, *fieldMatcher) {
 func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition bool, pp printer) smallTable {
 	// completely empty regexp
 	if len(root) == 0 {
-		return makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
+		return emptyBranchTable(nextStep, addQuoteTransition)
 	}
 	var fa smallTable
 	first := true
 	for _, branch := range root {
 		var nextBranch smallTable
 		if len(branch) == 0 {
-			nextBranch = makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
+			nextBranch = emptyBranchTable(nextStep, addQuoteTransition)
 			pp.labelTable(&nextBranch, "next on len 0")
 		} else {
 			nextBranch = faFromBranch(branch, nextStep, addQuoteTransition, pp)
@@ -53,6 +53,17 @@ func makeNFAFromBranches(root regexpRoot, nextStep *faState, addQuoteTransition 
 		}
 	}
 	return fa
+}
+
+// emptyBranchTable matches the empty string: at the top level that's the opening quote with nothing
+// after it, but inside a group it consumes nothing at all.
+func emptyBranchTable(nextStep *faState, addQuoteTransition bool) smallTable {
+	if addQuoteTransition {
+		return makeSmallTable(nil, []byte{'"'}, []*faState{nextStep})
+	}
+	table := newSmallTable()
+	table.epsilons = []*faState{nextStep}
+	return table
 }
 
 func faFromBranch(branch regexpBranch, nextStep *faState, addQuoteTransition bool, pp printer) smallTable {
