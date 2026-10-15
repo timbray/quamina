@@ -109,6 +109,7 @@ type nfaBuffers struct {
 	fieldSet       map[*fieldMatcher]bool
 	qNumBuf        [MaxBytesInEncoding]byte
 	timeBuf        [weekDigits]byte
+	numericBuf     [numericDigits]byte
 }
 
 func newNfaBuffers() *nfaBuffers {

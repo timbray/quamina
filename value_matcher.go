@@ -29,6 +29,7 @@ type vmFields struct {
 	hasNumbers          bool
 	isNondeterministic  bool
 	timeZones           []tzMatcher
+	numeric             *faState
 }
 
 func (m *valueMatcher) fields() *vmFields {
@@ -64,6 +65,9 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 	transitions = m.valueTransitions(vmFields, eventField, transitions, bufs)
 	if len(vmFields.timeZones) > 0 {
 		transitions = timeTransitions(vmFields.timeZones, eventField, transitions, bufs)
+	}
+	if vmFields.numeric != nil && eventField.IsNumber {
+		transitions = numericTransitions(vmFields.numeric, eventField, transitions, bufs)
 	}
 	if tm.depth >= 0 && transitions != nil {
 		tm.levels[tm.depth] = transitions
@@ -117,6 +121,19 @@ func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closur
 	if val.vType == timeWindowType {
 		nextField := newFieldMatcher()
 		fields.timeZones = addTimeWindow(fields.timeZones, timeWindowFromVal(val.val), nextField)
+		m.update(fields)
+		return nextField
+	}
+
+	// so do numeric ranges, which only number-valued event fields traverse
+	if val.vType == numericRangeType {
+		nextField := newFieldMatcher()
+		fa := makeNumericRangeFA(numericRangeFromVal(val.val), nextField)
+		if fields.numeric == nil {
+			fields.numeric = fa
+		} else {
+			fields.numeric = mergeStartStates(fields.numeric, fa, printer)
+		}
 		m.update(fields)
 		return nextField
 	}
