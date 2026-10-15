@@ -61,9 +61,13 @@ const (
 	fjInArrayState
 	fjAfterValueState
 	fjNumberStartState
+	fjNumberAfterMinusState
+	fjNumberLeadingZeroState
 	fjNumberIntegralPartState
+	fjNumberFracStartState
 	fjNumberFracState
 	fjNumberAfterEState
+	fjNumberExpSignState
 	fjNumberExpState
 	fjTrailerState
 	fjStartEscapeState
@@ -455,19 +459,31 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 	for i := numStart; i < len(fj.event); i++ {
 		ch := fj.event[i]
 		switch state {
-		case fjNumberStartState:
+		case fjNumberStartState, fjNumberAfterMinusState:
 			switch ch {
 			case '-':
+				if state == fjNumberAfterMinusState {
+					fj.eventIndex = i
+					return nil, fj.error("illegal char '-' in number")
+				}
+				state = fjNumberAfterMinusState
+			case '0':
+				state = fjNumberLeadingZeroState
+			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				state = fjNumberIntegralPartState
-			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				state = fjNumberIntegralPartState
+			default:
+				fj.eventIndex = i
+				return nil, fj.error(fmt.Sprintf("illegal char '%c' at start of number", ch))
 			}
-		case fjNumberIntegralPartState:
+		case fjNumberLeadingZeroState, fjNumberIntegralPartState:
 			switch ch {
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				// no-op
+				if state == fjNumberLeadingZeroState {
+					fj.eventIndex = i
+					return nil, fj.error("leading zero in number")
+				}
 			case '.':
-				state = fjNumberFracState
+				state = fjNumberFracStartState
 			case 'e', 'E':
 				state = fjNumberAfterEState
 			case ',', ']', '}', ' ', '\t', '\n', '\r':
@@ -476,6 +492,14 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 			default:
 				fj.eventIndex = i
 				return nil, fj.error(fmt.Sprintf("illegal char '%c' in number", ch))
+			}
+		case fjNumberFracStartState:
+			switch ch {
+			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				state = fjNumberFracState
+			default:
+				fj.eventIndex = i
+				return nil, fj.error(fmt.Sprintf("illegal char '%c' after '.' in number", ch))
 			}
 		case fjNumberFracState:
 			switch ch {
@@ -493,13 +517,23 @@ func (fj *flattenJSON) readNumber() ([]byte, error) {
 			}
 		case fjNumberAfterEState:
 			switch ch {
-			case '-', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				// no-op
+			case '+', '-':
+				state = fjNumberExpSignState
+			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				state = fjNumberExpState
 			default:
 				fj.eventIndex = i
 				return nil, fj.error(fmt.Sprintf("illegal char '%c' after 'e' in number", ch))
 			}
-			state = fjNumberExpState
+
+		case fjNumberExpSignState:
+			switch ch {
+			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				state = fjNumberExpState
+			default:
+				fj.eventIndex = i
+				return nil, fj.error(fmt.Sprintf("illegal char '%c' after exponent sign in number", ch))
+			}
 
 		case fjNumberExpState:
 			switch ch {
