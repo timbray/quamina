@@ -23,11 +23,13 @@ const (
 	monocaseType
 	wildcardType
 	regexpType
+	timeWindowType
 )
 
 // typedVal represents the value of a field in a pattern, giving the value and the type of pattern.
 // - list is used to handle anything-but matches with multiple values.
 // - parsedRegexp only used for vType == regexpType
+// - for vType == timeWindowType, val is the canonical form of the window; see timeWindowFromVal
 type typedVal struct {
 	vType        valType
 	val          string
@@ -212,6 +214,8 @@ func readSpecialPattern(pb *patternBuild, valsIn []typedVal) (pathVals []typedVa
 	case "regexp":
 		containsExclusive = tt
 		pathVals, err = readRegexpSpecial(pb, pathVals)
+	case "time-window":
+		pathVals, err = readTimeWindowSpecial(pb, pathVals)
 	default:
 		err = errors.New("unrecognized in special pattern: " + tt)
 	}

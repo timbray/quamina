@@ -28,6 +28,7 @@ type vmFields struct {
 	singletonTransition *fieldMatcher
 	hasNumbers          bool
 	isNondeterministic  bool
+	timeZones           []tzMatcher
 }
 
 func (m *valueMatcher) fields() *vmFields {
@@ -61,6 +62,9 @@ func (m *valueMatcher) transitionOn(eventField *Field, bufs *nfaBuffers) []*fiel
 		transitions = tm.levels[tm.depth][:0]
 	}
 	transitions = m.valueTransitions(vmFields, eventField, transitions, bufs)
+	if len(vmFields.timeZones) > 0 {
+		transitions = timeTransitions(vmFields.timeZones, eventField, transitions, bufs)
+	}
 	if tm.depth >= 0 && transitions != nil {
 		tm.levels[tm.depth] = transitions
 	}
@@ -108,6 +112,14 @@ func (m *valueMatcher) valueTransitions(vmFields *vmFields, eventField *Field, t
 func (m *valueMatcher) addTransition(val typedVal, printer printer, bufs *closureBuffers, buildMode MatcherBuildMode) *fieldMatcher {
 	valBytes := []byte(val.val)
 	fields := m.getFieldsForUpdate()
+
+	// time windows have their own automata, one per time zone
+	if val.vType == timeWindowType {
+		nextField := newFieldMatcher()
+		fields.timeZones = addTimeWindow(fields.timeZones, timeWindowFromVal(val.val), nextField)
+		m.update(fields)
+		return nextField
+	}
 
 	// special case - virgin state and this is a string match
 	if fields.start == nil && fields.singletonMatch == nil && (val.vType == stringType || val.vType == literalType) {
