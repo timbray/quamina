@@ -80,7 +80,7 @@ func BenchmarkWorkload_RegexAlternation(b *testing.B) {
 	keywords := []string{"foo", "bar", "baz", "quux", "xyzzy"}
 	for i := 0; i < 20; i++ {
 		kw := keywords[i%len(keywords)]
-		p := fmt.Sprintf(`{"x": [{"regex": "(%s|alt%d)\\d+"}]}`, kw, i)
+		p := fmt.Sprintf(`{"x": [{"regexp": "(%s|alt%d)[0-9]+"}]}`, kw, i)
 		_ = q.AddPattern(fmt.Sprintf("p%d", i), p)
 	}
 	ev := []byte(`{"x":"foo42"}`)
@@ -98,7 +98,7 @@ func BenchmarkWorkload_RegexAlternation(b *testing.B) {
 // regex. Real log-line shape.
 func BenchmarkWorkload_LiteralInRegex(b *testing.B) {
 	q, _ := New()
-	_ = q.AddPattern("p", `{"x": [{"regex": ".*ERROR.*\\d+.*"}]}`)
+	_ = q.AddPattern("p", `{"x": [{"regexp": ".*ERROR.*[0-9]+.*"}]}`)
 	ev := []byte(`{"x":"2026-05-18T10:00:00 ERROR request_id=42 connection refused"}`)
 	for i := 0; i < 100; i++ {
 		_, _ = q.MatchesForEvent(ev)
@@ -115,7 +115,7 @@ func BenchmarkWorkload_LiteralInRegex(b *testing.B) {
 func BenchmarkWorkload_QuantifiedCharClass(b *testing.B) {
 	q, _ := New()
 	for i := 0; i < 5; i++ {
-		p := fmt.Sprintf(`{"x": [{"regex": "[a-z]{8,16}sfx%d"}]}`, i)
+		p := fmt.Sprintf(`{"x": [{"regexp": "[a-z]{8,16}sfx%d"}]}`, i)
 		_ = q.AddPattern(fmt.Sprintf("p%d", i), p)
 	}
 	ev := []byte(`{"x":"abcdefghijksfx3"}`)
@@ -135,7 +135,7 @@ func BenchmarkWorkload_QuantifiedCharClass(b *testing.B) {
 func BenchmarkWorkload_ManyAnchoredRegex(b *testing.B) {
 	q, _ := New()
 	for i := 0; i < 200; i++ {
-		p := fmt.Sprintf(`{"x": [{"regex": "PFX[0-9]+SFX%d"}]}`, i)
+		p := fmt.Sprintf(`{"x": [{"regexp": "PFX[0-9]+SFX%d"}]}`, i)
 		_ = q.AddPattern(fmt.Sprintf("p%d", i), p)
 	}
 	events := [][]byte{
@@ -158,7 +158,7 @@ func BenchmarkWorkload_ManyAnchoredRegex(b *testing.B) {
 // epsilon closure depth via nested alternation and quantifiers.
 func BenchmarkWorkload_DeepEpsilonNest(b *testing.B) {
 	q, _ := New()
-	_ = q.AddPattern("p", `{"x": [{"regex": "((a|b|c)*(d|e|f)*)+"}]}`)
+	_ = q.AddPattern("p", `{"x": [{"regexp": "((a|b|c)*(d|e|f)*)+"}]}`)
 	ev := []byte(`{"x":"abcdefabcdefabcdef"}`)
 	for i := 0; i < 100; i++ {
 		_, _ = q.MatchesForEvent(ev)
